@@ -2,10 +2,33 @@
 %%! -pa _build/default/lib/hecate_biotope/ebin
 %% Watch the energy economy over time, across several seeds.
 %%
-%% THIS IS THE INSTRUMENT FOR TUNING THE FOUR NUMBERS, and it exists because
-%% "the population survived 500 ticks" is a test and not an answer. A run can
-%% survive by sitting at the creature cap, by oscillating violently, or by
-%% drifting slowly to nothing, and those want three different responses.
+%% THIS IS THE INSTRUMENT FOR TUNING THE ECONOMY, and it exists because "the
+%% population survived 500 ticks" is a test and not an answer. A run can survive
+%% by sitting at the creature cap, by oscillating violently, or by drifting
+%% slowly to nothing, and those want three different responses.
+%%
+%% ==========================================================================
+%% TUNE FOR VIABILITY. NEVER FOR AN OUTCOME.
+%% ==========================================================================
+%%
+%% A number in this world may be set by whether the world WORKS:
+%%
+%%   nothing goes extinct, or extinction is the finding rather than the noise
+%%   the population is not pinned against max_creatures
+%%   the energy books balance
+%%   a sense has something to discriminate, or its organ pays rent for nothing
+%%
+%% A number may NEVER be set by what EVOLVES in it. "Carnivores appear at this
+%% value" is not a reason to choose that value, because the carnivores are the
+%% thing being claimed as a discovery. Choosing the rules by the phenotype
+%% installs the result and then reports finding it.
+%%
+%% This rule is written here because this is the file where the mistake gets
+%% made. It has been made once already: scent_mutation was set to the value that
+%% produced the most carnivores, across five sweeps that all shared that same
+%% success criterion, and the number had to be re-derived from a property of the
+%% SIGNAL instead. Nothing below privileges one outcome over another, and the
+%% summary deliberately reports no headline phenotype at all.
 %%
 %% Several seeds because one run of a stochastic world tells you about that run.
 %% If the seeds disagree about whether anything lives, the economy is on a knife
@@ -69,7 +92,7 @@ sample(W, Left, Every, Acc) ->
 
 report(Rows, Ticks) ->
     io:format("~s~n", [row(["seed", "final", "peak", "trough", "plants",
-                            "born", "starved", "killed", "aged", "breed_at"])]),
+                            "born", "starved", "killed", "aged"])]),
     lists:foreach(fun print_row/1, Rows),
     diet_table(Rows),
     Finals = [P || #{final := #{population := P}} <- Rows],
@@ -78,45 +101,35 @@ report(Rows, Ticks) ->
               [Extinct, length(Rows), Ticks]),
     io:format("final population: min ~p median ~p max ~p~n",
               [lists:min(Finals), median(Finals), lists:max(Finals)]),
-    Breeds = [B || #{final := #{breed_at_mean := B}} <- Rows],
-    io:format("mean breed_at:    min ~p median ~p max ~p~n",
-              [lists:min(Breeds), median(Breeds), lists:max(Breeds)]),
-    Carn = [pct(carnivores, D) || #{final := #{diet := D}} <- Rows],
-    io:format("carnivore pct:    min ~p median ~p max ~p~n",
-              [lists:min(Carn), median(Carn), lists:max(Carn)]),
     trajectory(hd(Rows)).
 
 print_row(#{seed := S, peak := Pk, trough := Tr,
             final := #{population := P, plants := Pl, born := B,
-                       starved := St, killed := K, aged_out := Ag,
-                       breed_at_mean := Breed}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, K, Ag, Breed])]).
+                       starved := St, killed := K, aged_out := Ag}}) ->
+    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, K, Ag])]).
 
-%% WHAT THE POPULATION TURNED OUT TO BE, and whether its equipment paid for
-%% itself. Per seed rather than averaged, because the last measurement here was
-%% wrecked by between-seed spread that a median would have hidden.
+%% WHAT THE POPULATION TURNED OUT TO BE. Everything that varies, side by side,
+%% with NONE OF IT PRIVILEGED: no headline metric, no summary line that picks a
+%% winner. A probe that reports one number at the top is a probe that will be run
+%% until that number moves, and the last round of sweeps here did exactly that.
+%%
+%% Per seed rather than averaged, because an earlier measurement was wrecked by
+%% between-seed spread that a median would have hidden.
 diet_table(Rows) ->
-    io:format("~n~s~n", [row(["seed", "herb", "omni", "carn", "undec",
-                              "eye", "gut", "nose", "scent", "tags"])]),
+    io:format("~n~s~n", [row(["seed", "breed_at", "herb", "omni", "carn",
+                              "undec", "eye", "gut", "nose", "scent", "tags",
+                              "spread"])]),
     lists:foreach(fun print_diet/1, Rows).
 
 print_diet(#{seed := S, final := #{diet := D, organs := O, scent_cells := Sc,
-                              scent_tags := Tg}}) ->
+                                   scent_tags := Tg, scent_spread := Sp,
+                                   breed_at_mean := Br}}) ->
     Get = fun(Map, K) -> maps:get(K, Map, 0) end,
-    io:format("~s~n", [row([S,
+    io:format("~s~n", [row([S, Br,
                             Get(D, herbivores), Get(D, omnivores),
                             Get(D, carnivores), Get(D, undecided),
-                            Get(O, eye), Get(O, gut), Get(O, nose), Sc, Tg])]).
-
-%% Of the creatures that have a diet at all. Counting the undecided newborns in
-%% the denominator would make a fast-breeding world look permanently vegetarian.
-pct(Class, Diet) ->
-    Decided = maps:get(herbivores, Diet) + maps:get(omnivores, Diet)
-              + maps:get(carnivores, Diet),
-    share(Decided, maps:get(Class, Diet)).
-
-share(0, _N) -> 0;
-share(Decided, N) -> N * 100 div Decided.
+                            Get(O, eye), Get(O, gut), Get(O, nose),
+                            Sc, Tg, Sp])]).
 
 %% Columns padded by hand. A negative field width on ~p is not accepted, and the
 %% failure is a bare "failed to format string" that names no column.

@@ -115,3 +115,45 @@ drift_accumulates_over_generations_test() ->
     Descend = fun(_G, {Tag, R0}) -> scent:inherit(Tag, always(), R0) end,
     {Far, _} = lists:foldl(Descend, {0, rng()}, lists:seq(1, 40)),
     ?assert(scent:strangeness(0, Far) > 1).
+
+%%==============================================================================
+%% Information content
+%%==============================================================================
+
+%% A PROPERTY OF THE SIGNAL, NOT OF WHAT EVOLVED. This is the measure the
+%% mutation rate is chosen by, and it exists because the rate was once chosen by
+%% which value produced the diet we hoped for, which installs the result.
+a_population_of_one_smell_carries_nothing_test() ->
+    ?assertEqual(0, scent:spread([9, 9, 9, 9, 9])).
+
+%% Every component differs between the two halves, so every pair is maximally
+%% strange and the spread is the whole range.
+two_opposite_camps_carry_everything_test() ->
+    ?assertEqual(100, scent:spread([0, 255])),
+    ?assertEqual(100, scent:spread([2#11110000, 2#00001111])).
+
+%% Independent signatures differ in half their components, which is why 50 is the
+%% baseline the mutation rate is measured against rather than 100.
+unrelated_signatures_sit_near_the_halfway_baseline_test() ->
+    {Tags, _} = lists:mapfoldl(fun(_I, R) -> scent:founder(econ(), R) end,
+                               rand:seed_s(exsss, {11, 12, 13}),
+                               lists:seq(1, 400)),
+    Spread = scent:spread(Tags),
+    ?assert(Spread > 45),
+    ?assert(Spread < 55).
+
+%% Too small to have a pair: zero rather than a crash or a nonsense average, so a
+%% dying world reports a dead signal instead of failing to report.
+a_population_too_small_to_compare_carries_nothing_test() ->
+    ?assertEqual(0, scent:spread([])),
+    ?assertEqual(0, scent:spread([42])).
+
+%% Counted per component rather than per pair, so the two must agree. This is the
+%% only assertion that the O(N) trick computes the O(N^2) answer.
+spread_agrees_with_comparing_every_pair_test() ->
+    Tags = [3, 200, 17, 17, 96, 255, 8, 129],
+    Pairs = [scent:strangeness(A, B)
+             || {A, I} <- lists:zip(Tags, lists:seq(1, length(Tags))),
+                {B, J} <- lists:zip(Tags, lists:seq(1, length(Tags))), I < J],
+    Expected = lists:sum(Pairs) * 100 div (scent:bits() * length(Pairs)),
+    ?assertEqual(Expected, scent:spread(Tags)).

@@ -33,7 +33,7 @@
 %% That is a deliberate limit on this increment rather than an oversight.
 -module(scent).
 
--export([founder/2, inherit/3, perceived/2, strangeness/2, bits/0]).
+-export([founder/2, inherit/3, perceived/2, strangeness/2, bits/0, spread/1]).
 
 -type tag() :: non_neg_integer().
 -type mark() :: {pos_integer(), tag()}.
@@ -90,3 +90,32 @@ differing(N) -> (N band 1) + differing(N bsr 1).
 -spec perceived(mark(), tag()) -> non_neg_integer().
 perceived({Strength, Theirs}, Mine) ->
     Strength * strangeness(Mine, Theirs) div ?BITS.
+
+%% @doc How unlike two randomly chosen members of a population smell, as a
+%% percentage of the maximum. The information content of the signature.
+%%
+%% THIS IS A PROPERTY OF THE SIGNAL AND NOT OF WHAT ANYTHING EVOLVED TO DO WITH
+%% IT, and that distinction is the reason this function exists. The mutation rate
+%% has to be set somehow, and setting it by which value produced the diet we were
+%% hoping for is circular: it installs the result and then reports discovering
+%% it. This is the honest criterion instead. A signature everyone shares carries
+%% no information, so a nose is being charged rent for a sense that cannot
+%% discriminate, and that is a defect in the world whatever ends up living in it.
+%%
+%% Zero for a population too small to have a pair, rather than a crash or a
+%% nonsense average.
+%%
+%% Counted per component rather than per pair: if K of N carry a component then
+%% exactly K*(N-K) pairs differ on it. Same answer as comparing every pair, in
+%% time proportional to the population rather than its square.
+-spec spread([tag()]) -> non_neg_integer().
+spread(Tags) -> across(length(Tags), Tags).
+
+across(N, _Tags) when N < 2 -> 0;
+across(N, Tags) ->
+    Differing = lists:sum([split(Bit, N, Tags) || Bit <- lists:seq(0, ?BITS - 1)]),
+    Differing * 100 div (?BITS * (N * (N - 1) div 2)).
+
+split(Bit, N, Tags) ->
+    Set = length([T || T <- Tags, (T bsr Bit) band 1 =:= 1]),
+    Set * (N - Set).

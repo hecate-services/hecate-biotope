@@ -201,25 +201,33 @@ defaults() ->
       scent_decay       => 2,
       scent_ceiling     => 30,
       %% One birth in this many changes one component of the signature: the rate
-      %% at which lineages become strangers to one another, and therefore how far
-      %% the population can split into things that can smell each other at all.
+      %% at which lineages become strangers to one another.
       %%
-      %% TWO, AND THE NUMBER WAS MEASURED RATHER THAN CHOSEN. The first guess of
-      %% ten made the world WORSE than having no signature: everyone descends
-      %% from a few founders, drift is slow, and the whole population ends up as
-      %% seven to thirteen near-identical smells that are all faintly kin to each
-      %% other. Every trail then reads faint, so kin blindness had simply turned
-      %% the nose down. Measured across the rate, with carnivores as the
-      %% observable and nothing else changed:
+      %% THIS NUMBER WAS SET THE WRONG WAY ROUND ONCE AND THE RECORD IS KEPT
+      %% DELIBERATELY. It was first chosen as the value that produced the most
+      %% carnivores, which is circular: the carnivores were the thing being
+      %% claimed as a discovery, so choosing the rule by them installs the result
+      %% and then reports finding it.
       %%
-      %%   rate 40   1-4 signatures    carnivores 0-1     one family
-      %%   rate 10   7-13 signatures   carnivores 0
-      %%   rate 5    12-16 signatures  carnivores 0-1
-      %%   rate 2    23-30 signatures  carnivores 0-4, peak 22% of the decided
+      %% Re-derived from a property of the SIGNAL, with the threshold stated
+      %% before looking and diet not consulted at all. Two independent signatures
+      %% differ in half their components, so 50 is the unrelated baseline; the
+      %% requirement is that a population reach at least HALF of that, in every
+      %% seed, and that the coarsest drift meeting it wins, because mutation is a
+      %% cost to heredity and should not be spent beyond need.
       %%
-      %% Monotone in the count of distinct signatures, which is what makes it
-      %% look like the mechanism rather than noise, and no seed died at any rate.
-      scent_mutation    => 2,
+      %%   rate 2    spread 36-43   least drift is not the goal, this exceeds need
+      %%   rate 3    spread 27-45   the coarsest that clears 25 everywhere
+      %%   rate 5    spread 20-31   fails, one seed at 20
+      %%   rate 10   spread 13-27   fails
+      %%   rate 40   spread 0-14    degenerate, one seed had ONE signature alive
+      %%
+      %% Below about 20 the sense is charged rent for something it cannot
+      %% discriminate with, which is a defect in the world whatever lives in it.
+      %% Any value in 2 to 3 is defensible on this criterion and the choice
+      %% between them is arbitrary. IT MUST NOT BE REVISITED BY LOOKING AT WHAT
+      %% EVOLVES.
+      scent_mutation    => 3,
       %% How large a brain weight may grow. Bounded so a long lineage cannot
       %% drift to weights that swamp every sense and turn the brain back into a
       %% constant that ignores the world.
@@ -719,6 +727,13 @@ snapshot(#world{} = W) ->
       %% become strangers to each other, which is the precondition for one of
       %% them to make a living hunting another.
       scent_tags => tag_count(W),
+      %% HOW MUCH INFORMATION THE SIGNATURE CARRIES, as a percentage of the
+      %% maximum, independent of what anything does with it. Zero means the whole
+      %% population smells alike and a nose cannot discriminate at all; fifty is
+      %% what unrelated signatures give. This is the number the mutation rate is
+      %% set by, because setting it by the diet we hoped to see would install the
+      %% result and then report discovering it.
+      scent_spread => scent:spread(tags(W)),
       births_refused => W#world.births_refused,
       %% WHAT THE POPULATION TURNED OUT TO BE, counted from what creatures
       %% actually ate. Nothing was assigned; if every count but `herbivores' is
@@ -758,8 +773,9 @@ classify(Meals, Hunted) when Hunted * 100 >= ?CARNIVORE_PCT * Meals -> carnivore
 classify(Meals, Hunted) when Hunted * 100 =< ?HERBIVORE_PCT * Meals -> herbivores;
 classify(_Meals, _Hunted) -> omnivores.
 
-tag_count(#world{creatures = Cs}) ->
-    length(lists:usort([T || #{scent := T} <- maps:values(Cs)])).
+tags(#world{creatures = Cs}) -> [T || #{scent := T} <- maps:values(Cs)].
+
+tag_count(W) -> length(lists:usort(tags(W))).
 
 organs(#world{creatures = Cs}) ->
     body:prevalence([B || #{body := B} <- maps:values(Cs)]).
