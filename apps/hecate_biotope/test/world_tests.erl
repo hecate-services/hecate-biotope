@@ -323,17 +323,59 @@ a_trail_fades_to_nothing_test() ->
 %% That difference is the entire case for the organ, so it is asserted on the
 %% observable that matters: whether the hunting actually lands.
 a_nose_finds_prey_that_wandering_does_not_test() ->
-    Hunt = fun(Body) ->
-                   W = world:new(#{population => 30, radius => 10, seed => 12,
-                                   initial_plants => 40, regrowth_per_tick => 4,
-                                   organ_upkeep => 0, max_age => 100000,
-                                   breed_at => 1000000, breed_ceiling => 1000000,
-                                   founder_body => Body,
-                                   founder_brain => only(hunt)}),
-                   #{killed := K} = world:snapshot(world:tick(W, 60)),
-                   K
-           end,
-    ?assert(Hunt([nose]) > Hunt([])).
+    ?assert(pack(#{founder_body => [nose]}) > pack(#{founder_body => []})).
+
+%% A pack of hunters with no plants worth mentioning and no way to breed, so the
+%% only number that moves is whether they find each other.
+pack(Opts) ->
+    W = world:new(maps:merge(#{population => 30, radius => 10, seed => 12,
+                               initial_plants => 40, regrowth_per_tick => 4,
+                               organ_upkeep => 0, max_age => 100000,
+                               breed_at => 1000000, breed_ceiling => 1000000,
+                               founder_brain => only(hunt)}, Opts)),
+    #{killed := K} = world:snapshot(world:tick(W, 60)),
+    K.
+
+%%==============================================================================
+%% Kin
+%%==============================================================================
+
+%% A LINEAGE IS INVISIBLE TO ITS OWN NOSE, and this is the hypothesis the whole
+%% signature exists to test. Every creature here is founded with one signature
+%% and breeding is out of reach, so nothing ever mutates and the world is one
+%% enormous family. A nose then reports nothing anywhere it looks, hunting falls
+%% back to wandering, and the run is indistinguishable from a noseless one.
+%%
+%% Both runs specify their body, so neither draws for it and the two worlds are
+%% the same world down to the random number. An inequality here would mean the
+%% signature is leaking information it should not have.
+a_lineage_is_invisible_to_its_own_nose_test() ->
+    Family = #{founder_scent => 2#10110010},
+    ?assertEqual(pack(Family#{founder_body => []}),
+                 pack(Family#{founder_body => [nose]})).
+
+%% THE PRECONDITION FOR ONE LINEAGE TO HUNT ANOTHER. One signature means mutual
+%% kin and nothing can be tracked; many means lineages have become strangers.
+%% Published so that a world which has quietly become a single family says so
+%% instead of merely looking like a world where noses stopped working.
+distinct_signatures_are_counted_test() ->
+    #{scent_tags := One} =
+        world:snapshot(world:new(#{population => 20, seed => 4,
+                                   founder_scent => 3})),
+    #{scent_tags := Many} =
+        world:snapshot(world:new(#{population => 20, seed => 4})),
+    ?assertEqual(1, One),
+    ?assert(Many > 1).
+
+%% An empty world has no signatures rather than one, or a dead island would look
+%% like a surviving family.
+an_empty_world_has_no_signatures_test() ->
+    W = barren(#{population => 2, start_energy => 4, metabolism => 1,
+                 move_cost => 1}),
+    #{population := Pop, scent_tags := Tags} =
+        world:snapshot(world:tick(W, 10)),
+    ?assertEqual(0, Pop),
+    ?assertEqual(0, Tags).
 
 %%==============================================================================
 %% What the population turned out to be

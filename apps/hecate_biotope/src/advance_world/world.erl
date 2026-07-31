@@ -87,7 +87,13 @@
                       %% prey stops being carnivorous, without anything having
                       %% to change its label.
                       grazed := non_neg_integer(),
-                      hunted := non_neg_integer()}.
+                      hunted := non_neg_integer(),
+                      %% WHAT THIS CREATURE SMELLS LIKE. Heritable, so a parent
+                      %% and its children share a signature and are very nearly
+                      %% invisible to each other's noses. It is the only trait
+                      %% here that says something about a creature to OTHER
+                      %% creatures rather than about it to itself.
+                      scent := scent:tag()}.
 
 -type econ() :: #{plant_energy := pos_integer(),
                   regrowth_per_tick := non_neg_integer(),
@@ -98,6 +104,7 @@
                   scent_per_tick := non_neg_integer(),
                   scent_decay := pos_integer(),
                   scent_ceiling := pos_integer(),
+                  scent_mutation := pos_integer(),
                   brain_range := pos_integer(),
                   brain_mutation := non_neg_integer(),
                   body_mutation := pos_integer(),
@@ -119,13 +126,14 @@
                 %% both the fade and the cost of carrying it scale with how much
                 %% traffic there has been rather than with the size of the disc.
                 %%
-                %% EACH MARK REMEMBERS WHO LEFT IT, and that one extra term is
-                %% what makes the whole sense work. Without it a hunter's own
-                %% path is the freshest thing in its neighbourhood and it follows
-                %% itself backward forever; measured, that made a nose strictly
-                %% WORSE than wandering, 14 kills against 24. Every real animal
-                %% can tell its own scent from a stranger's.
-                scent = #{} :: #{hex() => {pos_integer(), id()}},
+                %% EACH MARK CARRIES THE SIGNATURE OF WHAT LEFT IT, and that
+                %% one extra term is what makes the whole sense work. Without it
+                %% a hunter's own path is the freshest thing in its neighbourhood
+                %% and it follows itself backward forever; measured, that made a
+                %% nose strictly WORSE than wandering, 5 kills against 13. The
+                %% signature is HERITABLE, so the same comparison that tells self
+                %% from stranger also tells kin from stranger.
+                scent = #{} :: #{hex() => scent:mark()},
                 creatures = #{} :: #{id() => creature()},
                 next_id = 1 :: id(),
                 rng :: rand:state(),
@@ -192,6 +200,26 @@ defaults() ->
       %% too fast and a trail is gone before anything can follow it.
       scent_decay       => 2,
       scent_ceiling     => 30,
+      %% One birth in this many changes one component of the signature: the rate
+      %% at which lineages become strangers to one another, and therefore how far
+      %% the population can split into things that can smell each other at all.
+      %%
+      %% TWO, AND THE NUMBER WAS MEASURED RATHER THAN CHOSEN. The first guess of
+      %% ten made the world WORSE than having no signature: everyone descends
+      %% from a few founders, drift is slow, and the whole population ends up as
+      %% seven to thirteen near-identical smells that are all faintly kin to each
+      %% other. Every trail then reads faint, so kin blindness had simply turned
+      %% the nose down. Measured across the rate, with carnivores as the
+      %% observable and nothing else changed:
+      %%
+      %%   rate 40   1-4 signatures    carnivores 0-1     one family
+      %%   rate 10   7-13 signatures   carnivores 0
+      %%   rate 5    12-16 signatures  carnivores 0-1
+      %%   rate 2    23-30 signatures  carnivores 0-4, peak 22% of the decided
+      %%
+      %% Monotone in the count of distinct signatures, which is what makes it
+      %% look like the mechanism rather than noise, and no seed died at any rate.
+      scent_mutation    => 2,
       %% How large a brain weight may grow. Bounded so a long lineage cannot
       %% drift to weights that swamp every sense and turn the brain back into a
       %% constant that ignores the world.
@@ -275,15 +303,16 @@ populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
 %% world founded from one specification is a world with no variation in it.
 founder_traits(Econ, Opts, Rng0) ->
     {BreedAt, Rng1} = founder_threshold(Econ, Rng0),
-    {Body, Rng2} = given_body(maps:get(founder_body, Opts, draw), Econ, Rng1),
-    {Brain, Rng3} = given_brain(maps:get(founder_brain, Opts, draw), Econ, Rng2),
-    {#{breed_at => BreedAt, body => Body, brain => Brain}, Rng3}.
+    {Body, Rng2} = given(founder_body, Opts, fun body:founder/2, Econ, Rng1),
+    {Brain, Rng3} = given(founder_brain, Opts, fun brain:founder/2, Econ, Rng2),
+    {Tag, Rng4} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng3),
+    {#{breed_at => BreedAt, body => Body, brain => Brain, scent => Tag}, Rng4}.
 
-given_body(draw, Econ, Rng) -> body:founder(Econ, Rng);
-given_body(Body, _Econ, Rng) -> {Body, Rng}.
+given(Key, Opts, Draw, Econ, Rng) ->
+    specified(maps:get(Key, Opts, draw), Draw, Econ, Rng).
 
-given_brain(draw, Econ, Rng) -> brain:founder(Econ, Rng);
-given_brain(Brain, _Econ, Rng) -> {Brain, Rng}.
+specified(draw, Draw, Econ, Rng) -> Draw(Econ, Rng);
+specified(Given, _Draw, _Econ, Rng) -> {Given, Rng}.
 
 %% Uniform across half to one and a half times the founding mean.
 founder_threshold(Econ, Rng0) ->
@@ -337,20 +366,21 @@ linger(S, Who, H, Acc) -> Acc#{H => {S, Who}}.
 %% is not decoration: it is what makes resting a way to HIDE as well as a way to
 %% save energy, and it hands prey a counter-strategy against being tracked. An
 %% arms race needs both sides to have a move available.
-mark(At, Id, #world{scent = Scent, econ = Econ} = W) ->
+mark(At, Tag, #world{scent = Scent, econ = Econ} = W) ->
     Fresh = strength(maps:get(At, Scent, none)) + maps:get(scent_per_tick, Econ),
     Capped = min(maps:get(scent_ceiling, Econ), Fresh),
-    W#world{scent = Scent#{At => {Capped, Id}}}.
+    W#world{scent = Scent#{At => {Capped, Tag}}}.
 
 strength(none) -> 0;
-strength({S, _Who}) -> S.
+strength({S, _Tag}) -> S.
 
-%% SOMEONE ELSE'S MARK, OR NOTHING. The creature's own scent reads as zero, which
-%% is the difference between tracking prey and pacing your own footprints.
-foreign(H, Id, Scent) -> theirs(maps:get(H, Scent, {0, none}), Id).
+%% HOW FOREIGN THIS GROUND SMELLS, which is not the same as how strongly. Your
+%% own mark reads as nothing, your children's very nearly so, and a stranger's at
+%% full strength. One comparison does the self-check and the kin-check together.
+foreign(H, Mine, Scent) -> smelled(maps:get(H, Scent, none), Mine).
 
-theirs({_S, Id}, Id) -> 0;
-theirs({S, _Other}, _Id) -> S.
+smelled(none, _Mine) -> 0;
+smelled(Mark, Mine) -> scent:perceived(Mark, Mine).
 
 %% Existing costs energy, every tick, unconditionally, and a body costs more than
 %% a bare one. THIS IS WHERE CAPABILITY IS PAID FOR: an eye that is not earning
@@ -410,12 +440,12 @@ act_if_alive(#{body := Body, brain := Brain} = C, Id, Acc) ->
 %% What is measurably there, before the body decides how much of it can be
 %% perceived. The field is the creature's own cell plus its six neighbours: what
 %% it could reach this turn.
-perceive(Id, #{at := At, energy := E}, {#world{} = W, Index}) ->
+perceive(Id, #{at := At, energy := E, scent := Mine}, {#world{} = W, Index}) ->
     Field = field(At, W),
     Others = [maps:get(N, W#world.creatures)
               || H <- Field, N <- maps:get(H, Index, []), N =/= Id],
     #{plants_near => length([H || H <- Field, maps:is_key(H, W#world.plants)]),
-      scent_near => scent_around(At, Id, W),
+      scent_near => scent_around(At, Mine, W),
       fattest_near => fattest(Others),
       own_energy => E}.
 
@@ -423,8 +453,8 @@ perceive(Id, #{at := At, energy := E}, {#world{} = W, Index}) ->
 %% has marked the ground under its own feet, and including that would have every
 %% creature in the world smelling mostly itself and reading its own trail as
 %% evidence of prey.
-scent_around(At, Id, #world{scent = Scent} = W) ->
-    lists:sum([foreign(H, Id, Scent) || H <- around(At, W)]).
+scent_around(At, Mine, #world{scent = Scent} = W) ->
+    lists:sum([foreign(H, Mine, Scent) || H <- around(At, W)]).
 
 field(At, #world{econ = Econ}) ->
     [At | hex:neighbours_in(At, maps:get(radius, Econ))].
@@ -478,7 +508,7 @@ wander(At, #world{econ = Econ, rng = Rng0} = W) ->
 moved(_Id, _C, At, At, W, Index) -> {W, Index};
 moved(Id, C, From, To, #world{creatures = Cs, econ = Econ} = W, Index) ->
     Stepped = spend(C#{at => To}, maps:get(move_cost, Econ)),
-    {mark(To, Id, W#world{creatures = Cs#{Id => Stepped}}),
+    {mark(To, maps:get(scent, C), W#world{creatures = Cs#{Id => Stepped}}),
      occupy(Id, To, vacate(Id, From, Index))}.
 
 %% A plant feeds exactly one creature and is gone. Whoever reaches it first in
@@ -512,8 +542,8 @@ hunt(Id, #{at := At, body := Body} = C, {W, Index}) ->
     Reachable = [N || H <- field(At, W), N <- maps:get(H, Index, []), N =/= Id],
     strike(Reachable, Body, Id, C, {W, Index}).
 
-strike([], Body, Id, #{at := From} = C, {W, Index}) ->
-    {To, W1} = track(body:has(nose, Body), From, Id, W),
+strike([], Body, Id, #{at := From, scent := Mine} = C, {W, Index}) ->
+    {To, W1} = track(body:has(nose, Body), From, Mine, W),
     moved(Id, C, From, To, W1, Index);
 strike(Prey, Body, Id, C, {W, Index}) ->
     {Victim, W1} = choose_prey(body:has(eye, Body), Prey, W),
@@ -522,9 +552,10 @@ strike(Prey, Body, Id, C, {W, Index}) ->
 %% Climb the gradient: step to whichever neighbouring cell smells strongest. A
 %% creature with no nose has nothing to climb and wanders, which is what the
 %% whole population did before any of this existed.
-track(true, At, Id, W) ->
-    strongest([{foreign(H, Id, W#world.scent), H} || H <- around(At, W)], At, W);
-track(false, At, _Id, W) ->
+track(true, At, Mine, W) ->
+    strongest([{foreign(H, Mine, W#world.scent), H} || H <- around(At, W)],
+              At, W);
+track(false, At, _Mine, W) ->
     wander(At, W).
 
 around(At, #world{econ = Econ}) -> hex:neighbours_in(At, maps:get(radius, Econ)).
@@ -572,8 +603,9 @@ kill(Victim, Id, C, {#world{creatures = Cs, econ = Econ} = W, Index}) ->
     Fed = C#{at => Where,
              energy => E + max(0, Loot) - maps:get(attack_cost, Econ),
              hunted => H + 1},
-    {mark(Where, Id, W#world{creatures = maps:remove(Victim, Cs#{Id => Fed}),
-                             killed = W#world.killed + 1}),
+    {mark(Where, maps:get(scent, C),
+          W#world{creatures = maps:remove(Victim, Cs#{Id => Fed}),
+                  killed = W#world.killed + 1}),
      occupy(Id, Where, vacate(Id, From, vacate(Victim, Where, Index)))}.
 
 %% A surplus buys a child, placed on a neighbouring cell. The parent pays exactly
@@ -604,22 +636,24 @@ breed(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
 room(false, _Id, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
 room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
-    #{at := At, energy := E, breed_at := Threshold,
-      body := Body, brain := Brain} = C = maps:get(Id, Cs),
+    #{at := At, energy := E, breed_at := Threshold} = C = maps:get(Id, Cs),
     Dowry = Threshold div 2,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
-    {Traits, Rng2} = inherit_traits(Threshold, Body, Brain, Econ, Rng1),
+    {Traits, Rng2} = inherit_traits(C, Econ, Rng1),
     W1 = W#world{creatures = Cs#{Id => C#{energy => E - Dowry}}, rng = Rng2},
     add_creature(Where, Dowry, Id, Traits, W1).
 
 %% Three heritable things, mutated independently. A child is its parent in body,
 %% brain and life history, each nudged a little, which is what makes a lineage a
 %% lineage rather than a sequence of unrelated draws.
-inherit_traits(Threshold, Body, Brain, Econ, Rng0) ->
+inherit_traits(Parent, Econ, Rng0) ->
+    #{breed_at := Threshold, body := Body, brain := Brain, scent := Tag} = Parent,
     {BreedAt, Rng1} = inherit(Threshold, Econ, Rng0),
     {ChildBody, Rng2} = body:inherit(Body, Econ, Rng1),
     {ChildBrain, Rng3} = brain:inherit(Brain, Econ, Rng2),
-    {#{breed_at => BreedAt, body => ChildBody, brain => ChildBrain}, Rng3}.
+    {ChildTag, Rng4} = scent:inherit(Tag, Econ, Rng3),
+    {#{breed_at => BreedAt, body => ChildBody, brain => ChildBrain,
+       scent => ChildTag}, Rng4}.
 
 %% A child is its parent plus a nudge. Mutation is symmetric and small, so a
 %% lineage drifts rather than jumping, and selection has something to act on
@@ -680,6 +714,11 @@ snapshot(#world{} = W) ->
       %% count and every cell smells the same, which is the same as no
       %% information. It has to sit in between for a nose to be worth its upkeep.
       scent_cells => map_size(W#world.scent),
+      %% HOW MANY DISTINCT SIGNATURES ARE ALIVE. One means the whole population
+      %% is mutual kin and nothing can track anything; many means lineages have
+      %% become strangers to each other, which is the precondition for one of
+      %% them to make a living hunting another.
+      scent_tags => tag_count(W),
       births_refused => W#world.births_refused,
       %% WHAT THE POPULATION TURNED OUT TO BE, counted from what creatures
       %% actually ate. Nothing was assigned; if every count but `herbivores' is
@@ -718,6 +757,9 @@ classify(Meals, _Hunted) when Meals < ?DIET_MEALS -> undecided;
 classify(Meals, Hunted) when Hunted * 100 >= ?CARNIVORE_PCT * Meals -> carnivores;
 classify(Meals, Hunted) when Hunted * 100 =< ?HERBIVORE_PCT * Meals -> herbivores;
 classify(_Meals, _Hunted) -> omnivores.
+
+tag_count(#world{creatures = Cs}) ->
+    length(lists:usort([T || #{scent := T} <- maps:values(Cs)])).
 
 organs(#world{creatures = Cs}) ->
     body:prevalence([B || #{body := B} <- maps:values(Cs)]).
