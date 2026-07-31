@@ -42,13 +42,19 @@ carries_the_tick_and_the_pace_test() ->
 carries_totals_rather_than_rates_test() ->
     F = fact(),
     lists:foreach(fun(K) -> ?assert(is_integer(maps:get(K, F))) end,
-                  [born, starved, aged_out, eaten, births_refused,
-                   population, plants, energy_total]).
+                  [born, starved, aged_out, consumed, plants_eaten,
+                   births_refused, population, plants, energy_total,
+                   from_creatures_pct, sensor_mean, scent_tags, scent_spread]).
 
+%% VERSION 2 BECAUSE THE CONTRACT CHANGED MATERIALLY. The world was rebuilt to
+%% remove biology from its physics, so `eaten' became `plants_eaten', `killed'
+%% became `consumed', and the herbivore and carnivore buckets were replaced by
+%% `from_creatures_pct' and a sensor census. A spectator pinned to version 1
+%% would silently read fields that no longer mean what they did.
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(1, V).
+    ?assertEqual(2, V).
 
 %%==============================================================================
 %% The chart

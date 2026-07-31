@@ -1,9 +1,14 @@
 %% @doc What a creature is built from, asserted.
 %%
-%% The claim these defend: an organ is the ONLY thing standing between a brain
-%% and a fact about the world, and it charges rent for standing there. Both
-%% halves matter. Without the gating an organ is decoration; without the rent
-%% every lineage keeps every organ and the population is uniform forever.
+%% The claim these defend: a sensor is `{Field, Range}' and nothing more. There
+%% is no eye and no nose, because those were biological conclusions written into
+%% the physics, and a world whose rules contain "eye" cannot discover that seeing
+%% was worth doing.
+%%
+%% NOTHING HERE ASSERTS THAT ANY PARTICULAR SENSOR IS GOOD. What is asserted is
+%% that a body costs what the rules say it costs and mutates the way the rules say
+%% it mutates. Whether measuring plants beats measuring creatures is the question
+%% the world exists to answer. See PREREGISTRATION.md.
 -module(body_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -12,134 +17,200 @@ econ() -> world:defaults().
 
 rng() -> rand:seed_s(exsss, {4, 5, 6}).
 
-%% A neighbourhood with something for every sense to find, so a zero in the
-%% output can only be a missing organ.
-busy() ->
-    #{plants_near => 5, scent_near => 120, fattest_near => 200,
-      own_energy => 120}.
+with(Overrides) -> maps:merge(econ(), Overrides).
+
+always() -> with(#{body_mutation => 1}).
 
 %%==============================================================================
-%% Perceiving
+%% What there is to measure
 %%==============================================================================
 
-%% Order is the brain's input order and is a contract between the two modules.
-%% If it ever changed silently, every evolved brain in every running world would
-%% keep its weights and start reading the wrong columns.
-a_full_body_perceives_everything_test() ->
-    ?assertEqual([5, 6, 10, 6], body:senses([eye, gut, nose], busy())).
-
-%% A MISSING ORGAN READS AS ZERO, NOT AS A SHORTER VECTOR. Fixed width means a
-%% brain never has to be resized when a body mutates, which is what makes it
-%% possible for a child with a different body to inherit its parent's brain.
-a_bare_body_perceives_nothing_test() ->
-    ?assertEqual([0, 0, 0, 0], body:senses([], busy())),
-    ?assertEqual(body:sense_width(), length(body:senses([], busy()))).
-
-%% ONE ORGAN, TWO SENSES, AND THEY ARE THE SAME FACULTY: what is here now. The
-%% plants worth eating and the creature worth eating are both simply things in
-%% front of you, and an eye that could see one but not the other would be two
-%% organs wearing one name.
-the_eye_gates_what_is_here_now_test() ->
-    ?assertEqual([5, 0, 10, 0], body:senses([eye], busy())).
-
-%% THE NOSE READS THE PAST AND NOTHING ELSE. It cannot see the creature standing
-%% next to it, however fat; it knows only that something came this way recently.
-%% That is what makes it a different sense rather than a shorter-sighted eye, and
-%% it is the whole reason a hunter can close on prey it cannot perceive.
-the_nose_gates_the_trail_test() ->
-    ?assertEqual([0, 6, 0, 0], body:senses([nose], busy())).
-
-%% PROPRIOCEPTION IS THE SUBTLE ONE. Without it a brain cannot condition on its
-%% own hunger, so "graze while comfortable, take the risk when desperate" is
-%% unavailable, and that is the simplest strategy here that is not a fixed role.
-the_gut_gates_own_energy_test() ->
-    ?assertEqual([0, 0, 0, 6], body:senses([gut], busy())).
-
-%% Scaled down and clamped, so brain weights can stay in a range a human can read
-%% and a mutation of one is a nudge rather than a rounding error. A creature
-%% carrying four hundred and one carrying six hundred are the same situation.
-energies_are_scaled_and_clamped_test() ->
-    Rich = #{plants_near => 0, scent_near => 100000, fattest_near => 100000,
-             own_energy => 100000},
-    ?assertEqual([0, 15, 15, 15], body:senses([eye, gut, nose], Rich)).
-
-%% Energy can be negative for a creature about to be reaped, and a negative sense
-%% would flip the meaning of every weight reading it.
-a_starving_creature_perceives_no_negative_energy_test() ->
-    Broke = #{plants_near => 0, scent_near => 0, fattest_near => -50,
-              own_energy => -30},
-    ?assertEqual([0, 0, 0, 0], body:senses([eye, gut, nose], Broke)).
+%% WHICH FIELDS EXIST IS PHYSICS: plants, creatures, and the marks creatures
+%% leave. Those are the three kinds of thing in this world, so those are the three
+%% quantities that can be measured. Which one a lineage measures is biology.
+the_fields_are_the_kinds_of_thing_that_exist_test() ->
+    ?assertEqual([creatures, plants, scent], lists:sort(body:fields())).
 
 %%==============================================================================
 %% Paying for it
 %%==============================================================================
 
-upkeep_is_charged_per_organ_test() ->
-    Econ = maps:merge(econ(), #{organ_upkeep => 3}),
-    ?assertEqual(0, body:upkeep([], Econ)),
-    ?assertEqual(3, body:upkeep([eye], Econ)),
-    ?assertEqual(9, body:upkeep([eye, gut, nose], Econ)).
+%% THE ONLY FORCE THAT CAN REMOVE A SENSOR. If measuring were free every lineage
+%% would accumulate every measurement and the fully equipped generalist would
+%% never be at a disadvantage.
+rent_is_charged_per_sensor_test() ->
+    E = with(#{sensor_rent => 2}),
+    ?assertEqual(0, body:upkeep([], E)),
+    ?assertEqual(2, body:upkeep([{plants, 0}], E)),
+    ?assertEqual(4, body:upkeep([{plants, 0}, {scent, 0}], E)).
+
+%% REACH COSTS, and that much is physical. Whether it should cost with the radius
+%% or with the area covered is not settled by anything in this world; the linear
+%% form is a modelling choice named in PREREGISTRATION.md rather than defended
+%% here.
+rent_rises_with_reach_test() ->
+    E = with(#{sensor_rent => 1}),
+    ?assertEqual(1, body:upkeep([{plants, 0}], E)),
+    ?assertEqual(2, body:upkeep([{plants, 1}], E)),
+    ?assertEqual(5, body:upkeep([{plants, 4}], E)).
+
+%% Two of the same field at different reaches are two sensors and are billed
+%% twice. A body is a list, not a set: there is nothing in the physics that says
+%% a creature may only measure a thing once.
+duplicate_fields_are_separate_sensors_test() ->
+    E = with(#{sensor_rent => 1}),
+    ?assertEqual(4, body:upkeep([{plants, 0}, {plants, 2}], E)),
+    ?assertEqual(2, body:sensor_count([{plants, 0}, {plants, 2}])).
 
 %%==============================================================================
-%% Inheritance
+%% Reading
 %%==============================================================================
 
-%% Founders are spread for the same reason breeding thresholds are: a population
-%% that starts as one body plan hands selection nothing until mutation slowly
-%% invents variety, and the early ticks are spent watching a monoculture drift.
+%% Field totals run to hundreds and a brain weight runs to single digits, so
+%% without scaling every weight would have to sit near zero and a mutation of one
+%% would swamp the signal.
+readings_are_scaled_and_clamped_test() ->
+    ?assertEqual(0, body:scale(0)),
+    ?assertEqual(2, body:scale(40)),
+    ?assertEqual(15, body:scale(100000)).
+
+%% A cell can hold a creature about to be reaped, and a negative reading would
+%% flip the meaning of every weight applied to it.
+a_negative_total_reads_as_nothing_test() ->
+    ?assertEqual(0, body:scale(-500)).
+
+%%==============================================================================
+%% Founding
+%%==============================================================================
+
+%% Founders are spread for the same reason they always have been: a population
+%% that starts as one shape hands selection nothing until mutation invents
+%% variety, and the early ticks are spent watching a monoculture drift.
 founding_bodies_vary_test() ->
     {Bodies, _} = lists:mapfoldl(fun(_I, R) -> body:founder(econ(), R) end,
-                                 rng(), lists:seq(1, 40)),
-    ?assert(length(lists:usort(Bodies)) > 1).
+                                 rng(), lists:seq(1, 60)),
+    ?assert(length(lists:usort(Bodies)) > 3).
 
-founding_bodies_only_contain_real_organs_test() ->
+%% Including empty ones. A creature that measures nothing is a legitimate
+%% creature: it pays no rent, values every cell alike, and wanders. That is the
+%% null forager everything else has to beat, and excluding it from the founding
+%% draw would quietly assume perception is worth having.
+some_founders_perceive_nothing_test() ->
     {Bodies, _} = lists:mapfoldl(fun(_I, R) -> body:founder(econ(), R) end,
-                                 rng(), lists:seq(1, 40)),
-    Seen = lists:usort(lists:append(Bodies)),
-    ?assertEqual([], Seen -- body:organs()).
+                                 rng(), lists:seq(1, 60)),
+    ?assert(lists:member([], Bodies)).
 
-%% ONE ORGAN AT A TIME. Morphology is coarser than preference, and a body that
-%% changed wholesale every generation would never be around long enough for a
-%% brain to adapt to it.
-a_child_body_differs_by_at_most_one_organ_test() ->
-    Econ = maps:merge(econ(), #{body_mutation => 1}),
-    {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> body:inherit([eye, gut], Econ, R) end,
-                      rng(), lists:seq(1, 40)),
-    Diffs = [length(([eye, gut] -- C) ++ (C -- [eye, gut])) || C <- Children],
-    ?assert(lists:all(fun(D) -> D =< 1 end, Diffs)).
+founding_sensors_are_well_formed_test() ->
+    {Bodies, _} = lists:mapfoldl(fun(_I, R) -> body:founder(econ(), R) end,
+                                 rng(), lists:seq(1, 60)),
+    Sensors = lists:append(Bodies),
+    ?assert(lists:all(fun({F, R}) ->
+                              lists:member(F, body:fields())
+                                  andalso R >= 0
+                      end, Sensors)).
 
-%% GAINING AND LOSING SHARE ONE PROBABILITY, so nothing here pushes bodies to
-%% grow more complex on their own. A mutation that only added organs would
-%% produce ever fatter creatures and let us call the drift adaptation.
-mutation_both_adds_and_removes_test() ->
-    Econ = maps:merge(econ(), #{body_mutation => 1}),
-    {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> body:inherit([gut], Econ, R) end,
-                      rng(), lists:seq(1, 60)),
-    ?assert(lists:member([], Children)),
-    ?assert(lists:any(fun(C) -> length(C) =:= 2 end, Children)).
+%%==============================================================================
+%% Inheriting
+%%==============================================================================
 
-%% A body is compared, counted and fingerprinted, so two spellings of the same
-%% creature must not be two creatures.
-bodies_stay_sorted_test() ->
-    Econ = maps:merge(econ(), #{body_mutation => 1}),
-    {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> body:inherit([nose], Econ, R) end,
-                      rng(), lists:seq(1, 40)),
-    ?assert(lists:all(fun(C) -> C =:= lists:sort(C) end, Children)).
+%% THE STRUCTURAL CHANGE IS REPORTED RATHER THAN INFERRED. A brain carries one
+%% weight per sensor, so a body that gains or loses one leaves the brain a column
+%% out of step and every weight after the change point silently starts valuing a
+%% different measurement. Nothing crashes, which is what makes it the worst bug
+%% available here.
+a_change_reports_where_it_happened_test() ->
+    {Bodies, _} = lists:mapfoldl(
+                    fun(_I, R) ->
+                            {B, C, R1} = body:inherit([{plants, 1}], always(), R),
+                            {{B, C}, R1}
+                    end, rng(), lists:seq(1, 60)),
+    ?assert(lists:all(fun({B, none}) -> length(B) =:= 1;
+                         ({B, {added, P}}) -> length(B) =:= 2 andalso P =< 2;
+                         ({B, {dropped, P}}) -> length(B) =:= 0 andalso P =:= 1
+                      end, Bodies)).
+
+%% GAINING, LOSING AND RE-REACHING ARE EQUALLY LIKELY, so nothing pushes bodies
+%% to become more elaborate on their own. A mutation that only ever added would
+%% produce steadily fatter creatures and let us call the drift adaptation.
+mutation_both_grows_and_prunes_test() ->
+    {Results, _} = lists:mapfoldl(
+                     fun(_I, R) ->
+                             {B, C, R1} = body:inherit([{scent, 1}], always(), R),
+                             {{B, C}, R1}
+                     end, rng(), lists:seq(1, 90)),
+    Kinds = [C || {_B, C} <- Results],
+    ?assert(lists:any(fun(K) -> element(1, {K, x}) =/= none end, Kinds)),
+    ?assert(lists:member(none, Kinds)),
+    ?assert(lists:any(fun({added, _}) -> true; (_) -> false end, Kinds)),
+    ?assert(lists:any(fun({dropped, _}) -> true; (_) -> false end, Kinds)).
+
+%% Reach moves by one step either way and never below nothing. A negative reach
+%% is not a smaller sensor, it is a meaningless one.
+reach_never_goes_below_nothing_test() ->
+    {Bodies, _} = lists:mapfoldl(
+                    fun(_I, R) ->
+                            {B, _C, R1} = body:inherit([{plants, 0}], always(), R),
+                            {B, R1}
+                    end, rng(), lists:seq(1, 60)),
+    Ranges = [Range || B <- Bodies, {_F, Range} <- B],
+    ?assert(lists:all(fun(Range) -> Range >= 0 end, Ranges)).
+
+%% Bounded above, because an unbounded reach makes one tick cost as much as the
+%% whole disc. A SAFETY VALVE AND NOT A MODEL PARAMETER: rent is what should
+%% bound a body.
+reach_is_capped_test() ->
+    E = with(#{body_mutation => 1, max_sensor_range => 2}),
+    Grow = fun(_I, {B, R0}) ->
+                   {B1, _C, R1} = body:inherit(B, E, R0),
+                   {B1, R1}
+           end,
+    {Body, _} = lists:foldl(Grow, {[{plants, 2}], rng()}, lists:seq(1, 200)),
+    ?assert(lists:all(fun({_F, Range}) -> Range =< 2 end, Body)).
+
+sensor_count_is_capped_test() ->
+    E = with(#{body_mutation => 1, max_sensors => 3}),
+    Grow = fun(_I, {B, R0}) ->
+                   {B1, _C, R1} = body:inherit(B, E, R0),
+                   {B1, R1}
+           end,
+    {Body, _} = lists:foldl(Grow, {[], rng()}, lists:seq(1, 400)),
+    ?assert(length(Body) =< 3).
+
+a_rare_mutation_usually_clones_test() ->
+    E = with(#{body_mutation => 1000000}),
+    {Results, _} = lists:mapfoldl(
+                     fun(_I, R) ->
+                             {B, C, R1} = body:inherit([{plants, 1}], E, R),
+                             {{B, C}, R1}
+                     end, rng(), lists:seq(1, 40)),
+    ?assert(lists:all(fun({B, C}) ->
+                              B =:= [{plants, 1}] andalso C =:= none
+                      end, Results)).
 
 %%==============================================================================
 %% Reading a population
 %%==============================================================================
 
-%% THE ANSWER TO "DOES THIS ORGAN PAY". Prevalence falling means upkeep exceeds
-%% what the organ earns in this world, which is a finding about the world.
-prevalence_counts_each_organ_test() ->
-    Bodies = [[eye], [eye, nose], [], [eye, gut, nose]],
-    ?assertEqual(#{eye => 3, gut => 1, nose => 2}, body:prevalence(Bodies)).
+%% A CENSUS AND NOT A VERDICT. It says what survived, not what was useful, and
+%% those are only the same thing after enough generations that drift has been
+%% outvoted.
+the_census_counts_carriers_and_reach_test() ->
+    Bodies = [[{plants, 0}], [{plants, 2}, {scent, 1}], [], [{plants, 1}]],
+    Census = body:census(Bodies),
+    ?assertEqual(#{carriers => 3, reach => 3}, maps:get(plants, Census)),
+    ?assertEqual(#{carriers => 1, reach => 1}, maps:get(scent, Census)),
+    ?assertEqual(#{carriers => 0, reach => 0}, maps:get(creatures, Census)).
 
-%% Zeroes rather than missing keys, so a reader plotting prevalence over time
-%% gets a line at zero instead of a gap it has to interpret.
-prevalence_of_nothing_is_zeroes_test() ->
-    ?assertEqual(#{eye => 0, gut => 0, nose => 0}, body:prevalence([])).
+%% Zeroes rather than missing keys, so a reader plotting a field over time gets a
+%% line at zero instead of a gap it has to interpret.
+the_census_of_nothing_is_zeroes_test() ->
+    Census = body:census([]),
+    ?assertEqual(lists:sort(body:fields()), lists:sort(maps:keys(Census))),
+    ?assert(lists:all(fun(F) -> maps:get(carriers, F) =:= 0 end,
+                      maps:values(Census))).
+
+%% A creature carrying the same field twice is ONE carrier with the reach of
+%% both, or a population of hoarders would look like a population of many.
+duplicate_fields_count_once_per_carrier_test() ->
+    Census = body:census([[{plants, 1}, {plants, 3}]]),
+    ?assertEqual(#{carriers => 1, reach => 4}, maps:get(plants, Census)).

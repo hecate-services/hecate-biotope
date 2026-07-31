@@ -92,9 +92,9 @@ sample(W, Left, Every, Acc) ->
 
 report(Rows, Ticks) ->
     io:format("~s~n", [row(["seed", "final", "peak", "trough", "plants",
-                            "born", "starved", "killed", "aged"])]),
+                            "born", "starved", "eaten", "aged", "refused"])]),
     lists:foreach(fun print_row/1, Rows),
-    diet_table(Rows),
+    outcomes(Rows),
     Finals = [P || #{final := #{population := P}} <- Rows],
     Extinct = length([P || P <- Finals, P =:= 0]),
     io:format("~n~p/~p seeds extinct after ~p ticks~n",
@@ -105,31 +105,34 @@ report(Rows, Ticks) ->
 
 print_row(#{seed := S, peak := Pk, trough := Tr,
             final := #{population := P, plants := Pl, born := B,
-                       starved := St, killed := K, aged_out := Ag}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, K, Ag])]).
+                       starved := St, consumed := C, aged_out := Ag,
+                       births_refused := Rf}}) ->
+    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, C, Ag, Rf])]).
 
 %% WHAT THE POPULATION TURNED OUT TO BE. Everything that varies, side by side,
-%% with NONE OF IT PRIVILEGED: no headline metric, no summary line that picks a
-%% winner. A probe that reports one number at the top is a probe that will be run
-%% until that number moves, and the last round of sweeps here did exactly that.
+%% with NONE OF IT PRIVILEGED: no headline metric and no summary line that picks
+%% a winner. A probe that reports one number at the top is a probe that will be
+%% run until that number moves, and an earlier round of sweeps here did exactly
+%% that. See PREREGISTRATION.md.
 %%
-%% Per seed rather than averaged, because an earlier measurement was wrecked by
-%% between-seed spread that a median would have hidden.
-diet_table(Rows) ->
-    io:format("~n~s~n", [row(["seed", "breed_at", "herb", "omni", "carn",
-                              "undec", "eye", "gut", "nose", "scent", "tags",
-                              "spread"])]),
-    lists:foreach(fun print_diet/1, Rows).
+%% `meat%%' is the share of all energy the living have eaten that came from other
+%% creatures. `body' is sensors per creature, times a hundred. The three field
+%% columns are how many creatures carry a sensor for each, which is a census of
+%% what survived and not a verdict on what was useful.
+outcomes(Rows) ->
+    io:format("~n~s~n", [row(["seed", "breed_at", "meat%", "body",
+                              "s:plant", "s:creat", "s:scent",
+                              "tags", "spread"])]),
+    lists:foreach(fun print_outcome/1, Rows).
 
-print_diet(#{seed := S, final := #{diet := D, organs := O, scent_cells := Sc,
-                                   scent_tags := Tg, scent_spread := Sp,
-                                   breed_at_mean := Br}}) ->
-    Get = fun(Map, K) -> maps:get(K, Map, 0) end,
-    io:format("~s~n", [row([S, Br,
-                            Get(D, herbivores), Get(D, omnivores),
-                            Get(D, carnivores), Get(D, undecided),
-                            Get(O, eye), Get(O, gut), Get(O, nose),
-                            Sc, Tg, Sp])]).
+print_outcome(#{seed := S,
+                final := #{breed_at_mean := Br, from_creatures_pct := Meat,
+                           sensor_mean := Body, sensors := Census,
+                           scent_tags := Tags, scent_spread := Spread}}) ->
+    Carriers = fun(F) -> maps:get(carriers, maps:get(F, Census, #{}), 0) end,
+    io:format("~s~n", [row([S, Br, Meat, Body,
+                            Carriers(plants), Carriers(creatures),
+                            Carriers(scent), Tags, Spread])]).
 
 %% Columns padded by hand. A negative field width on ~p is not accepted, and the
 %% failure is a bare "failed to format string" that names no column.

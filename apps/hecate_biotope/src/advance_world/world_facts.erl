@@ -35,7 +35,7 @@
 -export([world_advanced/2, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 1).
+-define(FACT_VERSION, 2).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -75,10 +75,12 @@ hostname() ->
 -spec world_advanced(map(), world_pace:pace()) -> map().
 world_advanced(Snapshot, Pace) ->
     #{tick := Tick, population := Pop, plants := Plants, born := Born,
-      starved := Starved, aged_out := Aged, eaten := Eaten,
-      births_refused := Refused, energy_total := Energy,
-      radius := Radius, econ := Econ, econ_id := EconId,
-      extinct_at := ExtinctAt} = Snapshot,
+      starved := Starved, aged_out := Aged, consumed := Consumed,
+      plants_eaten := PlantsEaten, births_refused := Refused,
+      energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId,
+      extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
+      sensors := Sensors, sensor_mean := SensorMean,
+      scent_tags := Tags, scent_spread := Spread} = Snapshot,
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -94,11 +96,31 @@ world_advanced(Snapshot, Pace) ->
       %% distinguish, and ten small integers a second is not a cost.
       econ_id => EconId,
       econ => Econ,
+      %% WHAT THE POPULATION TURNED OUT TO BE, all of it observational. Nothing
+      %% here is read by the physics and no creature is treated differently for
+      %% what any of it says, which is what makes it legitimate to publish at
+      %% all: these are descriptions applied afterwards, not categories the world
+      %% enforces.
+      %%
+      %% `from_creatures_pct' is the share of all energy the living have eaten
+      %% that came from other creatures. Zero means nothing alive has ever eaten
+      %% anything that could have eaten it back.
+      from_creatures_pct => FromCreatures,
+      %% Per field: how many creatures carry a sensor for it, and the total reach
+      %% devoted to it. `sensor_mean' is sensors per creature, times a hundred,
+      %% because everything on this wire is an integer.
+      sensors => Sensors,
+      sensor_mean => SensorMean,
+      %% Properties of the SIGNATURE, independent of whether anything evolved to
+      %% use it. One distinct tag means the whole population is mutual kin.
+      scent_tags => Tags,
+      scent_spread => Spread,
       %% Totals since the world began, never reset.
       born => Born,
       starved => Starved,
       aged_out => Aged,
-      eaten => Eaten,
+      consumed => Consumed,
+      plants_eaten => PlantsEaten,
       %% Non-zero means the safety valve bound and the population is NOT at a
       %% natural ceiling. Published so that never has to be guessed from shape.
       births_refused => Refused,

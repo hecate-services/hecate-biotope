@@ -16,6 +16,7 @@
 -module(hex).
 
 -export([disc/1, in_disc/2, neighbours/1, neighbours_in/2, distance/2, cells/1]).
+-export([within/3]).
 
 -type hex() :: {integer(), integer()}.
 -export_type([hex/0]).
@@ -47,6 +48,18 @@ neighbours({Q, R}) -> [{Q + DQ, R + DR} || {DQ, DR} <- ?STEPS].
 %% choosing a step it cannot take, which would make the rim a slow trap.
 -spec neighbours_in(hex(), non_neg_integer()) -> [hex()].
 neighbours_in(H, Radius) -> [N || N <- neighbours(H), in_disc(N, Radius)].
+
+%% @doc Every cell within Range of a hex, that hex included, clipped to the disc.
+%%
+%% This is what a sensor covers. Range 0 is the cell itself, which is why a
+%% short-sighted sensor is a real thing here rather than a broken one: it reports
+%% exactly what is underfoot and nothing about where to go next.
+-spec within(hex(), non_neg_integer(), non_neg_integer()) -> [hex()].
+within({Q, R}, Range, Radius) ->
+    [{Q + DQ, R + DR}
+     || DQ <- lists:seq(-Range, Range),
+        DR <- lists:seq(max(-Range, -DQ - Range), min(Range, -DQ + Range)),
+        in_disc({Q + DQ, R + DR}, Radius)].
 
 %% @doc Cube distance. Half the sum of the three cube deltas.
 -spec distance(hex(), hex()) -> non_neg_integer().
