@@ -70,15 +70,31 @@ chart_topic_is_its_own_test() ->
     ?assertNotEqual(world_facts:topic(world), world_facts:topic(chart)).
 
 %% Flat integers with a stride of two. A pair would be a tuple, and tuples do not
-%% survive this encoder; a map per entity would repeat two keys a hundred and
-%% seventy times a frame for no information.
-positions_are_flat_integer_pairs_test() ->
+%% survive this mesh cleanly.
+the_chart_carries_flat_coordinates_test() ->
     #{creatures := Cs, plants := Ps, stride := Stride} = chart(),
     ?assertEqual(2, Stride),
-    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)),
     ?assertEqual(0, length(Cs) rem 2),
     ?assertEqual(0, length(Ps) rem 2),
-    ?assertEqual(7 * 2, length(Cs)).
+    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)).
+
+%% ONE ENERGY PER CREATURE, IN THE SAME ORDER, as a parallel list. Interleaving
+%% would make the creature stride 3 while plants stayed 2, and a reader that got
+%% that wrong would draw a plausible and completely wrong picture rather than
+%% failing. Carried because energy is armour here: how big a creature is is the
+%% most informative thing about it.
+energies_run_parallel_to_creatures_test() ->
+    #{creatures := Cs, energies := Es} = chart(),
+    ?assertEqual(length(Cs) div 2, length(Es)),
+    ?assert(lists:all(fun(E) -> is_integer(E) andalso E >= 0 end, Es)).
+
+%% Marks are position AND strength, so they interleave at their own stride, which
+%% travels with them rather than being assumed.
+scent_carries_its_own_stride_test() ->
+    #{scent := Marks, scent_stride := Stride} = chart(),
+    ?assertEqual(3, Stride),
+    ?assertEqual(0, length(Marks) rem 3),
+    ?assert(lists:all(fun is_integer/1, Marks)).
 
 %% A viewer sizes its board from the fact rather than from configuration it would
 %% have to keep in agreement with a world it cannot see.

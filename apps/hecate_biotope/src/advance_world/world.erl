@@ -599,16 +599,40 @@ econ_id(Econ) ->
 %% survive this mesh cleanly, and because a map per entity would repeat the keys
 %% `q' and `r' for every creature for no information. Sorted, so two charts of
 %% the same world are the same bytes and a diff between frames means something.
--spec chart(world()) -> #{creatures := [integer()], plants := [integer()],
+%% ENERGY AND SCENT TRAVEL TOO, because they are the two things about this world
+%% that are SPATIAL and were invisible. Positions alone draw a world where every
+%% creature is identical and nothing has happened anywhere, which is a picture of
+%% neither of the two results this world actually produced: that energy is armour
+%% and that the ground remembers who walked on it.
+%%
+%% `energies' runs parallel to `creatures', one per creature in the same order,
+%% rather than being interleaved. Interleaving would make the creature stride 3
+%% while plants stayed 2, and a reader that got that wrong would draw a plausible
+%% and completely wrong picture rather than failing.
+%%
+%% `scent' IS interleaved, at a stride of 3, because a mark is a position AND a
+%% strength and there is no list it runs parallel to. The signature is left out:
+%% it would double the payload and a spectator has nothing to compare it against.
+-spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
+                          plants := [integer()], scent := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
-chart(#world{creatures = Cs, plants = Plants, econ = Econ, tick = Tick}) ->
-    Positions = [maps:get(at, maps:get(Id, Cs)) || Id <- lists:sort(maps:keys(Cs))],
-    #{creatures => flatten_hexes(Positions),
+chart(#world{creatures = Cs, plants = Plants, scent = Scent,
+             econ = Econ, tick = Tick}) ->
+    Ids = lists:sort(maps:keys(Cs)),
+    #{creatures => flatten_hexes([maps:get(at, maps:get(Id, Cs)) || Id <- Ids]),
+      %% Floored at zero: a creature awaiting the reaper carries a negative
+      %% balance, and a viewer sizing a dot by it would be asked to draw a
+      %% negative radius.
+      energies => [max(0, maps:get(energy, maps:get(Id, Cs))) || Id <- Ids],
       plants => flatten_hexes(lists:sort(maps:keys(Plants))),
+      scent => flatten_scent(Scent),
       radius => maps:get(radius, Econ),
       tick => Tick}.
 
 flatten_hexes(Hexes) -> lists:append([[Q, R] || {Q, R} <- Hexes]).
+
+flatten_scent(Scent) ->
+    lists:append([[Q, R, S] || {{Q, R}, {S, _Tag}} <- lists:sort(maps:to_list(Scent))]).
 
 %% The single number that says whether the books balance. Energy enters only by
 %% eating a plant and leaves only by metabolism, rent and movement, so a run

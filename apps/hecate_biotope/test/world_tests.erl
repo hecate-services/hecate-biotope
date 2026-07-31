@@ -393,3 +393,73 @@ the_tick_of_death_is_not_revised_test() ->
     #{extinct_at := At} = world:snapshot(W),
     #{extinct_at := Later} = world:snapshot(world:tick(W, 50)),
     ?assertEqual(At, Later).
+
+%%==============================================================================
+%% What a spectator is given
+%%==============================================================================
+
+%% Flat integers rather than pairs, because a pair is a tuple and tuples do not
+%% survive this mesh cleanly, and a map per entity would repeat the keys `q' and
+%% `r' for every creature for no information.
+the_chart_is_flat_coordinate_lists_test() ->
+    W = world:new(#{population => 5, radius => 3, initial_plants => 7, seed => 2}),
+    #{creatures := Cs, plants := Ps, radius := R, tick := T} = world:chart(W),
+    ?assertEqual(10, length(Cs)),
+    ?assertEqual(0, length(Cs) rem 2),
+    ?assertEqual(0, length(Ps) rem 2),
+    ?assertEqual(3, R),
+    ?assertEqual(0, T),
+    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)).
+
+%% ONE ENERGY PER CREATURE, IN THE SAME ORDER. A parallel list rather than
+%% interleaved: interleaving would make the creature stride 3 while plants stayed
+%% 2, and a reader that got it wrong would draw a plausible and completely wrong
+%% picture instead of failing.
+%%
+%% Worth carrying because ENERGY IS ARMOUR here. The stronger consumes the
+%% weaker, so how big a creature is is the most informative thing about it, and
+%% without this every dot is drawn identical.
+energies_run_parallel_to_creatures_test() ->
+    W = world:new(#{population => 6, radius => 3, start_energy => 90, seed => 4}),
+    #{creatures := Cs, energies := Es} = world:chart(W),
+    ?assertEqual(length(Cs) div 2, length(Es)),
+    ?assertEqual(lists:duplicate(6, 90), Es).
+
+%% A creature awaiting the reaper carries a negative balance, and a viewer sizing
+%% a dot by it would be asked for a negative radius.
+a_starving_creature_charts_no_negative_energy_test() ->
+    W = barren(maps:merge(#{population => 3, start_energy => 2,
+                            metabolism => 5}, blind())),
+    #{energies := Es} = world:chart(world:tick(W)),
+    ?assert(lists:all(fun(E) -> E >= 0 end, Es)).
+
+%% Position AND strength, interleaved at three, because a mark has no list to run
+%% parallel to. The signature is left out on purpose: it would double the payload
+%% and a spectator has nothing to compare it against.
+scent_charts_as_position_and_strength_test() ->
+    Walker = barren(maps:merge(#{radius => 3, scent_per_tick => 10},
+                               with([], [-1]))),
+    #{scent := Marks} = world:chart(world:tick(Walker, 3)),
+    ?assert(length(Marks) > 0),
+    ?assertEqual(0, length(Marks) rem 3),
+    Strengths = strengths(Marks),
+    ?assert(lists:all(fun(S) -> S > 0 end, Strengths)).
+
+strengths([]) -> [];
+strengths([_Q, _R, S | Rest]) -> [S | strengths(Rest)].
+
+%% An empty world charts as empty lists rather than as missing keys, so a viewer
+%% draws nothing instead of having to interpret a gap.
+an_empty_world_charts_empty_lists_test() ->
+    W = world:tick(barren(maps:merge(#{population => 1, start_energy => 2,
+                                       metabolism => 5}, blind())), 20),
+    #{creatures := Cs, energies := Es, scent := Sc} = world:chart(W),
+    ?assertEqual([], Cs),
+    ?assertEqual([], Es),
+    ?assertEqual([], Sc).
+
+%% Sorted, so two charts of the same world are the same bytes and a diff between
+%% frames means something.
+the_chart_is_stable_test() ->
+    W = world:tick(world:new(#{population => 8, radius => 4, seed => 6}), 20),
+    ?assertEqual(world:chart(W), world:chart(W)).

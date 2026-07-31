@@ -149,8 +149,8 @@ extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
 %% from the fact alone rather than being configured to agree with the world.
 -spec world_charted(map(), world_pace:pace()) -> map().
 world_charted(Chart, Pace) ->
-    #{creatures := Creatures, plants := Plants,
-      radius := Radius, tick := Tick} = Chart,
+    #{creatures := Creatures, energies := Energies, plants := Plants,
+      scent := Scent, radius := Radius, tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -159,4 +159,19 @@ world_charted(Chart, Pace) ->
       stride => 2,
       creatures => Creatures,
       plants => Plants,
+      %% ONE ENERGY PER CREATURE, IN THE SAME ORDER, as a parallel list rather
+      %% than interleaved. Interleaving would make the creature stride 3 while
+      %% plants stayed 2, and a reader that got that wrong would draw a
+      %% plausible and completely wrong picture instead of failing.
+      %%
+      %% Worth its bytes because ENERGY IS ARMOUR here: the stronger consumes
+      %% the weaker, so the size of a dot is the single most informative thing
+      %% about it, and without this every creature is drawn identical.
+      energies => Energies,
+      %% Position AND strength, interleaved at a stride of three, because a mark
+      %% has no list to run parallel to. The signature is deliberately left out:
+      %% it would double the payload and a spectator has nothing to compare it
+      %% against.
+      scent => Scent,
+      scent_stride => 3,
       ticks_per_second => world_pace:ticks_per_second(Pace)}.
