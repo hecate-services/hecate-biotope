@@ -69,7 +69,7 @@ sample(W, Left, Every, Acc) ->
 
 report(Rows, Ticks) ->
     io:format("~s~n", [row(["seed", "final", "peak", "trough", "plants",
-                            "born", "starved", "aged"])]),
+                            "born", "starved", "aged", "breed_at"])]),
     lists:foreach(fun print_row/1, Rows),
     Finals = [P || #{final := #{population := P}} <- Rows],
     Extinct = length([P || P <- Finals, P =:= 0]),
@@ -77,12 +77,16 @@ report(Rows, Ticks) ->
               [Extinct, length(Rows), Ticks]),
     io:format("final population: min ~p median ~p max ~p~n",
               [lists:min(Finals), median(Finals), lists:max(Finals)]),
+    Breeds = [B || #{final := #{breed_at_mean := B}} <- Rows],
+    io:format("mean breed_at:    min ~p median ~p max ~p~n",
+              [lists:min(Breeds), median(Breeds), lists:max(Breeds)]),
     trajectory(hd(Rows)).
 
 print_row(#{seed := S, peak := Pk, trough := Tr,
             final := #{population := P, plants := Pl, born := B,
-                       starved := St, aged_out := Ag}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, Ag])]).
+                       starved := St, aged_out := Ag,
+                       breed_at_mean := Breed}}) ->
+    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, Ag, Breed])]).
 
 %% Columns padded by hand. A negative field width on ~p is not accepted, and the
 %% failure is a bare "failed to format string" that names no column.

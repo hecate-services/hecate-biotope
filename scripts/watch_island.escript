@@ -83,9 +83,14 @@ await_again(Left) -> await(erlang:monotonic_time(millisecond) + Left).
 %% Charts are printed as shapes rather than coordinates: a hundred and seventy
 %% integers a second scrolls the useful line off the screen.
 show(#{type := world_advanced, island := I, tick := T, population := P,
-       plants := Pl, starved := S, born := B, energy_total := E}) ->
-    io:format("~-10s tick ~-8w pop ~-5w plants ~-5w energy ~-8w born ~-6w "
-              "starved ~w~n", [I, T, P, Pl, E, B, S]);
+       plants := Pl, starved := S, econ_id := Econ}) ->
+    %% econ_id rather than the birth count, because with more than one island the
+    %% first question is not "how is it doing" but "am I even looking at the same
+    %% experiment". Two islands sharing a fingerprint are comparable; two that do
+    %% not are different games and their populations must not be read against
+    %% each other.
+    io:format("~-10s ~-18s tick ~-8w pop ~-5w plants ~-5w starved ~w~n",
+              [I, Econ, T, P, Pl, S]);
 show(#{type := world_charted, island := I, tick := T, radius := R,
        creatures := Cs, plants := Ps, stride := Stride}) ->
     io:format("~-10s tick ~-8w chart r~-4w ~w creatures, ~w plants~n",

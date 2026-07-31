@@ -102,13 +102,15 @@ starvation_is_counted_as_starvation_test() ->
 %% Old age and starvation are different findings. A single death count cannot
 %% tell "the population crashed" from "the population grew old", so they are
 %% never summed.
-%% start_energy is comfortably BELOW breed_at, and that gap is the test. The
-%% first version set them equal to mean "rich enough to ignore starvation, too
-%% poor to breed", which is a contradiction: the creature bred on tick one and
-%% two of them died of old age.
+%% "Rich enough to ignore starvation, too poor to breed" now has to be expressed
+%% by starting BELOW the breed floor, not by naming an enormous breed_at: the
+%% threshold is a per-creature trait and is clamped to a sane range, so a founder
+%% asking for 100000 is simply given the ceiling and breeds immediately. The
+%% earlier version of this test set start_energy and breed_at equal, which was a
+%% contradiction for a different reason and was fixed once already.
 old_age_is_counted_as_old_age_test() ->
-    W = barren(#{start_energy => 1000, metabolism => 0, move_cost => 0,
-                 max_age => 3, breed_at => 100000}),
+    W = barren(#{start_energy => 30, breed_floor => 40, metabolism => 0,
+                 move_cost => 0, max_age => 3}),
     #{population := Pop, starved := S, aged_out := O} =
         world:snapshot(world:tick(W, 6)),
     ?assertEqual(0, Pop),

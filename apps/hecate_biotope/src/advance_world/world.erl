@@ -51,14 +51,21 @@
                       energy := integer(),
                       age := non_neg_integer(),
                       born := non_neg_integer(),
-                      parent := id() | none}.
+                      parent := id() | none,
+                      %% THE ONE HERITABLE THING, and the first difference
+                      %% between two creatures that is not position or luck.
+                      %% The energy at which this creature will spend half of
+                      %% itself on a child.
+                      breed_at := pos_integer()}.
 
 -type econ() :: #{plant_energy := pos_integer(),
                   regrowth_per_tick := non_neg_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
                   breed_at := pos_integer(),
-                  breed_cost := pos_integer(),
+                  breed_mutation := non_neg_integer(),
+                  breed_floor := pos_integer(),
+                  breed_ceiling := pos_integer(),
                   start_energy := pos_integer(),
                   max_age := pos_integer(),
                   radius := non_neg_integer(),
@@ -105,8 +112,16 @@ defaults() ->
       regrowth_per_tick => 4,
       metabolism        => 1,
       move_cost         => 1,
+      %% The FOUNDING mean. Every creature carries its own from here on, and
+      %% the founders are spread around this rather than all starting equal:
+      %% selection needs something to select between, and a population of
+      %% identical creatures gives it nothing until mutation slowly supplies it.
       breed_at          => 160,
-      breed_cost        => 80,
+      %% How far a child's threshold may drift from its parent's. Zero turns
+      %% inheritance into cloning and the whole trait into a constant.
+      breed_mutation    => 8,
+      breed_floor       => 40,
+      breed_ceiling     => 400,
       start_energy      => 80,
       max_age           => 600,
       radius            => 20,
@@ -148,13 +163,24 @@ populate(0, W) -> W;
 populate(N, #world{econ = Econ, rng = Rng0} = W) ->
     Radius = maps:get(radius, Econ),
     {At, Rng1} = random_cell(Radius, Rng0),
-    populate(N - 1, add_creature(At, maps:get(start_energy, Econ), none,
-                                 W#world{rng = Rng1})).
+    %% FOUNDERS ARE SPREAD, NOT IDENTICAL. Selection needs something to select
+    %% between; a population of clones gives it nothing until mutation slowly
+    %% supplies variation, which wastes the first several hundred ticks of every
+    %% run and makes short runs look like the trait does not move.
+    {BreedAt, Rng2} = founder_threshold(Econ, Rng1),
+    populate(N - 1, add_creature(At, maps:get(start_energy, Econ), none, BreedAt,
+                                 W#world{rng = Rng2})).
 
-add_creature(At, Energy, Parent, #world{next_id = Id, creatures = Cs,
-                                        tick = T, born = B} = W) ->
+%% Uniform across half to one and a half times the founding mean.
+founder_threshold(Econ, Rng0) ->
+    Mean = maps:get(breed_at, Econ),
+    {Draw, Rng1} = rand:uniform_s(Mean + 1, Rng0),
+    {clamp(Mean div 2 + Draw - 1, Econ), Rng1}.
+
+add_creature(At, Energy, Parent, BreedAt, #world{next_id = Id, creatures = Cs,
+                                                 tick = T, born = B} = W) ->
     C = #{id => Id, at => At, energy => Energy, age => 0,
-          born => T, parent => Parent},
+          born => T, parent => Parent, breed_at => BreedAt},
     W#world{next_id = Id + 1, creatures = Cs#{Id => C}, born = B + 1}.
 
 %%==============================================================================
@@ -218,16 +244,26 @@ feed(true, Id, #{energy := E} = C, At, #world{creatures = Cs} = W,
             plants = maps:remove(At, Plants),
             eaten = Eaten + 1}.
 
-%% A surplus buys a child, placed on a neighbouring cell. The parent pays more
-%% than the child receives is NOT the rule here: it pays exactly what the child
-%% gets, so energy is conserved at birth and the only sink is metabolism. That
-%% keeps the books readable while the economy is being tuned.
+%% A surplus buys a child, placed on a neighbouring cell. The parent pays exactly
+%% what the child receives, so energy is conserved at birth and the only sink in
+%% the world is metabolism plus movement. That keeps the books readable.
+%%
+%% THE DOWRY IS HALF THE PARENT'S OWN THRESHOLD, and that is what makes the trait
+%% a tradeoff rather than a ratchet. A creature that breeds at 80 produces many
+%% children who each start with 40 and are one bad patch from starving. One that
+%% breeds at 300 produces few, each starting with 150 and able to survive a
+%% search. Early-and-many against late-and-fewer-but-sturdier is the classic r/K
+%% axis, and which end wins is a property of the ENVIRONMENT, not of the trait.
+%%
+%% Without the dowry scaling, a lower threshold would simply be better
+%% everywhere and the trait would collapse to its floor on every island, which
+%% is a slower way of writing a constant.
 breed_everyone(#world{creatures = Cs} = W) ->
     lists:foldl(fun breed_one/2, W, lists:sort(maps:keys(Cs))).
 
-breed_one(Id, #world{creatures = Cs, econ = Econ} = W) ->
-    #{energy := E} = maps:get(Id, Cs),
-    breed(E >= maps:get(breed_at, Econ), Id, W).
+breed_one(Id, #world{creatures = Cs} = W) ->
+    #{energy := E, breed_at := Threshold} = maps:get(Id, Cs),
+    breed(E >= Threshold, Id, W).
 
 breed(false, _Id, W) -> W;
 breed(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
@@ -236,11 +272,23 @@ breed(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
 room(false, _Id, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
 room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
-    #{at := At, energy := E} = C = maps:get(Id, Cs),
-    Cost = maps:get(breed_cost, Econ),
+    #{at := At, energy := E, breed_at := Threshold} = C = maps:get(Id, Cs),
+    Dowry = Threshold div 2,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
-    W1 = W#world{creatures = Cs#{Id => C#{energy => E - Cost}}, rng = Rng1},
-    add_creature(Where, Cost, Id, W1).
+    {Inherited, Rng2} = inherit(Threshold, Econ, Rng1),
+    W1 = W#world{creatures = Cs#{Id => C#{energy => E - Dowry}}, rng = Rng2},
+    add_creature(Where, Dowry, Id, Inherited, W1).
+
+%% A child is its parent plus a nudge. Mutation is symmetric and small, so a
+%% lineage drifts rather than jumping, and selection has something to act on
+%% without the trait becoming noise.
+inherit(Threshold, Econ, Rng0) ->
+    Mut = maps:get(breed_mutation, Econ),
+    {Step, Rng1} = rand:uniform_s(2 * Mut + 1, Rng0),
+    {clamp(Threshold + Step - Mut - 1, Econ), Rng1}.
+
+clamp(V, Econ) ->
+    max(maps:get(breed_floor, Econ), min(maps:get(breed_ceiling, Econ), V)).
 
 %% Death has two causes and they are counted separately, because "the population
 %% crashed" and "the population aged out" are different findings and a single
@@ -289,7 +337,17 @@ snapshot(#world{} = W) ->
       radius => maps:get(radius, W#world.econ),
       econ => W#world.econ,
       econ_id => econ_id(W#world.econ),
-      extinct_at => W#world.extinct_at}.
+      extinct_at => W#world.extinct_at,
+      %% WHAT THE POPULATION HAS BECOME. The whole point of a heritable trait is
+      %% that it moves, and a mean is the smallest thing that shows it moving.
+      %% Reported as an integer because everything on the wire is.
+      breed_at_mean => mean_breed_at(W)}.
+
+%% Zero for an empty world rather than a crash or a nonsense average.
+mean_breed_at(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_breed_at(#world{creatures = Cs}) ->
+    Total = maps:fold(fun(_Id, #{breed_at := B}, Acc) -> Acc + B end, 0, Cs),
+    Total div map_size(Cs).
 
 %% @doc A short, stable fingerprint of the rules this world runs under.
 %%
