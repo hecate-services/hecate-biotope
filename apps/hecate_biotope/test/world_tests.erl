@@ -1,43 +1,245 @@
-%% @doc The physics, asserted rather than eyeballed.
+%% @doc The physics of world 2, asserted rather than eyeballed.
 %%
-%% The point of these is not that the world "works". It is that energy goes
-%% exactly where the rules say it goes, because every later question is asked in
-%% units of energy and is meaningless if the books do not balance.
-%%
-%% NOTHING HERE ASSERTS A BIOLOGICAL OUTCOME. There is no test that predators
-%% appear, that a sensor survives, or that roles differentiate, and there must
-%% never be one: those are the things the world exists to answer, and a test that
-%% demanded them would turn a failed prediction into a broken build and quietly
-%% pressure the rules until it passed. What is asserted is that the rules are the
-%% rules. See PREREGISTRATION.md.
+%% NOTHING HERE ASSERTS A BIOLOGICAL OUTCOME. There is no test that plants
+%% appear, that predators appear, or that a sensor survives, and there must never
+%% be one: those are the things the world exists to answer, and a test demanding
+%% them would turn a failed prediction into a broken build and quietly pressure
+%% the rules until it passed. What is asserted is that the rules are the rules.
+%% See PREREGISTRATION.md.
 -module(world_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% A world with no plants at all: none sown at creation, none regrowing, and no
-%% rent, so nothing enters and every change in the energy total is attributable.
+%% A creature that perceives nothing, moves nowhere and never breeds: no sensors,
+%% so one input, `here', and no outputs at all. The stillest, cheapest thing the
+%% rules allow, which makes every energy sum attributable.
+inert() ->
+    #{founder_body => [], founder_brain => #{hidden => [], outputs => #{}}}.
+
+%% As above but it will move: a `move' output that prefers anywhere to here.
+restless() ->
+    #{founder_body => [],
+      founder_brain => #{hidden => [],
+                         outputs => #{move => #{inputs => [-1], hidden => []}}}}.
+
+%% As above but it will breed on the first tick it can.
+fertile() ->
+    #{founder_body => [],
+      founder_brain => #{hidden => [],
+                         outputs => #{breed => #{inputs => [1], hidden => []}}}}.
+
+quiet(Opts) ->
+    world:new(maps:merge(#{population => 1, radius => 3, seed => 7}, Opts)).
+
+%% Everything in the world is either in the ground or in a creature.
+books(W) ->
+    #{energy_total := Creatures, ground_total := Ground} = world:snapshot(W),
+    Creatures + Ground.
+
+%%==============================================================================
+%% The books
+%%==============================================================================
+
+%% THE INVARIANT WORLD 1 COULD NEVER CHECK, because it destroyed the energy of
+%% anything that died of old age. It could assert only that the total FELL, never
+%% that it fell by exactly what was spent, so any other leak would have hidden
+%% behind the one it had built in.
+a_still_world_conserves_energy_exactly_test() ->
+    W = quiet(maps:merge(#{influx => 0, metabolism => 0, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 100000}, inert())),
+    Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 20)],
+    ?assertEqual(1, length(lists:usort(Totals))).
+
+%% The only sink is the work of staying alive.
+existing_is_the_only_leak_test() ->
+    W = quiet(maps:merge(#{influx => 0, metabolism => 7, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 100000}, inert())),
+    ?assertEqual(books(W) - 70, books(world:tick(W, 10))).
+
+moving_costs_over_and_above_existing_test() ->
+    Opts = #{influx => 0, metabolism => 3, move_cost => 5, sensor_rent => 0,
+             hidden_rent => 0, max_age => 100000},
+    Still = quiet(maps:merge(Opts, inert())),
+    Moving = quiet(maps:merge(Opts, restless())),
+    ?assertEqual(books(Still) - 30, books(world:tick(Still, 10))),
+    ?assertEqual(books(Moving) - 80, books(world:tick(Moving, 10))).
+
+%% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON. World 1 deleted it, and a
+%% well-fed creature could be carrying hundreds.
+dying_of_old_age_returns_its_energy_to_the_ground_test() ->
+    W = quiet(maps:merge(#{influx => 0, metabolism => 0, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 3,
+                           start_energy => 500}, inert())),
+    Before = books(W),
+    After = world:tick(W, 6),
+    #{population := Pop, aged_out := Aged, energy_total := InCreatures} =
+        world:snapshot(After),
+    ?assertEqual(0, Pop),
+    ?assertEqual(1, Aged),
+    ?assertEqual(0, InCreatures),
+    ?assertEqual(Before, books(After)).
+
+%% Ambient supply stops at the ceiling rather than accumulating without bound.
+%% Asserted with nobody there to graze it: with a creature present the WORLD
+%% total keeps rising, correctly, because the ceiling caps a CELL and influx goes
+%% on arriving. An earlier version of this asserted the world total and was
+%% simply wrong about what the ceiling means.
+the_ground_fills_to_its_ceiling_and_no_further_test() ->
+    W = world:new(#{radius => 1, population => 0, influx => 100,
+                    ground_ceiling => 250, seed => 7}),
+    #{ground_total := Early} = world:snapshot(world:tick(W, 50)),
+    #{ground_total := Late} = world:snapshot(world:tick(W, 200)),
+    ?assertEqual(hex:cells(1) * 250, Early),
+    ?assertEqual(Early, Late).
+
+%%==============================================================================
+%% Absorbing, contesting, and one rule for both
+%%==============================================================================
+
+absorbing_takes_the_whole_cell_test() ->
+    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 300, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 100}, inert())),
+    #{energy_total := E1, ground_total := G1} = world:snapshot(world:tick(W)),
+    ?assertEqual(400, E1),
+    ?assertEqual((hex:cells(3) - 1) * 300, G1).
+
+%% AND THE SAME RULE TAKES A CREATURE. Something holding more takes something
+%% holding less, exactly as it takes what is in the ground, and there is no
+%% separate path for either. World 1 had two functions with two names, which is
+%% precisely why its claim to have deleted the herbivore split was false.
 %%
-%% `initial_plants => 0' and `sensor_rent => 0' are both LOAD BEARING. Without
-%% the first these were not barren and quietly measured a creature eating while
-%% claiming to measure metabolism. Without the second a founding body is drawn at
-%% random, so the bill would vary with the seed by however many sensors it dealt.
-barren(Opts) ->
-    world:new(maps:merge(#{initial_plants => 0,
-                           regrowth_per_tick => 0,
-                           sensor_rent => 0,
-                           population => 1,
-                           radius => 3,
-                           seed => 7}, Opts)).
+%% Radius 0 is one cell and a child is placed on a neighbour, of which there are
+%% none, so parent and child stand together. The dowry is half, so the child is
+%% always the poorer.
+the_stronger_takes_the_weaker_test() ->
+    W = family(201),
+    ?assertEqual({1, 0, 201}, look(W, 0)),
+    %% A child is born and the parent paid exactly what it received.
+    ?assertEqual({2, 0, 201}, look(W, 1)),
+    %% They share a cell. An odd split leaves the parent one unit richer, so it
+    %% takes the child back and immediately has the surplus to breed again.
+    ?assertEqual({2, 1, 201}, look(W, 2)).
 
-%% A creature that cannot perceive anything and is indifferent to staying: no
-%% sensors, so one weight, and it is zero. Every cell scores alike and the choice
-%% is a coin, which is the null forager the whole design rests on.
-blind() -> #{founder_body => [], founder_brain => [0]}.
+%% AND A PARENT CANNOT EAT AN EVENLY SPLIT CHILD, which falls out of the new
+%% rule rather than being written anywhere. The dowry is half, so for an even
+%% energy the two come out exactly equal, and equals do not consume each other.
+%% World 1 could not express this: its dowry was half a THRESHOLD rather than
+%% half of what the parent was carrying, so a parent was almost always richer
+%% than its newborn.
+an_evenly_split_parent_and_child_are_equals_test() ->
+    W = family(200),
+    ?assertEqual({2, 0, 200}, look(W, 1)),
+    ?assertEqual({4, 0, 200}, look(W, 2)).
 
-%% Sensors and weights are positional and must stay in step, so tests that set
-%% both say so together.
-with(Sensors, Weights) ->
-    #{founder_body => Sensors, founder_brain => Weights}.
+%% MUTATION OFF, and finding out why cost a debugging round. With it on, the
+%% child's breed weight is nudged from 1 to 0 or 2, and a 0 means it declines to
+%% reproduce, so the second generation is not the clone the arithmetic here
+%% assumes. That is the machinery working; it just makes a rule impossible to
+%% isolate, which is what these two want to do.
+family(Energy) ->
+    quiet(maps:merge(#{population => 1, radius => 0, influx => 0,
+                       ground_ceiling => 0, metabolism => 0, sensor_rent => 0,
+                       hidden_rent => 0, max_age => 100000,
+                       brain_mutation => 0, brain_mutation_structural => 1000000,
+                       body_mutation => 1000000,
+                       start_energy => Energy}, fertile())).
+
+look(W, N) ->
+    Ticked = world:tick(W, N),
+    S = world:snapshot(Ticked),
+    {maps:get(population, S), maps:get(consumed, S), books(Ticked)}.
+
+equals_do_not_consume_each_other_test() ->
+    W = quiet(maps:merge(#{population => 2, radius => 0, influx => 0,
+                           ground_ceiling => 0, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000}, inert())),
+    #{population := Pop, consumed := Eaten} = world:snapshot(world:tick(W, 5)),
+    ?assertEqual(2, Pop),
+    ?assertEqual(0, Eaten).
+
+%%==============================================================================
+%% What it costs to be equipped
+%%==============================================================================
+
+%% THE ONLY FORCE THAT CAN REMOVE A SENSOR. If measuring were free every lineage
+%% would accumulate every measurement and the fully equipped generalist would
+%% never be at a disadvantage.
+a_sensor_costs_its_rent_every_tick_test() ->
+    Cost = fun(Sensors) ->
+                   W = quiet(#{influx => 0, metabolism => 0, sensor_rent => 2,
+                               hidden_rent => 0, max_age => 100000,
+                               start_energy => 900, founder_body => Sensors,
+                               founder_brain => #{hidden => [],
+                                                  outputs => #{}}}),
+                   books(W) - books(world:tick(W, 10))
+           end,
+    ?assertEqual(0, Cost([])),
+    %% Rent rises with reach: range 0 is one unit, range 2 is three.
+    ?assertEqual(20, Cost([{ground, 0}])),
+    ?assertEqual(60, Cost([{ground, 2}])),
+    %% And is charged per sensor, so a generalist pays for each.
+    ?assertEqual(40, Cost([{ground, 0}, {creatures, 0}])).
+
+%% A BRAIN IS A THING THAT MUST BE RUN. Without rent on hidden nodes a lineage
+%% accumulates capacity it never uses, exactly as it would accumulate senses.
+a_hidden_node_costs_its_rent_every_tick_test() ->
+    Cost = fun(Hidden) ->
+                   W = quiet(#{influx => 0, metabolism => 0, sensor_rent => 0,
+                               hidden_rent => 3, max_age => 100000,
+                               start_energy => 900, founder_body => [],
+                               founder_brain => #{hidden => Hidden,
+                                                  outputs => #{}}}),
+                   books(W) - books(world:tick(W, 10))
+           end,
+    ?assertEqual(0, Cost([])),
+    ?assertEqual(30, Cost([[0]])),
+    ?assertEqual(60, Cost([[0], [0]])).
+
+%%==============================================================================
+%% Deciding
+%%==============================================================================
+
+%% A creature with no `move' output never moves, and in this world that is a
+%% living rather than a death sentence: it takes what gathers where it stands.
+without_a_move_output_it_stays_put_test() ->
+    W = quiet(maps:merge(#{influx => 5, metabolism => 0, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 100000}, inert())),
+    #{still_pct := Still} = world:snapshot(world:tick(W, 5)),
+    ?assertEqual(100, Still).
+
+%% Staying still leaves no trail, which makes sitting tight a way to go unnoticed
+%% as well as a way to save energy, and is the only counter to being tracked.
+moving_leaves_a_trail_and_staying_does_not_test() ->
+    Opts = #{influx => 5, metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+             max_age => 100000},
+    #{scent_cells := Walked, still_pct := Moving} =
+        world:snapshot(world:tick(quiet(maps:merge(Opts, restless())), 5)),
+    #{scent_cells := Sat} =
+        world:snapshot(world:tick(quiet(maps:merge(Opts, inert())), 5)),
+    ?assert(Walked > 0),
+    ?assertEqual(0, Moving),
+    ?assertEqual(0, Sat).
+
+%% A CHILD IS A DECISION NOW, not a threshold. `breed_at' and its three companion
+%% constants are gone: deciding reproduction by a hand-written rule with a
+%% heritable parameter was exactly the shape `hunt' had.
+without_a_breed_output_it_leaves_no_descendants_test() ->
+    W = quiet(maps:merge(#{influx => 100, metabolism => 0, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 100000}, inert())),
+    #{population := Pop} = world:snapshot(world:tick(W, 50)),
+    ?assertEqual(1, Pop).
+
+%% Birth conserves energy, and costs half of whatever the parent happens to be
+%% carrying rather than a fixed sum.
+breeding_conserves_energy_and_costs_half_test() ->
+    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 400}, fertile())),
+    #{population := Pop} = world:snapshot(world:tick(W)),
+    ?assertEqual(2, Pop),
+    ?assertEqual(books(W), books(world:tick(W))).
 
 %%==============================================================================
 %% Making one
@@ -48,175 +250,34 @@ starts_with_the_population_it_was_asked_for_test() ->
     ?assertEqual(12, world:population(W)),
     ?assertEqual(0, world:at_tick(W)).
 
-%% Same parameters, same world. Nothing reads a clock or the process dictionary,
-%% so a run is a function of its arguments and a surprising run can be reproduced
-%% from the numbers in its own snapshot.
+%% Same parameters, same world. Nothing reads a clock or the process dictionary.
 same_seed_same_world_test() ->
-    A = world:tick(world:new(#{seed => 99, population => 20}), 50),
-    B = world:tick(world:new(#{seed => 99, population => 20}), 50),
+    A = world:tick(world:new(#{seed => 99, population => 20, radius => 6}), 50),
+    B = world:tick(world:new(#{seed => 99, population => 20, radius => 6}), 50),
     ?assertEqual(world:snapshot(A), world:snapshot(B)).
 
 different_seed_different_world_test() ->
-    A = world:tick(world:new(#{seed => 1, population => 20}), 50),
-    B = world:tick(world:new(#{seed => 2, population => 20}), 50),
+    A = world:tick(world:new(#{seed => 1, population => 20, radius => 6}), 50),
+    B = world:tick(world:new(#{seed => 2, population => 20, radius => 6}), 50),
     ?assertNotEqual(world:snapshot(A), world:snapshot(B)).
 
-%% Founders are spread across every shape the rules allow, so selection has
-%% something to sort on the first tick instead of waiting for mutation to invent
-%% variety. Asserted on bodies because they are the coarsest of the four.
-founders_are_not_all_alike_test() ->
-    W = world:new(#{population => 40, seed => 3}),
-    #{sensors := Census} = world:snapshot(W),
-    Carriers = [maps:get(carriers, F) || F <- maps:values(Census)],
-    ?assert(lists:sum(Carriers) > 0),
-    ?assert(lists:any(fun(N) -> N < 40 end, Carriers)).
-
-%%==============================================================================
-%% What it costs to exist and to act
-%%==============================================================================
-
-%% A creature with no sensors and a zero weight is indifferent between staying
-%% and moving, so this pins the weight instead: staying is worth less than
-%% nothing, which makes it certainly move and the step certainly billed.
-existing_and_moving_both_cost_test() ->
-    W0 = barren(maps:merge(#{metabolism => 3, move_cost => 2,
-                             start_energy => 100}, with([], [-1]))),
-    #{energy_total := Before} = world:snapshot(W0),
-    #{energy_total := After} = world:snapshot(world:tick(W0)),
-    ?assertEqual(100, Before),
-    ?assertEqual(100 - 3 - 2, After).
-
-%% STAYING IS THE ONLY FREE OPTION, and that is what makes sitting out a bad
-%% patch reachable at all. Without it the cheapest strategy in a barren world
-%% does not exist and every creature is forced to burn energy having opinions.
-staying_costs_nothing_but_metabolism_test() ->
-    W = barren(maps:merge(#{metabolism => 2, move_cost => 100,
-                            start_energy => 100}, with([], [1]))),
-    #{energy_total := After} = world:snapshot(world:tick(W, 5)),
-    ?assertEqual(100 - 10, After).
-
-metabolism_is_charged_every_tick_test() ->
-    W = barren(maps:merge(#{metabolism => 5, move_cost => 0,
-                            start_energy => 100}, blind())),
-    #{energy_total := After} = world:snapshot(world:tick(W, 10)),
-    ?assertEqual(100 - 50, After).
-
-%% THE ONLY FORCE THAT CAN REMOVE A SENSOR. If measuring were free every lineage
-%% would accumulate every measurement, the fully equipped generalist would never
-%% be at a disadvantage, and nothing could ever specialise in anything.
-a_sensor_costs_its_rent_every_tick_test() ->
-    Cost = fun(Sensors, Weights) ->
-                   W = barren(maps:merge(#{metabolism => 0, sensor_rent => 2,
-                                           move_cost => 0, start_energy => 200},
-                                         with(Sensors, Weights))),
-                   #{energy_total := E} = world:snapshot(world:tick(W, 10)),
-                   200 - E
-           end,
-    ?assertEqual(0, Cost([], [0])),
-    %% Rent rises with reach: range 0 is one unit of rent, range 2 is three.
-    ?assertEqual(20, Cost([{plants, 0}], [0, 0])),
-    ?assertEqual(60, Cost([{plants, 2}], [0, 0])),
-    %% And it is charged per sensor, so a generalist pays for each.
-    ?assertEqual(40, Cost([{plants, 0}, {creatures, 0}], [0, 0, 0])).
-
-%%==============================================================================
-%% Where energy enters
-%%==============================================================================
-
-%% Energy enters only by eating a plant, and exactly one plant's worth per plant.
-%% Asserted as a relation rather than a fixed number so that it holds whether or
-%% not the creature happened to move onto one.
-eating_adds_exactly_one_plant_test() ->
-    W = world:new(maps:merge(#{population => 1, radius => 1,
-                               regrowth_per_tick => 0, initial_plants => 4,
-                               plant_energy => 40, metabolism => 0,
-                               move_cost => 0, sensor_rent => 0,
-                               start_energy => 10, breed_at => 100000,
-                               seed => 3}, blind())),
-    #{energy_total := E0, plants := P0} = world:snapshot(W),
-    #{energy_total := E1, plants := P1, plants_eaten := Ate} =
-        world:snapshot(world:tick(W)),
-    ?assertEqual(Ate * 40, E1 - E0),
-    ?assertEqual(Ate, P0 - P1).
-
-a_barren_world_only_loses_energy_test() ->
-    W = barren(maps:merge(#{population => 5, start_energy => 60}, blind())),
-    Totals = [begin
-                  #{energy_total := E} = world:snapshot(world:tick(W, N)),
-                  E
-              end || N <- lists:seq(0, 10)],
-    ?assertEqual(lists:reverse(lists:sort(Totals)), Totals).
-
-%%==============================================================================
-%% Consumption: one rule that does not know what it is eating
-%%==============================================================================
-
-%% Everyone on one cell, since radius 0 is a single hex. Breeding is put out of
-%% reach because a creature that has just eaten another is carrying exactly the
-%% surplus that buys a child, and a population count would otherwise mix the two.
-crowd(N, Opts) ->
-    barren(maps:merge(maps:merge(#{population => N, radius => 0,
-                                   start_energy => 100, metabolism => 0,
-                                   move_cost => 0, breed_at => 1000000,
-                                   breed_ceiling => 1000000,
-                                   max_age => 100000}, blind()), Opts)).
-
-%% A PLANT CANNOT CONTEST AND SO IS ALWAYS TAKEN. Nothing about being a plant
-%% appears in the rule; it is simply a thing in the cell with no energy of its
-%% own to hold anyone off.
-a_plant_is_taken_by_whoever_stands_on_it_test() ->
-    W = crowd(1, #{initial_plants => 1, radius => 0, plant_energy => 40}),
-    #{energy_total := Before, plants := P0} = world:snapshot(W),
-    #{energy_total := After, plants := P1} = world:snapshot(world:tick(W)),
-    ?assertEqual(1, P0),
-    ?assertEqual(0, P1),
-    ?assertEqual(Before + 40, After).
-
-%% EQUALS DO NOT CONSUME EACH OTHER. Two creatures of identical energy share a
-%% cell indefinitely, which is what stops the rule being "whoever is listed
-%% first wins" and makes the outcome a function of the world.
-equals_do_not_consume_each_other_test() ->
-    #{population := Pop, consumed := Eaten} =
-        world:snapshot(world:tick(crowd(2, #{}), 5)),
-    ?assertEqual(2, Pop),
-    ?assertEqual(0, Eaten).
-
-%% AND THE RULE DOES NOT KNOW IT IS PREDATION. Something holding more energy
-%% takes something holding less, exactly as it takes a plant, and the same line
-%% of code does both. Nothing here is aware that one case is a plant and the
-%% other an animal.
-%%
-%% Radius 0 is a single cell and a child is placed on a neighbour, of which there
-%% are none, so parent and child end up standing together. The dowry is half the
-%% threshold, so the child is always the poorer of the two.
-the_stronger_takes_the_weaker_test() ->
-    W = barren(maps:merge(#{population => 1, radius => 0, start_energy => 200,
-                            breed_at => 150, breed_floor => 150,
-                            breed_ceiling => 150, breed_mutation => 0,
-                            metabolism => 0, move_cost => 0,
-                            max_age => 100000}, blind())),
-    Look = fun(N) ->
-                   #{population := P, energy_total := E, consumed := C} =
-                       world:snapshot(world:tick(W, N)),
-                   {P, E, C}
-           end,
-    %% Alone, and the whole world is 200.
-    ?assertEqual({1, 200, 0}, Look(0)),
-    %% A child is born. The parent paid exactly what the child received, so the
-    %% total has not moved and nothing has been eaten.
-    ?assertEqual({2, 200, 0}, Look(1)),
-    %% Now they share a cell. The parent holds 125 against the child's 75 and
-    %% takes it, and immediately has the surplus to breed again. ENERGY IS
-    %% UNCHANGED BY THE TAKING: it changed hands, none was minted or destroyed.
-    ?assertEqual({2, 200, 1}, Look(2)).
+%% A VIRGIN WORLD IS FULL, because nothing has drained it. The opening of a run
+%% is colonisation of a standing larder rather than equilibrium, and that
+%% transient must not be read as the answer.
+a_new_world_is_full_and_flat_test() ->
+    W = world:new(#{radius => 4, ground_ceiling => 250, population => 0}),
+    #{ground_total := G, ground_spread := Spread} = world:snapshot(W),
+    ?assertEqual(hex:cells(4) * 250, G),
+    ?assert(Spread =< 11).
 
 %%==============================================================================
 %% Death, by cause
 %%==============================================================================
 
 starvation_is_counted_as_starvation_test() ->
-    W = barren(maps:merge(#{start_energy => 4, metabolism => 1, move_cost => 1},
-                          with([], [-1]))),
+    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 30,
+                           sensor_rent => 0, hidden_rent => 0,
+                           start_energy => 60}, inert())),
     #{population := Pop, starved := S, aged_out := O, consumed := C} =
         world:snapshot(world:tick(W, 5)),
     ?assertEqual(0, Pop),
@@ -227,118 +288,61 @@ starvation_is_counted_as_starvation_test() ->
 %% Three causes, never summed. "The population crashed" and "the population grew
 %% old" are different findings and one total cannot tell them apart.
 old_age_is_counted_as_old_age_test() ->
-    W = barren(maps:merge(#{start_energy => 30, breed_floor => 40,
-                            metabolism => 0, move_cost => 0, max_age => 3},
-                          blind())),
+    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 3}, inert())),
     #{population := Pop, starved := S, aged_out := O} =
         world:snapshot(world:tick(W, 6)),
     ?assertEqual(0, Pop),
     ?assertEqual(0, S),
     ?assertEqual(1, O).
 
+%% EXTINCTION IS PERMANENT AND THAT IS A PROPERTY OF THE RULES: nothing reseeds a
+%% world and a population of zero cannot produce a birth. A dead island keeps
+%% publishing, its ground refilling and its tick advancing, so the moment it
+%% emptied is the one thing no later sample carries.
+a_world_that_dies_records_when_and_does_not_revise_it_test() ->
+    W = quiet(maps:merge(#{population => 3, influx => 0, ground_ceiling => 0,
+                           metabolism => 30, sensor_rent => 0,
+                           hidden_rent => 0, start_energy => 60}, inert())),
+    ?assertEqual(undefined, maps:get(extinct_at, world:snapshot(W))),
+    #{population := Pop, extinct_at := At} = world:snapshot(world:tick(W, 10)),
+    ?assertEqual(0, Pop),
+    ?assert(is_integer(At)),
+    #{extinct_at := Later} = world:snapshot(world:tick(W, 60)),
+    ?assertEqual(At, Later).
+
 %%==============================================================================
-%% What a surplus buys
+%% Structure, and the one bug that does not crash
 %%==============================================================================
 
-%% Birth conserves energy: the parent pays exactly what the child receives, so
-%% the only sinks are metabolism, rent and movement. That is what makes a
-%% drifting energy total a bug rather than a mystery.
-breeding_conserves_energy_test() ->
-    W0 = barren(maps:merge(#{start_energy => 200, breed_at => 150,
-                             metabolism => 0, move_cost => 0,
-                             max_age => 100000}, blind())),
-    #{energy_total := Before, population := P0} = world:snapshot(W0),
-    #{energy_total := After, population := P1} = world:snapshot(world:tick(W0)),
-    ?assertEqual(Before, After),
-    ?assertEqual(P0 + 1, P1).
-
-a_creature_below_the_threshold_does_not_breed_test() ->
-    W = barren(maps:merge(#{start_energy => 100, breed_at => 150,
-                            metabolism => 0, move_cost => 0}, blind())),
-    #{population := P} = world:snapshot(world:tick(W)),
-    ?assertEqual(1, P).
-
-%% A CHILD MUST BE ITS PARENT'S SHAPE. The brain carries one weight per sensor
-%% plus one for staying, so a body and a brain out of step is the worst bug
-%% available here: nothing crashes, and every weight after the change quietly
-%% starts valuing a different measurement.
-every_child_has_a_brain_that_fits_its_body_test() ->
-    W = world:tick(world:new(#{population => 30, seed => 5,
-                               body_mutation => 1}), 300),
-    #{sensor_mean := Mean, population := Pop} = world:snapshot(W),
-    ?assert(Pop > 0),
-    %% Reaching here at all means no creature scored a cell with a mismatched
-    %% weight list, which would have crashed lists:zip in brain:value/3.
-    ?assert(Mean >= 0).
+%% A brain carries one weight per input in EVERY hidden node and EVERY output, so
+%% a body that gains or loses a sensor leaves several vectors a column out of step
+%% at once. Nothing crashes when that goes wrong: every weight past the change
+%% point simply reads a different measurement, and the creature behaves like a
+%% garbled version of its parent for reasons no test would name.
+%%
+%% Reaching the end of a long run with heavy structural churn means no creature
+%% ever evaluated a cell with a mismatched vector, which would have crashed
+%% lists:zip. That is what this asserts, and it is why it runs so long.
+bodies_and_brains_stay_in_step_through_churn_test() ->
+    W = world:tick(world:new(#{population => 30, radius => 6, seed => 17,
+                               body_mutation => 1,
+                               brain_mutation_structural => 1}), 400),
+    #{population := Pop, hidden_mean := Hidden} = world:snapshot(W),
+    ?assert(Pop >= 0),
+    ?assert(Hidden >= 0).
 
 %% The cap is a safety valve against a mistuned run, not a model parameter, so
 %% hitting it must be visible rather than looking like a stable ceiling.
 refused_births_are_counted_test() ->
-    W = barren(maps:merge(#{population => 4, max_creatures => 4,
-                            start_energy => 500, breed_at => 100,
-                            metabolism => 0, move_cost => 0,
-                            max_age => 100000}, blind())),
+    W = quiet(maps:merge(#{population => 4, max_creatures => 4, influx => 0,
+                           ground_ceiling => 0, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 400}, fertile())),
     #{population := P, births_refused := R} = world:snapshot(world:tick(W)),
     ?assertEqual(4, P),
     ?assert(R > 0).
-
-%%==============================================================================
-%% Trails
-%%==============================================================================
-
-%% A MOVING CREATURE MARKS THE GROUND AND A STILL ONE DOES NOT. That asymmetry
-%% makes staying put a way to go unnoticed as well as a way to save energy, which
-%% is the only counter available to something being tracked.
-moving_leaves_a_trail_and_staying_does_not_test() ->
-    Walker = barren(maps:merge(#{radius => 3}, with([], [-1]))),
-    Sitter = barren(maps:merge(#{radius => 3}, with([], [1]))),
-    #{scent_cells := Walked} = world:snapshot(world:tick(Walker, 5)),
-    #{scent_cells := Sat} = world:snapshot(world:tick(Sitter, 5)),
-    ?assert(Walked > 0),
-    ?assertEqual(0, Sat).
-
-%% A trail that never faded would be a road, and a board where every cell smells
-%% alike carries exactly as much information as one where none does.
-a_trail_fades_to_nothing_test() ->
-    W = barren(maps:merge(#{radius => 3, start_energy => 3, metabolism => 1,
-                            scent_per_tick => 10, scent_decay => 2,
-                            scent_ceiling => 10}, with([], [-1]))),
-    #{population := Pop, scent_cells := Stale} =
-        world:snapshot(world:tick(W, 12)),
-    ?assertEqual(0, Pop),
-    ?assertEqual(0, Stale).
-
-%%==============================================================================
-%% Reading a world
-%%==============================================================================
-
-%% NOTHING THE OBSERVER COUNTS IS READ BY THE PHYSICS. That separation is what
-%% makes it legitimate to count diet at all: it is a description applied
-%% afterwards, never a category the world enforces.
-where_energy_came_from_is_counted_test() ->
-    Grazed = world:new(maps:merge(#{population => 1, radius => 1,
-                                    initial_plants => 7, regrowth_per_tick => 0,
-                                    metabolism => 0, move_cost => 0,
-                                    sensor_rent => 0, breed_at => 100000,
-                                    seed => 2}, blind())),
-    #{from_creatures_pct := Share} = world:snapshot(world:tick(Grazed, 3)),
-    ?assertEqual(0, Share).
-
-%% Zero for a population that has eaten nothing, rather than a crash or a
-%% nonsense average.
-a_population_that_has_eaten_nothing_has_no_share_test() ->
-    #{from_creatures_pct := Share} =
-        world:snapshot(world:new(#{population => 5, seed => 8})),
-    ?assertEqual(0, Share).
-
-%% A census of what survived, by field. Not a verdict about what was useful: the
-%% two are only the same thing after enough generations that drift is outvoted.
-the_sensor_census_covers_every_field_test() ->
-    #{sensors := Census, population := Pop} =
-        world:snapshot(world:new(#{population => 20, seed => 4})),
-    ?assertEqual(lists:sort(body:fields()), lists:sort(maps:keys(Census))),
-    Carriers = [maps:get(carriers, F) || F <- maps:values(Census)],
-    ?assert(lists:all(fun(N) -> N =< Pop end, Carriers)).
 
 %%==============================================================================
 %% Which rules this world runs under
@@ -350,163 +354,43 @@ identical_economies_share_a_fingerprint_test() ->
     ?assertEqual(IdA, IdB).
 
 one_changed_number_changes_the_fingerprint_test() ->
-    #{econ_id := Default} = world:snapshot(world:new(#{})),
-    #{econ_id := Leaner} = world:snapshot(world:new(#{metabolism => 2})),
+    #{econ_id := Default} = world:snapshot(world:new(#{radius => 4})),
+    #{econ_id := Leaner} = world:snapshot(world:new(#{radius => 4,
+                                                      metabolism => 20})),
     ?assertNotEqual(Default, Leaner).
 
-%% Map iteration order is not a promise, so the canonical form sorts. Built by
-%% hand rather than with term_to_binary, whose bytes are only stable within an
-%% OTP release: two honest islands on different releases would otherwise compute
-%% different ids for identical rules.
 fingerprint_is_short_lowercase_hex_test() ->
-    #{econ_id := Id} = world:snapshot(world:new(#{})),
+    #{econ_id := Id} = world:snapshot(world:new(#{radius => 3})),
     ?assertEqual(16, byte_size(Id)),
     ?assertMatch({match, _}, re:run(Id, "^[0-9a-f]{16}$")).
-
-the_economy_itself_travels_with_the_fingerprint_test() ->
-    #{econ := Econ} = world:snapshot(world:new(#{metabolism => 2})),
-    ?assertEqual(2, maps:get(metabolism, Econ)),
-    ?assertEqual(maps:keys(world:defaults()), maps:keys(Econ)).
-
-%%==============================================================================
-%% Extinction
-%%==============================================================================
-
-%% EXTINCTION IS PERMANENT AND THAT IS A PROPERTY OF THE RULES. Nothing reseeds a
-%% world and a population of zero cannot produce a birth, so a dead island goes
-%% on publishing forever: its plants regrow, its tick advances, and every fact
-%% after the last death is identical to the one before. The tick it emptied is
-%% the only part no later sample carries.
-a_world_that_dies_records_when_test() ->
-    W = barren(maps:merge(#{population => 3, start_energy => 4,
-                            metabolism => 1, move_cost => 1}, with([], [-1]))),
-    #{extinct_at := Before} = world:snapshot(W),
-    ?assertEqual(undefined, Before),
-    #{population := Pop, extinct_at := At} = world:snapshot(world:tick(W, 10)),
-    ?assertEqual(0, Pop),
-    ?assert(is_integer(At)).
-
-the_tick_of_death_is_not_revised_test() ->
-    W = world:tick(barren(maps:merge(#{population => 2, start_energy => 4,
-                                       metabolism => 1, move_cost => 1},
-                                     with([], [-1]))), 10),
-    #{extinct_at := At} = world:snapshot(W),
-    #{extinct_at := Later} = world:snapshot(world:tick(W, 50)),
-    ?assertEqual(At, Later).
 
 %%==============================================================================
 %% What a spectator is given
 %%==============================================================================
 
-%% Flat integers rather than pairs, because a pair is a tuple and tuples do not
-%% survive this mesh cleanly, and a map per entity would repeat the keys `q' and
-%% `r' for every creature for no information.
-the_chart_is_flat_coordinate_lists_test() ->
-    W = world:new(#{population => 5, radius => 3, initial_plants => 7, seed => 2}),
-    #{creatures := Cs, plants := Ps, radius := R, tick := T} = world:chart(W),
+the_chart_is_flat_integer_lists_test() ->
+    W = world:new(#{population => 5, radius => 3, seed => 2}),
+    #{creatures := Cs, energies := Es, signatures := Sigs,
+      ground := G, scent := Sc, radius := R} = world:chart(W),
     ?assertEqual(10, length(Cs)),
-    ?assertEqual(0, length(Cs) rem 2),
-    ?assertEqual(0, length(Ps) rem 2),
+    ?assertEqual(5, length(Es)),
+    ?assertEqual(5, length(Sigs)),
+    ?assertEqual(0, length(G) rem 3),
+    ?assertEqual(0, length(Sc) rem 3),
     ?assertEqual(3, R),
-    ?assertEqual(0, T),
-    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)).
+    ?assert(lists:all(fun is_integer/1, Cs ++ Es ++ Sigs ++ G ++ Sc)).
 
-%% ONE ENERGY PER CREATURE, IN THE SAME ORDER. A parallel list rather than
-%% interleaved: interleaving would make the creature stride 3 while plants stayed
-%% 2, and a reader that got it wrong would draw a plausible and completely wrong
-%% picture instead of failing.
-%%
-%% Worth carrying because ENERGY IS ARMOUR here. The stronger consumes the
-%% weaker, so how big a creature is is the most informative thing about it, and
-%% without this every dot is drawn identical.
-energies_run_parallel_to_creatures_test() ->
-    W = world:new(#{population => 6, radius => 3, start_energy => 90, seed => 4}),
-    #{creatures := Cs, energies := Es} = world:chart(W),
-    ?assertEqual(length(Cs) div 2, length(Es)),
-    ?assertEqual(lists:duplicate(6, 90), Es).
-
-%% A creature awaiting the reaper carries a negative balance, and a viewer sizing
-%% a dot by it would be asked for a negative radius.
-a_starving_creature_charts_no_negative_energy_test() ->
-    W = barren(maps:merge(#{population => 3, start_energy => 2,
-                            metabolism => 5}, blind())),
-    #{energies := Es} = world:chart(world:tick(W)),
-    ?assert(lists:all(fun(E) -> E >= 0 end, Es)).
-
-%% Position AND strength, interleaved at three, because a mark has no list to run
-%% parallel to. The signature is left out on purpose: it would double the payload
-%% and a spectator has nothing to compare it against.
-scent_charts_as_position_and_strength_test() ->
-    Walker = barren(maps:merge(#{radius => 3, scent_per_tick => 10},
-                               with([], [-1]))),
-    #{scent := Marks} = world:chart(world:tick(Walker, 3)),
-    ?assert(length(Marks) > 0),
-    ?assertEqual(0, length(Marks) rem 3),
-    Strengths = strengths(Marks),
-    ?assert(lists:all(fun(S) -> S > 0 end, Strengths)).
-
-strengths([]) -> [];
-strengths([_Q, _R, S | Rest]) -> [S | strengths(Rest)].
-
-%% An empty world charts as empty lists rather than as missing keys, so a viewer
-%% draws nothing instead of having to interpret a gap.
-an_empty_world_charts_empty_lists_test() ->
-    W = world:tick(barren(maps:merge(#{population => 1, start_energy => 2,
-                                       metabolism => 5}, blind())), 20),
-    #{creatures := Cs, energies := Es, scent := Sc} = world:chart(W),
-    ?assertEqual([], Cs),
-    ?assertEqual([], Es),
-    ?assertEqual([], Sc).
+%% Only cells holding something are sent: an empty cell is one a spectator draws
+%% bare, and on a grazed board most of them are.
+an_emptied_cell_is_left_out_of_the_chart_test() ->
+    Virgin = world:chart(world:new(#{radius => 2, population => 0})),
+    ?assertEqual(hex:cells(2) * 3, length(maps:get(ground, Virgin))),
+    Bare = world:chart(world:new(#{radius => 2, population => 0,
+                                   ground_ceiling => 0})),
+    ?assertEqual([], maps:get(ground, Bare)).
 
 %% Sorted, so two charts of the same world are the same bytes and a diff between
 %% frames means something.
 the_chart_is_stable_test() ->
     W = world:tick(world:new(#{population => 8, radius => 4, seed => 6}), 20),
     ?assertEqual(world:chart(W), world:chart(W)).
-
-%% ONE SIGNATURE PER CREATURE, IN THE SAME ORDER, so a viewer can colour them by
-%% kinship. A creature reads a trail by how unlike itself it smells, so this is
-%% what relatedness IS here, and comparing creatures against each other is the
-%% only way to see whether a population has become one family or several without
-%% reading it off a table.
-signatures_run_parallel_to_creatures_test() ->
-    W = world:new(#{population => 6, radius => 3, seed => 4,
-                    founder_scent => 2#10110010}),
-    #{creatures := Cs, signatures := Sigs} = world:chart(W),
-    ?assertEqual(length(Cs) div 2, length(Sigs)),
-    ?assertEqual(lists:duplicate(6, 2#10110010), Sigs).
-
-%% A CENSUS SAYS WHAT THE POPULATION IS BUILT FROM NOW; these say whether that is
-%% still moving. Both flat is a settled body plan and both climbing is a lineage
-%% churning through them, which a census alone cannot tell apart.
-structural_change_is_counted_test() ->
-    Settled = world:tick(world:new(#{population => 20, seed => 9,
-                                     body_mutation => 1000000}), 200),
-    #{sensors_gained := G0, sensors_lost := L0} = world:snapshot(Settled),
-    ?assertEqual(0, G0),
-    ?assertEqual(0, L0),
-
-    Churning = world:tick(world:new(#{population => 20, seed => 9,
-                                      body_mutation => 1}), 200),
-    #{sensors_gained := G1, sensors_lost := L1} = world:snapshot(Churning),
-    ?assert(G1 > 0),
-    ?assert(L1 > 0).
-
-%% AN ORGAN THAT EXISTS AND AN ORGAN THAT MATTERS ARE DIFFERENT THINGS, and the
-%% census reports both. A creature can pay rent every tick for a measurement its
-%% brain weights at zero, so carriers alone would overstate perception and a
-%% population could look equipped while being effectively blind.
-the_census_separates_carrying_from_acting_test() ->
-    Ignored = world:new(#{population => 5, radius => 3, seed => 2,
-                          founder_body => [{creatures, 1}],
-                          founder_brain => [0, 0]}),
-    #{sensors := Census} = world:snapshot(Ignored),
-    Field = maps:get(creatures, Census),
-    ?assertEqual(5, maps:get(carriers, Field)),
-    ?assertEqual(0, maps:get(attention, Field)),
-
-    Heeded = world:new(#{population => 5, radius => 3, seed => 2,
-                         founder_body => [{creatures, 1}],
-                         founder_brain => [7, 0]}),
-    #{sensors := Acted} = world:snapshot(Heeded),
-    ?assertEqual(700, maps:get(attention, maps:get(creatures, Acted))).

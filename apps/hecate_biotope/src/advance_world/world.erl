@@ -45,7 +45,7 @@
 -module(world).
 
 -export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0, econ_id/1]).
--export([population/1, plant_count/1, at_tick/1, alive/2]).
+-export([population/1, ground_energy/1, at_tick/1, alive/2]).
 
 -type hex() :: hex:hex().
 -type id() :: pos_integer().
@@ -60,8 +60,10 @@
                       age := non_neg_integer(),
                       born := non_neg_integer(),
                       parent := id() | none,
-                      %% Everything heritable.
-                      breed_at := pos_integer(),
+                      %% Everything heritable. `breed_at' is gone: deciding
+                      %% reproduction by a hand-written rule with a heritable
+                      %% threshold was exactly the shape `hunt' had, a verb we
+                      %% wrote with a parameter bolted on. It is an OUTPUT now.
                       body := body:body(),
                       brain := brain:brain(),
                       scent := scent:tag(),
@@ -69,11 +71,14 @@
                       %% energy came from. An observer's record, not a rule:
                       %% nothing in the physics reads these, and no creature is
                       %% ever treated differently for what they contain.
-                      from_plants := non_neg_integer(),
-                      from_creatures := non_neg_integer()}.
+                      from_ground := non_neg_integer(),
+                      from_creatures := non_neg_integer(),
+                      %% Whether it stayed put this tick. The plant-ness of a
+                      %% creature, observed rather than declared.
+                      still := boolean()}.
 
--type econ() :: #{plant_energy := pos_integer(),
-                  regrowth_per_tick := non_neg_integer(),
+-type econ() :: #{influx := pos_integer(),
+                  ground_ceiling := pos_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
                   sensor_rent := non_neg_integer(),
@@ -85,11 +90,11 @@
                   scent_mutation := pos_integer(),
                   brain_range := pos_integer(),
                   brain_mutation := non_neg_integer(),
+                  brain_mutation_structural := pos_integer(),
+                  founder_max_hidden := non_neg_integer(),
+                  max_hidden := non_neg_integer(),
+                  hidden_rent := non_neg_integer(),
                   body_mutation := pos_integer(),
-                  breed_at := pos_integer(),
-                  breed_mutation := non_neg_integer(),
-                  breed_floor := pos_integer(),
-                  breed_ceiling := pos_integer(),
                   start_energy := pos_integer(),
                   max_age := pos_integer(),
                   radius := non_neg_integer(),
@@ -97,7 +102,7 @@
 
 -record(world, {tick = 0 :: non_neg_integer(),
                 econ :: econ(),
-                plants = #{} :: #{hex() => true},
+                ground :: ground:ground(),
                 %% Where something has walked and how recently, each mark
                 %% carrying the signature of what left it.
                 scent = #{} :: #{hex() => scent:mark()},
@@ -113,7 +118,7 @@
                 %% "the population crashed" is not a finding and three causes
                 %% sharing one total cannot be told apart afterwards.
                 consumed = 0 :: non_neg_integer(),
-                plants_eaten = 0 :: non_neg_integer(),
+                absorbed = 0 :: non_neg_integer(),
                 births_refused = 0 :: non_neg_integer(),
                 %% SENSORS GAINED AND LOST AT BIRTH, cumulatively. A census says
                 %% what the population is built from NOW; these say whether that
@@ -135,48 +140,65 @@
 %% See PREREGISTRATION.md for the criteria, written down before the first run.
 -spec defaults() -> econ().
 defaults() ->
-    #{%% Where energy enters the world.
-      plant_energy      => 40,
-      regrowth_per_tick => 4,
-      %% What it costs to exist and to act.
-      metabolism        => 1,
-      move_cost         => 1,
-      %% What it costs to measure something. Charged per sensor per tick whether
-      %% used or not, and rising with reach. This is the only force that can
-      %% remove a sensor from a lineage.
-      sensor_rent       => 1,
-      %% Safety valves against a runaway body, not model parameters. Rent is what
-      %% should bound a body; these only stop a mistuned economy making a tick
-      %% cost proportional to the whole disc.
+    #{%% WHERE ENERGY ENTERS THE WORLD. Every cell gathers `influx' per tick up
+      %% to `ground_ceiling'; a corpse is added on top and is not capped, because
+      %% the ceiling says how much the sun builds up and not how much ground can
+      %% hold. There are no plants: staying put and living off this IS being one.
+      %%
+      %% `influx' IS THE ONE NUMBER THAT DECIDES WHETHER PLANTS CAN EXIST and is
+      %% therefore the one most at risk of being chosen for its outcome. Derived
+      %% from the economy alone by the criterion fixed in PREREGISTRATION.md
+      %% before measuring: the SMALLEST influx at which a sensorless creature
+      %% that never moves can double its starting energy within `max_age', which
+      %% is the least generous value at which the sessile option exists at all.
+      %% Anything smaller forbids plants outright.
+      %%
+      %%   surplus per tick  = influx - metabolism
+      %%   to double 800 within 600 ticks needs surplus >= 2 (1.33 rounded up)
+      %%   so influx = metabolism + 2 = 12
+      influx            => 12,
+      ground_ceiling    => 400,
+      %% WHAT IT COSTS TO EXIST AND TO ACT, at ten times world 1's grain. Scaling
+      %% every energy quantity by one factor changes nothing about the world and
+      %% buys the resolution to set the ratio above to within a tenth, which
+      %% integers at the old grain could not express.
+      metabolism        => 10,
+      move_cost         => 10,
+      %% What it costs to measure, per sensor per tick, used or not, rising with
+      %% reach. The only force that can remove a sensor from a lineage.
+      sensor_rent       => 10,
+      %% What it costs to think. A brain is a thing that must be run, and unlike
+      %% reach there is no geometry to derive a shape from, so it is flat.
+      hidden_rent       => 10,
+      %% Safety valves against a runaway genome making one tick cost as much as
+      %% the whole disc. Not model parameters: rent is what should bound a
+      %% creature, and when one of these binds it is counted and reported.
       max_sensors       => 8,
       max_sensor_range  => 4,
-      %% What a moving creature leaves behind, how fast it fades, and how much
-      %% one cell can hold. Scent is the only thing here that outlives the moment
-      %% it was made.
+      max_hidden        => 6,
+      founder_max_hidden => 2,
+      %% What a moving creature leaves behind, how fast it fades, how much one
+      %% cell can hold, and how fast a signature drifts. Scent is not energy and
+      %% is not rescaled.
       scent_per_tick    => 10,
       scent_decay       => 2,
       scent_ceiling     => 30,
-      %% How fast a signature drifts. Derived from a property of the SIGNAL, with
-      %% the threshold stated before looking and diet never consulted: a
-      %% population must reach half the unrelated baseline of 50 in every seed,
-      %% at the coarsest drift that clears it. See PREREGISTRATION.md.
       scent_mutation    => 3,
-      %% How large a weight may grow, and how far it moves per birth.
+      %% How large a weight may grow, how far each moves per birth, and how often
+      %% the SHAPE of a brain changes rather than its numbers.
       brain_range       => 8,
       brain_mutation    => 1,
-      %% One birth in this many changes the body: a sensor gained, lost, or
-      %% moved in reach, with the three equally likely so nothing pushes bodies
-      %% to become more elaborate on their own.
+      brain_mutation_structural => 20,
+      %% One birth in this many changes the body: a sensor gained, lost or
+      %% re-reached, the three equally likely so nothing pushes bodies to grow.
       body_mutation     => 20,
-      %% The founding mean breeding threshold, spread across founders.
-      breed_at          => 160,
-      breed_mutation    => 8,
-      breed_floor       => 40,
-      breed_ceiling     => 400,
-      start_energy      => 80,
+      start_energy      => 800,
       max_age           => 600,
       radius            => 20,
-      max_creatures     => 2000}.
+      %% WELL ABOVE THE CELL COUNT, because if sitting still pays then the board
+      %% fills, and a covered board is a FOREST rather than a mistuning. A field
+      %% of grass is a population at the carrying capacity of the ground.
+      max_creatures     => 6000}.
 
 %%==============================================================================
 %% Making a world
@@ -191,12 +213,10 @@ new() -> new(#{}).
 new(Opts) ->
     Econ = maps:merge(defaults(), maps:with(maps:keys(defaults()), Opts)),
     Seed = maps:get(seed, Opts, 42),
-    Rng0 = rand:seed_s(exsss, {Seed, Seed, Seed}),
+    Rng = rand:seed_s(exsss, {Seed, Seed, Seed}),
     Radius = maps:get(radius, Econ),
-    PlantSeed = maps:get(initial_plants, Opts, hex:cells(Radius) div 3),
-    {Plants, Rng1} = sow(PlantSeed, Radius, #{}, Rng0),
     populate(maps:get(population, Opts, 40), Opts,
-             #world{econ = Econ, plants = Plants, rng = Rng1}).
+             #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng}).
 
 populate(0, _Opts, W) -> W;
 populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
@@ -213,12 +233,11 @@ populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
 %% a world is founded with a known creature, which is what a control run needs
 %% and what a transplanted migrant would arrive through.
 founder_traits(Econ, Opts, Rng0) ->
-    {BreedAt, Rng1} = founder_threshold(Econ, Rng0),
-    {Body, Rng2} = given(founder_body, Opts, fun body:founder/2, Econ, Rng1),
-    {Brain, Rng3} = founder_brain(maps:get(founder_brain, Opts, draw),
-                                  Body, Econ, Rng2),
-    {Tag, Rng4} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng3),
-    {#{breed_at => BreedAt, body => Body, brain => Brain, scent => Tag}, Rng4}.
+    {Body, Rng1} = given(founder_body, Opts, fun body:founder/2, Econ, Rng0),
+    {Brain, Rng2} = founder_brain(maps:get(founder_brain, Opts, draw),
+                                  Body, Econ, Rng1),
+    {Tag, Rng3} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng2),
+    {#{body => Body, brain => Brain, scent => Tag}, Rng3}.
 
 given(Key, Opts, Draw, Econ, Rng) ->
     specified(maps:get(Key, Opts, draw), Draw, Econ, Rng).
@@ -233,16 +252,11 @@ founder_brain(draw, Body, Econ, Rng) ->
 founder_brain(Given, _Body, _Econ, Rng) ->
     {Given, Rng}.
 
-founder_threshold(Econ, Rng0) ->
-    Mean = maps:get(breed_at, Econ),
-    {Draw, Rng1} = rand:uniform_s(Mean + 1, Rng0),
-    {clamp(Mean div 2 + Draw - 1, Econ), Rng1}.
-
 add_creature(At, Energy, Parent, Traits, #world{next_id = Id, creatures = Cs,
                                                 tick = T, born = B} = W) ->
     C = maps:merge(#{id => Id, at => At, energy => Energy, age => 0,
-                     born => T, parent => Parent,
-                     from_plants => 0, from_creatures => 0},
+                     born => T, parent => Parent, still => true,
+                     from_ground => 0, from_creatures => 0},
                    Traits),
     W#world{next_id = Id + 1, creatures = Cs#{Id => C}, born = B + 1}.
 
@@ -265,100 +279,120 @@ tick(W, N) ->
     W3 = consume(W2),
     W4 = breed(W3),
     W5 = reap(W4),
-    W6 = regrow(W5),
+    W6 = W5#world{ground = ground:grow(W5#world.ground, W5#world.econ)},
     W7 = fade(W6),
     tick(W7#world{tick = W7#world.tick + 1}, N - 1).
 
-%% Existing costs energy, and so does carrying the means to measure anything.
-%% THIS IS WHERE CAPABILITY IS PAID FOR: a sensor that is not earning its rent
-%% makes its owner strictly poorer than a neighbour without one.
+%% Existing costs energy, and so does carrying the means to measure or the means
+%% to think. THIS IS WHERE CAPABILITY IS PAID FOR: a sensor nothing acts on, or a
+%% hidden node nothing listens to, makes its owner strictly poorer than a
+%% neighbour without one.
 charge(#world{creatures = Cs, econ = Econ} = W) ->
-    Base = maps:get(metabolism, Econ),
-    W#world{creatures = maps:map(fun(_Id, C) -> live(C, Base, Econ) end, Cs)}.
+    W#world{creatures = maps:map(fun(_Id, C) -> live(C, Econ) end, Cs)}.
 
-live(#{body := Body} = C, Base, Econ) ->
-    spend(C, Base + body:upkeep(Body, Econ)).
+live(#{body := Body, brain := Brain} = C, Econ) ->
+    Rent = body:upkeep(Body, Econ)
+        + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ),
+    spend(C, maps:get(metabolism, Econ) + Rent).
 
 spend(#{energy := E} = C, Cost) -> C#{energy => E - Cost}.
 
 %%------------------------------------------------------------------------------
-%% Moving: the only decision there is
+%% Moving: the only decision about WHERE
 %%------------------------------------------------------------------------------
 
 %% EVERY CREATURE VALUES THE SAME WORLD, the one at the start of the tick, and
-%% they all move at once. Nobody sees anybody else's move before making their
-%% own, which is what removes turn order as a source of advantage.
+%% they all move at once. Nobody sees anybody else's move before making their own,
+%% which removes turn order as a source of advantage without needing a shuffle to
+%% hide it.
 move_all(#world{creatures = Cs} = W) ->
-    Fields = fields(W),
+    Herd = herd(Cs),
     Ids = lists:sort(maps:keys(Cs)),
-    {Moves, Rng} = lists:mapfoldl(fun(Id, R) -> choose(Id, Fields, W, R) end,
+    {Moves, Rng} = lists:mapfoldl(fun(Id, R) -> choose(Id, Herd, W, R) end,
                                   W#world.rng, Ids),
     lists:foldl(fun step/2, W#world{rng = Rng}, Moves).
 
-%% The measurable state of the world, gathered once per tick rather than per
-%% creature. Creature energy is indexed by cell so that a sensor reading is a
-%% lookup rather than a scan of the population.
-fields(#world{plants = Plants, creatures = Cs, scent = Scent}) ->
-    #{plants => Plants,
-      scent => Scent,
-      creatures => maps:fold(fun(_Id, #{at := At, energy := E}, Acc) ->
-                                     maps:update_with(At, fun(T) -> T + E end,
-                                                      E, Acc)
-                             end, #{}, Cs)}.
+%% Creature energy indexed by cell, gathered once per tick, so a sensor reading is
+%% a lookup rather than a scan of the population.
+herd(Cs) -> maps:fold(fun gather_flesh/3, #{}, Cs).
 
-choose(Id, Fields, #world{creatures = Cs, econ = Econ} = W, Rng0) ->
-    #{at := At} = C = maps:get(Id, Cs),
+gather_flesh(_Id, #{at := At, energy := E}, Acc) ->
+    maps:update_with(At, fun(Total) -> Total + E end, E, Acc).
+
+choose(Id, Herd, #world{creatures = Cs} = W, Rng0) ->
+    #{at := At, brain := Brain} = C = maps:get(Id, Cs),
+    where(brain:has(move, Brain), Id, C, At, Herd, W, Rng0).
+
+%% AN ABSENT OUTPUT MEANS THE THING IS NOT DONE, and that has to be enforced here
+%% rather than left to the arithmetic. Without this a creature with no `move'
+%% scores every cell at zero, the tie is broken by drawing, and six times in seven
+%% it wanders off and is charged the fare. Losing the output would then not be an
+%% evolutionary event at all, merely a way to move at random while paying for it.
+where(false, Id, _C, At, _Herd, _W, Rng) ->
+    {{Id, At, At}, Rng};
+where(true, Id, C, At, Herd, #world{econ = Econ} = W, Rng0) ->
     Options = [At | hex:neighbours_in(At, maps:get(radius, Econ))],
-    Scored = [{value(C, Cell, At, Fields, W), Cell} || Cell <- Options],
+    Scored = [{value(C, Cell, At, Herd, W), Cell} || Cell <- Options],
     {To, Rng1} = pick_best(Scored, Rng0),
     {{Id, At, To}, Rng1}.
 
-value(#{body := Body, brain := Brain} = C, Cell, At, Fields, W) ->
-    Readings = [read(Sensor, Cell, C, Fields, W) || Sensor <- Body],
-    brain:value(Brain, Readings, Cell =:= At).
+value(C, Cell, At, Herd, W) ->
+    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, Cell, At, Herd, W),
+                             W#world.econ),
+    maps:get(move, Outputs, 0).
 
-%% What one sensor makes of one candidate cell: its field, summed over everything
-%% within its reach of that cell, then scaled to a range a weight can be read
-%% against.
-read({Field, Range}, Cell, C, Fields, #world{econ = Econ}) ->
-    Covered = hex:within(Cell, Range, maps:get(radius, Econ)),
-    body:scale(lists:sum([at_cell(Field, H, C, Fields, Econ) || H <- Covered])).
+%% What a creature perceives of one candidate cell, in sensor order, then `here'.
+%% `here' is an ordinary input rather than a special case, and it is why staying
+%% put is expressible: movement costs and standing still does not, so a creature
+%% that cannot tell where it already is cannot be sedentary on purpose.
+inputs(#{body := Body} = C, Cell, At, Herd, W) ->
+    [read(Sensor, Cell, C, Herd, W) || Sensor <- Body] ++ [here(Cell, At)].
 
-at_cell(plants, H, _C, #{plants := Plants}, Econ) ->
-    present(maps:is_key(H, Plants), maps:get(plant_energy, Econ));
+here(Cell, Cell) -> 1;
+here(_Cell, _At) -> 0.
+
+read({self, _Range}, _Cell, #{energy := E}, _Herd, #world{econ = Econ}) ->
+    body:reading(self, E, Econ);
+read({Field, Range}, Cell, C, Herd, #world{econ = Econ} = W) ->
+    body:reading(Field, gather(Field, Cell, Range, C, Herd, W), Econ).
+
+gather(ground, Cell, Range, _C, _Herd, #world{ground = G, econ = Econ}) ->
+    ground:within(Cell, Range, maps:get(radius, Econ), G);
 %% A CREATURE DOES NOT PERCEIVE ITSELF AS SOMETHING IN THE WORLD. Its own energy
 %% is subtracted from its own cell, or every creature would read the largest
-%% concentration of creature energy as wherever it is standing.
-at_cell(creatures, H, #{at := At, energy := E}, #{creatures := Herd}, _Econ) ->
-    maps:get(H, Herd, 0) - own(H =:= At, E);
+%% concentration of flesh as wherever it is standing.
+gather(creatures, Cell, Range, #{at := At, energy := E}, Herd,
+       #world{econ = Econ}) ->
+    Field = hex:within(Cell, Range, maps:get(radius, Econ)),
+    lists:sum([maps:get(H, Herd, 0) || H <- Field]) - own(lists:member(At, Field), E);
 %% A mark reads by how UNLIKE the reader it smells, so a creature's own trail and
-%% its children's are nearly invisible to it. See scent.
-at_cell(scent, H, #{scent := Mine}, #{scent := Scent}, _Econ) ->
-    foreign(maps:get(H, Scent, none), Mine).
+%% its children's are nearly invisible to it.
+gather(scent, Cell, Range, #{scent := Mine}, _Herd,
+       #world{scent = Scent, econ = Econ}) ->
+    Field = hex:within(Cell, Range, maps:get(radius, Econ)),
+    lists:sum([foreign(maps:get(H, Scent, none), Mine) || H <- Field]).
 
-present(true, Energy) -> Energy;
-present(false, _Energy) -> 0.
-
-own(true, E) -> E;
+own(true, E) -> max(0, E);
 own(false, _E) -> 0.
 
 foreign(none, _Mine) -> 0;
 foreign(Mark, Mine) -> scent:perceived(Mark, Mine).
 
-%% Ties are broken by drawing, not by taking the first. Candidate cells are
-%% generated in a fixed compass order, so taking the first would make every
-%% indifferent creature drift the same way forever and call it a random walk.
+%% Ties are broken by drawing, not by taking the first. Candidates are generated
+%% in a fixed compass order, so taking the first would make every indifferent
+%% creature drift the same way forever and call it a random walk.
 pick_best(Scored, Rng0) ->
     Best = lists:max([S || {S, _Cell} <- Scored]),
     pick([Cell || {S, Cell} <- Scored, S =:= Best], Rng0).
 
 %% Staying still is free and leaves no trail. Moving costs and marks the ground:
 %% that asymmetry makes sitting tight a way to go unnoticed as well as a way to
-%% save energy, which is the only counter available to something being tracked.
-step({_Id, At, At}, W) -> W;
+%% save energy, and it is the only counter available to something being tracked.
+step({Id, At, At}, #world{creatures = Cs} = W) ->
+    W#world{creatures = Cs#{Id => (maps:get(Id, Cs))#{still => true}}};
 step({Id, _From, To}, #world{creatures = Cs, econ = Econ} = W) ->
     C = maps:get(Id, Cs),
-    Moved = spend(C#{at => To}, maps:get(move_cost, Econ)),
+    Moved = spend(C#{at => To, still => false}, maps:get(move_cost, Econ)),
     mark(To, maps:get(scent, C), W#world{creatures = Cs#{Id => Moved}}).
 
 mark(At, Tag, #world{scent = Scent, econ = Econ} = W) ->
@@ -373,86 +407,81 @@ strength({S, _Tag}) -> S.
 %% Consuming: one rule that does not know what it is eating
 %%------------------------------------------------------------------------------
 
-%% WHATEVER SHARES YOUR CELL AND CANNOT CONTEST YOU BECOMES YOURS. A plant never
+%% WHATEVER SHARES YOUR CELL AND CANNOT CONTEST YOU BECOMES YOURS, and then you
+%% absorb whatever the ground there has gathered. Energy in the ground never
 %% contests. A creature contests with its energy, and equals do not consume each
-%% other. Energy changes hands and none is created, so the books stay readable.
+%% other.
 %%
-%% This is the entire trophic structure, in one rule that mentions no trophic
-%% level. Whether anything ever makes a living from the second clause is the
-%% question the world exists to answer, and nothing here leans on the answer.
+%% There is no separate path for eating a plant, because there are no plants. In
+%% world 1 there were two functions with two names and two counters, which is
+%% precisely why its claim to have deleted the herbivore/carnivore split was
+%% false: the split survived as a structural fact about what exists.
 consume(#world{creatures = Cs} = W) ->
     lists:foldl(fun resolve/2, W, maps:values(occupancy(Cs))).
 
-occupancy(Cs) ->
-    maps:fold(fun share_cell/3, #{}, Cs).
+occupancy(Cs) -> maps:fold(fun share_cell/3, #{}, Cs).
 
 share_cell(Id, #{at := At}, Acc) ->
     maps:update_with(At, fun(Together) -> [Id | Together] end, [Id], Acc).
 
 resolve(Ids, #world{creatures = Cs} = W) ->
-    %% Sorted by energy then id, so the outcome is a function of the world and
-    %% not of map iteration order.
     Ranked = lists:reverse(lists:sort([{maps:get(energy, maps:get(I, Cs)), I}
                                        || I <- Ids])),
     [{_Strongest, Winner} | Rest] = Ranked,
-    eat_creatures(Winner, [I || {_Energy, I} <- Rest], eat_plants(Winner, W)).
+    absorb(Winner, devour(Winner, [I || {_E, I} <- Rest], W)).
 
-eat_plants(Id, #world{creatures = Cs, plants = Plants, econ = Econ} = W) ->
-    #{at := At} = C = maps:get(Id, Cs),
-    harvest(maps:is_key(At, Plants), Id, C, At, W, Econ).
-
-harvest(false, _Id, _C, _At, W, _Econ) -> W;
-harvest(true, Id, #{energy := E, from_plants := P} = C, At,
-        #world{creatures = Cs, plants = Plants} = W, Econ) ->
-    Gain = maps:get(plant_energy, Econ),
-    W#world{creatures = Cs#{Id => C#{energy => E + Gain,
-                                     from_plants => P + Gain}},
-            plants = maps:remove(At, Plants),
-            plants_eaten = W#world.plants_eaten + 1}.
-
-eat_creatures(_Winner, [], W) -> W;
-eat_creatures(Winner, Losers, #world{creatures = Cs} = W) ->
+devour(_Winner, [], W) -> W;
+devour(Winner, Losers, #world{creatures = Cs} = W) ->
     #{energy := Mine} = maps:get(Winner, Cs),
     Weaker = [I || I <- Losers, maps:get(energy, maps:get(I, Cs)) < Mine],
-    devour(Weaker, Winner, W).
+    take_them(Weaker, Winner, W).
 
-devour([], _Winner, W) -> W;
-devour(Weaker, Winner, #world{creatures = Cs} = W) ->
+take_them([], _Winner, W) -> W;
+take_them(Weaker, Winner, #world{creatures = Cs} = W) ->
     Gain = lists:sum([max(0, maps:get(energy, maps:get(I, Cs))) || I <- Weaker]),
     #{energy := E, from_creatures := F} = C = maps:get(Winner, Cs),
     Fed = C#{energy => E + Gain, from_creatures => F + Gain},
     W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
             consumed = W#world.consumed + length(Weaker)}.
 
+absorb(Id, #world{creatures = Cs, ground = G} = W) ->
+    #{at := At, energy := E, from_ground := P} = C = maps:get(Id, Cs),
+    {Gain, G1} = ground:take(At, G),
+    W#world{creatures = Cs#{Id => C#{energy => E + Gain,
+                                     from_ground => P + Gain}},
+            ground = G1,
+            absorbed = W#world.absorbed + Gain}.
+
 %%------------------------------------------------------------------------------
-%% Breeding, dying, growing back
+%% Breeding, dying, fading
 %%------------------------------------------------------------------------------
 
-%% A surplus buys a child, placed on a neighbouring cell. The parent pays exactly
-%% what the child receives, so energy is conserved at birth.
+%% A CHILD IS A DECISION NOW, not a threshold. The brain is asked, on its own
+%% cell, and above zero it spends HALF its current energy on a child placed
+%% alongside. Zero is the natural boundary for a signed value and needs no
+%% constant of its own.
 %%
-%% THE DOWRY IS HALF THE PARENT'S OWN THRESHOLD, which makes the threshold a
-%% tradeoff rather than a ratchet: breeding early makes many children who each
-%% start poor, breeding late makes few who each start able to survive a search.
-%% Without the scaling a lower threshold would simply be better everywhere and
-%% the trait would collapse to its floor, which is a slow way of writing a
-%% constant.
+%% No floor stops a creature breeding itself down to nothing: one that does
+%% leaves children too small to survive, and that is a bad strategy rather than an
+%% illegal one. Four constants left the economy here and no rule replaced them.
 breed(#world{creatures = Cs} = W) ->
     lists:foldl(fun breed_one/2, W, lists:sort(maps:keys(Cs))).
 
-breed_one(Id, #world{creatures = Cs} = W) ->
-    #{energy := E, breed_at := Threshold} = maps:get(Id, Cs),
-    ready(E >= Threshold, Id, W).
+breed_one(Id, #world{creatures = Cs, econ = Econ} = W) ->
+    #{at := At, energy := E} = C = maps:get(Id, Cs),
+    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, herd(Cs), W),
+                             Econ),
+    willing(maps:get(breed, Outputs, 0) > 0 andalso E > 1, Id, W).
 
-ready(false, _Id, W) -> W;
-ready(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
+willing(false, _Id, W) -> W;
+willing(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
     room(map_size(Cs) < maps:get(max_creatures, Econ), Id, W).
 
 room(false, _Id, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
 room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
-    #{at := At, energy := E, breed_at := Threshold} = C = maps:get(Id, Cs),
-    Dowry = Threshold div 2,
+    #{at := At, energy := E} = C = maps:get(Id, Cs),
+    Dowry = E div 2,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
     W1 = note_change(Change,
@@ -467,57 +496,48 @@ note_change({dropped, _Pos}, #world{sensors_lost = L} = W) ->
 note_change(none, W) ->
     W.
 
-%% Four heritable things, mutated together. THE BODY AND THE BRAIN MUST STAY IN
-%% STEP: a weight list out of order with the sensor list is the worst bug
-%% available here, because nothing crashes and every weight after the change
-%% quietly starts valuing a different measurement.
+%% Three heritable things, mutated together. THE BODY AND THE BRAIN MUST STAY IN
+%% STEP: a weight vector out of order with the sensor list is the one bug here
+%% that does not crash, because every weight past the change point quietly starts
+%% valuing a different measurement.
 inherit_traits(Parent, Econ, Rng0) ->
-    #{breed_at := Threshold, body := Body, brain := Brain,
-      scent := Tag} = Parent,
-    {BreedAt, Rng1} = inherit_threshold(Threshold, Econ, Rng0),
-    {ChildBody, Change, Rng2} = body:inherit(Body, Econ, Rng1),
-    {ChildBrain, Rng3} = brain:inherit(Brain, Change, Econ, Rng2),
-    {ChildTag, Rng4} = scent:inherit(Tag, Econ, Rng3),
-    {#{breed_at => BreedAt, body => ChildBody, brain => ChildBrain,
-       scent => ChildTag}, Change, Rng4}.
+    #{body := Body, brain := Brain, scent := Tag} = Parent,
+    {ChildBody, Change, Rng1} = body:inherit(Body, Econ, Rng0),
+    {ChildBrain, Rng2} = brain:inherit(Brain, Change, Econ, Rng1),
+    {ChildTag, Rng3} = scent:inherit(Tag, Econ, Rng2),
+    {#{body => ChildBody, brain => ChildBrain, scent => ChildTag}, Change, Rng3}.
 
-inherit_threshold(Threshold, Econ, Rng0) ->
-    Mut = maps:get(breed_mutation, Econ),
-    {Step, Rng1} = rand:uniform_s(2 * Mut + 1, Rng0),
-    {clamp(Threshold + Step - Mut - 1, Econ), Rng1}.
-
-clamp(V, Econ) ->
-    max(maps:get(breed_floor, Econ), min(maps:get(breed_ceiling, Econ), V)).
-
-%% Death has three causes and they are counted separately, because "the
-%% population crashed" is not a finding and one total cannot tell them apart.
-%% Being eaten is counted where it happens, above.
+%% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON, and world 1 simply deleted it.
+%% Not rounded away: a well-fed creature could be carrying hundreds and reaping it
+%% destroyed every unit, which meant the energy books were never checkable at all.
+%%
+%% It is also where soil comes from. A deposit is not capped by `ground_ceiling',
+%% so a cell where things have died is richer than any untouched cell can be, and
+%% somewhere the population is dense the deaths keep coming and the ground stays
+%% better than average. THE LANDSCAPE DIFFERENTIATES ITSELF AND LIFE IS WHAT
+%% DIFFERENTIATES IT.
 reap(#world{creatures = Cs, econ = Econ} = W) ->
     MaxAge = maps:get(max_age, Econ),
     Reaped = maps:fold(fun(Id, C, Acc) -> reap_one(Id, C, MaxAge, Acc) end,
                        W#world{creatures = #{}}, Cs),
     note_extinction(map_size(Reaped#world.creatures), Reaped).
 
-%% Recorded once, on the transition, and never revised. EXTINCTION IS PERMANENT
-%% here and that is a property of the rules: nothing reseeds a world and a
-%% population of zero cannot produce a birth. A dead island goes on publishing
-%% perfectly, so the tick it emptied is the one thing no later sample carries.
 note_extinction(0, #world{extinct_at = undefined, tick = T} = W) ->
     W#world{extinct_at = T};
 note_extinction(_Alive, W) ->
     W.
 
-reap_one(_Id, #{energy := E}, _MaxAge, #world{starved = S} = W) when E =< 0 ->
-    W#world{starved = S + 1};
-reap_one(_Id, #{age := A}, MaxAge, #world{aged_out = O} = W) when A > MaxAge ->
-    W#world{aged_out = O + 1};
+reap_one(_Id, #{energy := E, at := At}, _MaxAge, #world{starved = S} = W)
+  when E =< 0 ->
+    bury(At, E, W#world{starved = S + 1});
+reap_one(_Id, #{age := A, energy := E, at := At}, MaxAge,
+         #world{aged_out = O} = W) when A > MaxAge ->
+    bury(At, E, W#world{aged_out = O + 1});
 reap_one(Id, #{age := A} = C, _MaxAge, #world{creatures = Cs} = W) ->
     W#world{creatures = Cs#{Id => C#{age => A + 1}}}.
 
-regrow(#world{econ = Econ, plants = Plants, rng = Rng0} = W) ->
-    {Plants1, Rng1} = sow(maps:get(regrowth_per_tick, Econ),
-                          maps:get(radius, Econ), Plants, Rng0),
-    W#world{plants = Plants1, rng = Rng1}.
+bury(At, E, #world{ground = G} = W) ->
+    W#world{ground = ground:deposit(At, max(0, E), G)}.
 
 %% Every mark weakens and one that has weakened to nothing is dropped, so the map
 %% holds only ground that still smells. Without the fade a busy cell becomes a
@@ -543,19 +563,31 @@ linger(S, Who, H, Acc) -> Acc#{H => {S, Who}}.
 snapshot(#world{} = W) ->
     #{tick => W#world.tick,
       population => map_size(W#world.creatures),
-      plants => map_size(W#world.plants),
+      %% One half of the world's books. The other is the creatures, and together
+      %% they only change by influx in and by what living costs.
+      ground_total => ground:total(W#world.ground),
+      %% HOW UNEVENLY THE GROUND HOLDS ENERGY: the percentage lying in the
+      %% richest tenth of cells. Ten means flat. Anything above says places have
+      %% become different from each other, and since nothing installed terrain,
+      %% whatever difference exists was made by things dying.
+      ground_spread => ground:spread(W#world.ground),
       born => W#world.born,
       starved => W#world.starved,
       aged_out => W#world.aged_out,
       consumed => W#world.consumed,
-      plants_eaten => W#world.plants_eaten,
+      absorbed => W#world.absorbed,
       births_refused => W#world.births_refused,
       energy_total => total_energy(W),
       radius => maps:get(radius, W#world.econ),
       econ => W#world.econ,
       econ_id => econ_id(W#world.econ),
       extinct_at => W#world.extinct_at,
-      breed_at_mean => mean(breed_at, W),
+      %% THE PLANT-NESS OF THE POPULATION, observed and never declared: the
+      %% percentage that did not move this tick. A creature that stays where it
+      %% is and lives off what gathers there IS a plant, and nothing in the rules
+      %% calls it one.
+      still_pct => still_share(W),
+      hidden_mean => mean_hidden(W),
       %% WHERE THE LIVING GOT THEIR ENERGY, as a percentage that came from other
       %% creatures. Zero means nothing alive has ever eaten anything that could
       %% have eaten it back. This replaces the herbivore and carnivore buckets,
@@ -566,6 +598,8 @@ snapshot(#world{} = W) ->
       %% for it and how much total reach is devoted to it. A census, not a
       %% verdict: it says what survived, not what was useful.
       sensors => sensor_census(W),
+      movers => outputs_with(move, W),
+      breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
       %% Whether the body plan is still moving at all.
       sensors_gained => W#world.sensors_gained,
@@ -575,16 +609,27 @@ snapshot(#world{} = W) ->
       scent_tags => length(lists:usort(tags(W))),
       scent_spread => scent:spread(tags(W))}.
 
-%% Bodies paired with their brains, because a carried sensor and a used one are
-%% different things and only the pair can tell them apart.
+%% Bodies paired with how much attention each of their inputs receives, because a
+%% carried sensor and a used one are different things and only the brain knows
+%% how many vectors read a given column.
 sensor_census(#world{creatures = Cs}) ->
-    body:census([{B, Br} || #{body := B, brain := Br} <- maps:values(Cs)]).
+    body:census([{B, brain:attention(Br, length(B))}
+                 || #{body := B, brain := Br} <- maps:values(Cs)]).
+
+outputs_with(_Purpose, #world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+outputs_with(Purpose, #world{creatures = Cs}) ->
+    length([x || #{brain := Br} <- maps:values(Cs), brain:has(Purpose, Br)]).
+
+still_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+still_share(#world{creatures = Cs}) ->
+    length([x || #{still := true} <- maps:values(Cs)]) * 100 div map_size(Cs).
+
+mean_hidden(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_hidden(#world{creatures = Cs}) ->
+    Total = lists:sum([brain:hidden_count(B) || #{brain := B} <- maps:values(Cs)]),
+    Total * 100 div map_size(Cs).
 
 tags(#world{creatures = Cs}) -> [T || #{scent := T} <- maps:values(Cs)].
-
-mean(_Key, #world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
-mean(Key, #world{creatures = Cs}) ->
-    lists:sum([maps:get(Key, C) || C <- maps:values(Cs)]) div map_size(Cs).
 
 mean_sensors(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_sensors(#world{creatures = Cs}) ->
@@ -595,7 +640,7 @@ mean_sensors(#world{creatures = Cs}) ->
 %% Zero for a population that has eaten nothing, rather than a crash.
 predation_share(#world{creatures = Cs}) ->
     Vals = maps:values(Cs),
-    Plants = lists:sum([P || #{from_plants := P} <- Vals]),
+    Plants = lists:sum([P || #{from_ground := P} <- Vals]),
     Meat = lists:sum([M || #{from_creatures := M} <- Vals]),
     share(Plants + Meat, Meat).
 
@@ -638,10 +683,10 @@ econ_id(Econ) ->
 %% strength and there is no list it runs parallel to. The signature is left out:
 %% it would double the payload and a spectator has nothing to compare it against.
 -spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
-                          signatures := [integer()], plants := [integer()],
+                          signatures := [integer()], ground := [integer()],
                           scent := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
-chart(#world{creatures = Cs, plants = Plants, scent = Scent,
+chart(#world{creatures = Cs, ground = G, scent = Scent,
              econ = Econ, tick = Tick}) ->
     Ids = lists:sort(maps:keys(Cs)),
     #{creatures => flatten_hexes([maps:get(at, maps:get(Id, Cs)) || Id <- Ids]),
@@ -656,12 +701,19 @@ chart(#world{creatures = Cs, plants = Plants, scent = Scent,
       %% against EACH OTHER, which is the only way to see whether a population is
       %% one family or several without reading a number off a table.
       signatures => [maps:get(scent, maps:get(Id, Cs)) || Id <- Ids],
-      plants => flatten_hexes(lists:sort(maps:keys(Plants))),
+      %% The ground as position and amount, at a stride of three. Only cells
+      %% holding something are sent: an empty cell is one a spectator draws bare,
+      %% and on a grazed board most of them are.
+      ground => flatten_ground(G),
       scent => flatten_scent(Scent),
       radius => maps:get(radius, Econ),
       tick => Tick}.
 
 flatten_hexes(Hexes) -> lists:append([[Q, R] || {Q, R} <- Hexes]).
+
+flatten_ground(G) ->
+    lists:append([[Q, R, E] || {{Q, R}, E} <- lists:sort(maps:to_list(G)),
+                               E > 0]).
 
 flatten_scent(Scent) ->
     lists:append([[Q, R, S] || {{Q, R}, {S, _Tag}} <- lists:sort(maps:to_list(Scent))]).
@@ -675,8 +727,8 @@ total_energy(#world{creatures = Cs}) ->
 -spec population(world()) -> non_neg_integer().
 population(#world{creatures = Cs}) -> map_size(Cs).
 
--spec plant_count(world()) -> non_neg_integer().
-plant_count(#world{plants = P}) -> map_size(P).
+-spec ground_energy(world()) -> non_neg_integer().
+ground_energy(#world{ground = G}) -> ground:total(G).
 
 -spec at_tick(world()) -> non_neg_integer().
 at_tick(#world{tick = T}) -> T.
@@ -687,11 +739,6 @@ alive(Id, #world{creatures = Cs}) -> maps:is_key(Id, Cs).
 %%==============================================================================
 %% Randomness, threaded explicitly
 %%==============================================================================
-
-sow(0, _Radius, Plants, Rng) -> {Plants, Rng};
-sow(N, Radius, Plants, Rng0) ->
-    {At, Rng1} = random_cell(Radius, Rng0),
-    sow(N - 1, Radius, Plants#{At => true}, Rng1).
 
 random_cell(Radius, Rng0) ->
     {Q, Rng1} = rand:uniform_s(2 * Radius + 1, Rng0),

@@ -1,58 +1,97 @@
 %% @doc What a creature is built from. PURE.
 %%
 %% A BODY IS A LIST OF SENSORS AND A SENSOR IS `{Field, Range}'. Nothing is
-%% named. There is no eye, no nose, no gut, and that absence is the point of this
-%% rewrite: those names were biological conclusions written into the physics, and
-%% a world whose rules already contain "eye" cannot discover that seeing was
-%% worth doing.
+%% named. There is no eye, no nose, no gut: those were biological conclusions
+%% written into the physics, and a world whose rules contain "eye" cannot
+%% discover that seeing was worth doing.
 %%
-%% WHICH FIELDS EXIST IS PHYSICS. There are plants, there are creatures, and
-%% there are the marks creatures leave behind. Those are the three kinds of thing
-%% in this world, so those are the three quantities that can be measured. WHICH
-%% ONE A LINEAGE MEASURES IS BIOLOGY, and therefore not ours to write. A body
-%% may carry none of them, several of the same, or all three at different ranges.
+%% WHICH FIELDS EXIST IS PHYSICS. There is energy in the ground, energy in other
+%% creatures, the marks creatures leave behind, and the creature's own state.
+%% Those are the four things there are to measure. WHICH ONE A LINEAGE MEASURES
+%% IS BIOLOGY, and therefore not ours to write.
 %%
-%% RANGE IS OPEN AND COSTS. A sensor reads its field summed over every cell
-%% within Range of the cell being valued, so range 0 reports what is underfoot
-%% and larger ranges report which direction is richer. There is no list of
-%% allowed ranges to pick from; mutation moves the number and rent decides
-%% whether it was worth it.
+%% READINGS ARE IN NATURAL UNITS, one per field, and world 1 got this badly
+%% wrong. It divided everything by twenty, so a plant read 2, a full-strength
+%% scent mark read 1, and two well-fed creatures saturated the ceiling: one
+%% resolution for quantities spanning thirty to nine hundred. Scent was quantised
+%% to a single bit, which is very likely why scent sensors went extinct in every
+%% seed. Not because trails are useless. Because the instrument could barely
+%% register them.
 %%
-%% THE RENT SCALES WITH RANGE AND THE FORM IS A MODELLING CHOICE, stated plainly
-%% because we have just spent a session cleaning up constants that were chosen
-%% for the results they produced. Reach costs: that much is physical. Whether it
-%% costs proportionally to the radius, as here, or to the AREA covered, which
-%% grows as 3r^2+3r+1, is not settled by anything in this world. Area scaling was
-%% rejected only because at rent 1 a range-two sensor would cost nineteen a tick
-%% against a metabolism of one, which prices reach out of existence before
-%% selection gets a look. That is a judgement about the ECONOMY being able to
-%% express the option, not about what should evolve.
+%% So each field is read against its own scale, and energy against the same scale
+%% wherever it is found, since energy is the only currency here and the exchange
+%% rate already exists:
+%%
+%%   ground     a reading of 3 is three full cells' worth in reach
+%%   creatures  a reading of 3 is creature flesh worth three full cells
+%%   self       a reading of 3 is I am worth three full cells
+%%   scent      a reading of 3 is as much trace as three fresh marks
+%%
+%% `self' IS THE ONE WORLD 1 DID NOT HAVE, and its absence was fatal to a whole
+%% class of strategy. The central rule is that the stronger consumes the weaker,
+%% so whether you are currently the eater or the eaten is the most
+%% decision-relevant fact there is, and no creature could perceive it. Every
+%% strategy of the form BEHAVE DIFFERENTLY WHEN WEAK was unreachable.
+%%
+%% It reads the same for every candidate cell, which is exactly why it is useless
+%% on its own: a constant added to all seven options cancels in the comparison.
+%% It only becomes worth anything through a hidden node that combines it with
+%% something that does vary. Proprioception and nonlinearity are worth nothing
+%% apart and something together, which is why world 2 has both or neither.
 -module(body).
 
--export([founder/2, inherit/3, upkeep/2, fields/0, scale/1]).
--export([census/1, sensor_count/1]).
+-export([founder/2, inherit/3, upkeep/2, fields/0, unit/2, reading/3]).
+-export([census/1, sensor_count/1, reading_ceiling/0, spatial/1]).
 
--type field() :: plants | creatures | scent.
+-type field() :: creatures | ground | scent | self.
 -type sensor() :: {field(), non_neg_integer()}.
 -type body() :: [sensor()].
 -export_type([field/0, sensor/0, body/0]).
 
-%% The three kinds of thing that exist. Not a menu of senses: a list of what
-%% there is to measure.
--define(FIELDS, [plants, creatures, scent]).
+-define(FIELDS, [creatures, ground, scent, self]).
 
-%% How wide a founding body may be. A STARTING DISTRIBUTION, NOT A LIMIT:
-%% mutation adds and removes without reference to either number, and rent is what
-%% actually bounds a body. Founders are spread for the same reason they always
-%% have been, so that selection has something to sort on the first tick.
+%% How large a reading may be. Generous, because in natural units a wide sensor
+%% over full ground legitimately reaches sixty-odd and clipping that would hide
+%% exactly the gradient a wide sensor exists to find.
+-define(READING_CEILING, 63).
+
+%% A starting distribution, not a limit: mutation adds and removes without
+%% reference to either, and rent is what actually bounds a body.
 -define(FOUNDER_MAX_SENSORS, 3).
 -define(FOUNDER_MAX_RANGE, 2).
 
 -spec fields() -> [field()].
 fields() -> ?FIELDS.
 
+-spec reading_ceiling() -> pos_integer().
+reading_ceiling() -> ?READING_CEILING.
+
 -spec sensor_count(body()) -> non_neg_integer().
 sensor_count(Body) -> length(Body).
+
+%% @doc Whether a field is something measured over CELLS, or about the creature
+%% itself. The caller has to gather the first kind and simply knows the second.
+-spec spatial(field()) -> boolean().
+spatial(self) -> false;
+spatial(_Field) -> true.
+
+%% @doc The natural unit a field is read in.
+%%
+%% Every energy quantity shares one unit because they are the same substance and
+%% freely exchanged: a creature carrying four hundred is worth exactly as much as
+%% a full cell holding four hundred, and a brain should not need different weights
+%% to say so.
+-spec unit(field(), map()) -> pos_integer().
+unit(scent, Econ) -> maps:get(scent_per_tick, Econ);
+unit(_Energy, Econ) -> maps:get(ground_ceiling, Econ).
+
+%% @doc Scale a raw total into its natural unit, floored and capped.
+%%
+%% Floored because a cell can hold a creature about to be reaped and a negative
+%% reading would flip the meaning of every weight applied to it.
+-spec reading(field(), integer(), map()) -> non_neg_integer().
+reading(Field, Raw, Econ) ->
+    max(0, min(?READING_CEILING, Raw div unit(Field, Econ))).
 
 %% @doc What a body costs to run, per tick, on top of base metabolism.
 %%
@@ -60,38 +99,44 @@ sensor_count(Body) -> length(Body).
 %% remove a sensor. Without it every lineage accumulates every measurement, the
 %% fully equipped generalist is never at a disadvantage, and nothing can ever
 %% specialise in anything.
+%%
+%% Rising with reach because reach costs, which is physical. Whether it should
+%% rise with the radius or with the AREA covered is settled by nothing in this
+%% world and is named in PREREGISTRATION.md rather than defended here.
 -spec upkeep(body(), map()) -> non_neg_integer().
 upkeep(Body, Econ) ->
     Rent = maps:get(sensor_rent, Econ),
     lists:sum([Rent * (Range + 1) || {_Field, Range} <- Body]).
 
-%% @doc A founding body: a random number of random sensors.
+%% @doc A founding body: a random number of random sensors, possibly none.
+%%
+%% A creature that measures nothing is a legitimate creature. It pays no rent,
+%% values every cell alike and wanders, and that is the null forager everything
+%% else has to beat. Excluding it from the draw would quietly assume perception
+%% is worth having, which is one of the things being asked.
 -spec founder(map(), rand:state()) -> {body(), rand:state()}.
-founder(Econ, Rng0) ->
+founder(_Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(?FOUNDER_MAX_SENSORS + 1, Rng0),
-    draw_sensors(N - 1, Econ, [], Rng1).
+    draw_sensors(N - 1, [], Rng1).
 
-draw_sensors(0, _Econ, Acc, Rng) -> {lists:sort(Acc), Rng};
-draw_sensors(N, Econ, Acc, Rng0) ->
-    {Sensor, Rng1} = draw_sensor(?FOUNDER_MAX_RANGE, Rng0),
-    draw_sensors(N - 1, Econ, [Sensor | Acc], Rng1).
+draw_sensors(0, Acc, Rng) -> {lists:sort(Acc), Rng};
+draw_sensors(N, Acc, Rng0) ->
+    {Sensor, Rng1} = draw_sensor(Rng0),
+    draw_sensors(N - 1, [Sensor | Acc], Rng1).
 
-draw_sensor(MaxRange, Rng0) ->
+draw_sensor(Rng0) ->
     {F, Rng1} = rand:uniform_s(length(?FIELDS), Rng0),
-    {R, Rng2} = rand:uniform_s(MaxRange + 1, Rng1),
+    {R, Rng2} = rand:uniform_s(?FOUNDER_MAX_RANGE + 1, Rng1),
     {{lists:nth(F, ?FIELDS), R - 1}, Rng2}.
 
 %% @doc A child's body, and what structurally changed so a brain can follow.
 %%
-%% THE CHANGE IS REPORTED RATHER THAN INFERRED. A brain carries one weight per
-%% sensor, so a body that gains or loses one leaves the brain a column out of
-%% step, and every weight after the change point would silently start reading a
-%% different measurement. Returning the position makes the two mutate together.
-%%
-%% ONE CHANGE AT A TIME, and the three kinds are equally likely: grow a sensor,
-%% lose one, or alter the reach of one. Nothing here pushes bodies to become more
-%% elaborate on their own. A mutation that only ever added would produce steadily
-%% fatter creatures and let us call the drift adaptation.
+%% THE CHANGE IS REPORTED RATHER THAN INFERRED, and in world 2 that matters more
+%% than it did. A brain now carries one weight per input in EVERY hidden node and
+%% EVERY output, so a body that gains or loses a sensor leaves several vectors a
+%% column out of step at once. Nothing crashes; every weight after the change
+%% point simply starts reading a different measurement, and the creature behaves
+%% like a garbled version of its parent for reasons no test would name.
 -spec inherit(body(), map(), rand:state()) ->
           {body(), none | {added, pos_integer()} | {dropped, pos_integer()},
            rand:state()}.
@@ -105,11 +150,11 @@ mutate(1, Body, Econ, Rng0) ->
 mutate(_NoMutation, Body, _Econ, Rng) ->
     {Body, none, Rng}.
 
-%% Grow one. Refused at the cap, which is a safety valve against a runaway body
-%% rather than a model parameter: rent is what should bound a body, and this only
-%% stops a mistuned economy allocating until the run stops being measurable.
+%% Grow, prune, or re-reach, equally likely, so nothing pushes bodies to become
+%% more elaborate on their own. A mutation that only ever added would produce
+%% steadily fatter creatures and let us call the drift adaptation.
 apply_change(1, Body, Econ, Rng0) ->
-    grow(length(Body) < maps:get(max_sensors, Econ), Body, Econ, Rng0);
+    grow(length(Body) < maps:get(max_sensors, Econ), Body, Rng0);
 apply_change(2, [], _Econ, Rng) ->
     {[], none, Rng};
 apply_change(2, Body, _Econ, Rng0) ->
@@ -122,76 +167,58 @@ apply_change(3, Body, Econ, Rng0) ->
     {Step, Rng2} = rand:uniform_s(3, Rng1),
     {reach(N, Step - 2, Body, Econ), none, Rng2}.
 
-grow(false, Body, _Econ, Rng) ->
+%% Appended, so a gained sensor takes the last sensor position and every
+%% dependent vector inserts its new weight there rather than at the end, where
+%% the `here' input lives.
+grow(false, Body, Rng) ->
     {Body, none, Rng};
-grow(true, Body, _Econ, Rng0) ->
-    {Sensor, Rng1} = draw_sensor(?FOUNDER_MAX_RANGE, Rng0),
+grow(true, Body, Rng0) ->
+    {Sensor, Rng1} = draw_sensor(Rng0),
     {Body ++ [Sensor], {added, length(Body) + 1}, Rng1}.
 
 drop_at(N, Body) ->
     {Before, [_Gone | After]} = lists:split(N - 1, Body),
     Before ++ After.
 
-%% Reach moves by one step either way, never below nothing and never past the
-%% cap. Bounded above for the same reason bodies are: an unbounded reach makes a
-%% tick cost proportional to the whole disc.
+%% Reach moves one step either way, never below nothing and never past the cap.
+%% Bounded above because an unbounded reach makes one tick cost as much as the
+%% whole disc, which is a safety valve rather than a model parameter.
 reach(N, Step, Body, Econ) ->
     {Before, [{Field, Range} | After]} = lists:split(N - 1, Body),
     Moved = min(maps:get(max_sensor_range, Econ), max(0, Range + Step)),
     Before ++ [{Field, Moved} | After].
 
-%% @doc Scale a raw field total down to something a weight can be read against.
-%%
-%% Energies here run to hundreds and a brain weight runs to single digits, so
-%% without this the weights would all have to be near zero and a mutation of one
-%% would swamp the signal. Clamped as well as divided, because a creature facing
-%% four hundred of something and one facing four thousand are in the same
-%% situation and should not need different weights to say so.
--spec scale(integer()) -> non_neg_integer().
-scale(Total) -> max(0, min(15, Total div 20)).
-
 %% @doc What a population is built from: how many carry each field, how much
-%% reach is devoted to it, and how hard it is actually acted on.
+%% reach is devoted to it, and how hard it is acted on.
 %%
 %% A CENSUS AND NOT A VERDICT. It says what survived, not what was useful, and
-%% the two are only the same thing after enough generations that drift has been
+%% the two are the same thing only after enough generations that drift has been
 %% outvoted.
 %%
-%% TAKES BODIES PAIRED WITH THEIR BRAINS, and that pairing is the whole reason
-%% this changed. Carrier counts alone cannot answer "has an organ developed",
-%% because CARRYING A SENSOR AND USING ONE ARE DIFFERENT THINGS. A creature can
-%% pay rent every tick for a measurement its brain weights at zero: the organ
-%% exists, is charged for, and changes nothing. Counting those as perception
-%% overstates it, and a population could look equipped while being effectively
-%% blind.
+%% ATTENTION IS THE PART THAT ANSWERS WHETHER AN ORGAN HAS DEVELOPED, because
+%% carrying a sensor and using one are different things. A creature can pay rent
+%% every tick for a measurement nothing in its brain weights, so the organ exists,
+%% is charged for, and changes nothing it does. Carriers alone overstate
+%% perception and a population can look equipped while being effectively blind.
 -spec census([{body(), [integer()]}]) ->
           #{field() => #{carriers := non_neg_integer(),
                          reach := non_neg_integer(),
                          attention := non_neg_integer()}}.
 census(Creatures) ->
-    Attributed = lists:append([attribute(B, Br) || {B, Br} <- Creatures]),
+    Attributed = lists:append([attribute(B, A) || {B, A} <- Creatures]),
     maps:from_list([{F, tally(F, Creatures, Attributed)} || F <- ?FIELDS]).
 
-%% Each sensor beside the weight that reads it. The brain carries one weight per
-%% sensor in the same order, then one more for staying put, so the sensors line
-%% up with everything but the last. A brain shorter than its body crashes here,
-%% loudly, which is the correct response to the one bug in this system that
-%% otherwise stays silent.
-attribute(Body, Brain) ->
-    lists:zip(Body, lists:sublist(Brain, length(Body))).
+%% Each sensor beside the total attention its input receives, which the brain
+%% supplies because only the brain knows how many vectors read that column.
+attribute(Body, Attention) ->
+    lists:zip(Body, lists:sublist(Attention, length(Body))).
 
 tally(Field, Creatures, Attributed) ->
-    Mine = [{R, W} || {{F, R}, W} <- Attributed, F =:= Field],
-    #{carriers => length([B || {B, _Brain} <- Creatures,
+    Mine = [{R, A} || {{F, R}, A} <- Attributed, F =:= Field],
+    #{carriers => length([B || {B, _A} <- Creatures,
                                lists:keymember(Field, 1, B)]),
-      reach => lists:sum([R || {R, _W} <- Mine]),
+      reach => lists:sum([R || {R, _A} <- Mine]),
       attention => attention(Mine)}.
 
-%% HOW HARD THIS MEASUREMENT IS ACTED ON: the mean absolute weight, times a
-%% hundred because everything here is an integer. Zero means the population
-%% carries the organ and ignores what it says, which is a vestigial organ being
-%% paid for. This is the number that tells an organ that has DEVELOPED from one
-%% that has merely APPEARED.
 attention([]) -> 0;
-attention(Mine) ->
-    lists:sum([abs(W) || {_R, W} <- Mine]) * 100 div length(Mine).
+attention(Mine) -> lists:sum([A || {_R, A} <- Mine]) div length(Mine).

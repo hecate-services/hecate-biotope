@@ -1,164 +1,236 @@
 %% @doc The decider, asserted.
 %%
-%% The claim these defend is narrow and load bearing: a brain is a FUNCTION of
-%% its weights and what its body measured, with no hidden state and no clock, so
-%% two creatures with the same weights in the same place value it the same. Every
-%% later statement about selection depends on that, because a decision that
-%% varied for reasons outside the weights could not be inherited.
-%%
-%% AND: THE WEIGHTS MUST STAY IN STEP WITH THE SENSORS. That is the one bug here
-%% that does not crash, so it is the one most heavily asserted.
+%% Two claims. That a brain is a FUNCTION of its weights and what its body
+%% measured, with no hidden state and no clock, because a decision varying for
+%% reasons outside the weights could not be inherited or selected. And that the
+%% weights stay in step with the sensors and the hidden nodes, which is the one
+%% bug here that does not crash and is therefore the one most heavily asserted.
 -module(brain_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
 econ() -> world:defaults().
-
 rng() -> rand:seed_s(exsss, {1, 2, 3}).
-
 with(Overrides) -> maps:merge(econ(), Overrides).
 
-%%==============================================================================
-%% Shape
-%%==============================================================================
-
-%% One weight per sensor, and one more for staying put.
-a_brain_has_a_weight_per_sensor_plus_one_test() ->
-    ?assertEqual(1, brain:width(0)),
-    ?assertEqual(4, brain:width(3)),
-    {Brain, _} = brain:founder(3, econ(), rng()),
-    ?assertEqual(4, length(Brain)).
-
-%% A creature that measures nothing still has an opinion about whether to move,
-%% and it must, because movement costs and staying does not.
-a_body_that_measures_nothing_still_decides_test() ->
-    {Brain, _} = brain:founder(0, econ(), rng()),
-    ?assertEqual(1, length(Brain)),
-    ?assert(is_integer(brain:value(Brain, [], true))).
-
-founding_weights_are_within_range_test() ->
-    Range = maps:get(brain_range, econ()),
-    {Brain, _} = brain:founder(6, econ(), rng()),
-    ?assert(lists:all(fun(W) -> W >= -Range andalso W =< Range end, Brain)).
+%% A brain with no hidden layer and one output, over one sensor plus `here'.
+flat(Weights) ->
+    #{hidden => [], outputs => #{move => #{inputs => Weights, hidden => []}}}.
 
 %%==============================================================================
 %% Valuing a place
 %%==============================================================================
 
 %% A WEIGHT IS WHAT A MEASUREMENT IS WORTH, AND ITS SIGN IS EVERYTHING. Positive
-%% is attraction and negative is avoidance, through one mechanism. That is why
+%% is attraction and negative avoidance, through one mechanism. That is why
 %% fleeing needs no rule of its own: it is predation's weight with a minus in
 %% front, and neither word appears in the code.
 a_weight_values_and_its_sign_reverses_test() ->
-    Drawn = [3, 0],
-    Repelled = [-3, 0],
-    ?assertEqual(15, brain:value(Drawn, [5], false)),
-    ?assertEqual(-15, brain:value(Repelled, [5], false)).
+    ?assertEqual(#{move => 15}, brain:evaluate(flat([3, 0]), [5, 0], econ())),
+    ?assertEqual(#{move => -15}, brain:evaluate(flat([-3, 0]), [5, 0], econ())).
 
-%% The staying weight applies to exactly one of the seven candidates: the cell
-%% the creature is already standing on.
-the_staying_weight_applies_only_where_it_stands_test() ->
-    Brain = [0, 7],
-    ?assertEqual(7, brain:value(Brain, [4], true)),
-    ?assertEqual(0, brain:value(Brain, [4], false)).
+%% `here' is an ordinary input rather than a special case, and it is why staying
+%% put is expressible: movement costs and standing still does not, so a creature
+%% that cannot tell where it already is cannot be sedentary on purpose.
+the_here_input_distinguishes_the_cell_it_stands_on_test() ->
+    Brain = flat([0, 7]),
+    ?assertEqual(#{move => 7}, brain:evaluate(Brain, [4, 1], econ())),
+    ?assertEqual(#{move => 0}, brain:evaluate(Brain, [4, 0], econ())).
 
-%% NO BIAS TERM, because a constant added to every candidate alike cannot change
-%% which is largest. The staying weight is not a bias: it is applied to one
-%% candidate and not the others, which is the whole reason it can do anything.
-several_measurements_all_count_test() ->
-    Brain = [2, -1, 0, 5],
-    ?assertEqual(2 * 10 - 1 * 3 + 0 * 15, brain:value(Brain, [10, 3, 15], false)),
-    ?assertEqual(2 * 10 - 1 * 3 + 5, brain:value(Brain, [10, 3, 15], true)).
+%% AN ABSENT OUTPUT IS ABSENT, not zero. A creature with no `move' never moves
+%% and one with no `breed' leaves no descendants, and the world has to be able to
+%% tell that from an output that merely evaluated to nothing.
+an_absent_output_is_simply_not_there_test() ->
+    ?assertEqual(#{}, brain:evaluate(#{hidden => [], outputs => #{}}, [1],
+                                     econ())),
+    ?assertEqual(false, brain:has(move, #{hidden => [], outputs => #{}})),
+    ?assertEqual(true, brain:has(move, flat([0, 0]))).
 
 %% No hidden state, no clock. Asked twice, answers twice the same.
 valuing_is_a_function_test() ->
     {Brain, _} = brain:founder(3, econ(), rng()),
-    ?assertEqual(brain:value(Brain, [3, 2, 7], false),
-                 brain:value(Brain, [3, 2, 7], false)).
+    ?assertEqual(brain:evaluate(Brain, [3, 2, 7, 1], econ()),
+                 brain:evaluate(Brain, [3, 2, 7, 1], econ())).
 
 %%==============================================================================
-%% Inheriting
+%% The hidden layer, and why there is one
 %%==============================================================================
 
-%% A child is its parent plus a nudge. If a child could land anywhere in weight
-%% space then lineages would not exist, selection would have nothing to
-%% accumulate, and every generation would start over.
-a_child_is_within_one_mutation_of_its_parent_test() ->
-    E = with(#{brain_mutation => 1}),
-    {Parent, R0} = brain:founder(4, E, rng()),
-    {Child, _} = brain:inherit(Parent, none, E, R0),
-    Drift = [abs(P - C) || {P, C} <- lists:zip(Parent, Child)],
-    ?assert(lists:all(fun(D) -> D =< 1 end, Drift)).
+%% THE WHOLE ARGUMENT FOR A HIDDEN LAYER, IN ONE TEST. Own energy is the same
+%% number for all seven cells a creature can reach, so in a flat brain it adds
+%% equally to every option and CANCELS IN THE COMPARISON. A linear brain cannot
+%% act on self-knowledge however much it has, which is why world 1 had no
+%% proprioception and would have gained nothing from any.
+%%
+%% Here the same `self' reading of 4 against two different cells produces the
+%% same DIFFERENCE between them, whatever weight is put on it.
+a_constant_input_cannot_change_a_flat_brains_ranking_test() ->
+    Rich = flat([1, 0, 0]),
+    Careful = flat([1, 5, 0]),
+    Gap = fun(B) ->
+                  #{move := A} = brain:evaluate(B, [8, 4, 0], econ()),
+                  #{move := C} = brain:evaluate(B, [2, 4, 0], econ()),
+                  A - C
+          end,
+    ?assertEqual(Gap(Rich), Gap(Careful)).
 
-zero_mutation_clones_test() ->
-    E = with(#{brain_mutation => 0}),
-    {Parent, R0} = brain:founder(4, E, rng()),
-    {Child, _} = brain:inherit(Parent, none, E, R0),
-    ?assertEqual(Parent, Child).
+%% AND A HIDDEN NODE BREAKS THAT, which is the point. Rectification is not
+%% linear, so a node combining self with what is in a cell contributes
+%% differently to different cells and the ranking can depend on self after all.
+%% The node weighs the cell POSITIVELY and self NEGATIVELY, so a small creature
+%% keeps it above zero and a large one drives it below, where rectification
+%% flattens it to nothing. A weight that merely added self would not do: the
+%% divisor is integer, so a constant shifts both cells almost equally and the gap
+%% survives. It is the CLIPPING that makes the ranking conditional, which is why
+%% the nonlinearity and not the extra input is what buys this.
+a_hidden_node_lets_self_knowledge_change_the_ranking_test() ->
+    Conditional = #{hidden => [[1, -1, 0]],
+                    outputs => #{move => #{inputs => [0, 0, 0],
+                                           hidden => [1]}}},
+    Gap = fun(Self) ->
+                  #{move := A} = brain:evaluate(Conditional, [8, Self, 0], econ()),
+                  #{move := C} = brain:evaluate(Conditional, [2, Self, 0], econ()),
+                  A - C
+          end,
+    %% Small, it can tell the two cells apart. Large, both are rectified away and
+    %% it stops caring which cell it is looking at.
+    ?assert(Gap(0) > 0),
+    ?assertEqual(0, Gap(60)).
 
-inheritance_respects_the_range_test() ->
-    E = with(#{brain_range => 2, brain_mutation => 3}),
-    Maxed = lists:duplicate(5, 2),
-    {Child, _} = brain:inherit(Maxed, none, E, rng()),
-    ?assert(lists:all(fun(W) -> W >= -2 andalso W =< 2 end, Child)).
+%% max(0, x). Integer, monotone but not linear, and needing no libm, which keeps
+%% a run bit-identical from its seed and the world probeable offline.
+a_hidden_node_is_rectified_test() ->
+    Negative = #{hidden => [[-8, 0]],
+                 outputs => #{move => #{inputs => [0, 0], hidden => [1]}}},
+    ?assertEqual(#{move => 0}, brain:evaluate(Negative, [60, 0], econ())).
 
-mutation_moves_weights_both_ways_test() ->
-    E = with(#{brain_mutation => 1}),
+%%==============================================================================
+%% Founding
+%%==============================================================================
+
+%% Founders are drawn with a random number of hidden nodes and a random SUBSET of
+%% what they could do, so the first generation already contains creatures drawn
+%% to ground, drawn to flesh, disinclined to move, and some that cannot reproduce
+%% at all. Selection has something to sort from the first tick.
+founding_brains_vary_in_shape_test() ->
+    {Brains, _} = lists:mapfoldl(fun(_I, R) -> brain:founder(2, econ(), R) end,
+                                 rng(), lists:seq(1, 60)),
+    Shapes = [{brain:hidden_count(B), brain:has(move, B), brain:has(breed, B)}
+              || B <- Brains],
+    ?assert(length(lists:usort(Shapes)) > 2).
+
+founding_weights_are_within_range_test() ->
+    Range = maps:get(brain_range, econ()),
+    {Brain, _} = brain:founder(3, with(#{founder_max_hidden => 3}), rng()),
+    Weights = lists:append(maps:get(hidden, Brain))
+        ++ lists:append([maps:get(inputs, O) ++ maps:get(hidden, O)
+                         || O <- maps:values(maps:get(outputs, Brain))]),
+    ?assert(lists:all(fun(W) -> W >= -Range andalso W =< Range end, Weights)).
+
+%%==============================================================================
+%% Following the body, and the bug that does not crash
+%%==============================================================================
+
+still() -> with(#{brain_mutation => 0, brain_mutation_structural => 1000000}).
+
+%% A GAINED SENSOR INSERTS ITS WEIGHT AT ITS OWN POSITION IN EVERY VECTOR THAT
+%% READS IT, not at the end. Appending would shift every weight past the
+%% insertion point onto a different measurement, and nothing would crash: the
+%% creature would simply behave like a scrambled version of its parent.
+%%
+%% AND IT ARRIVES AT ZERO. A random weight makes growing a sensor a large jump in
+%% an arbitrary direction, which is resampling and not inheritance. At zero the
+%% child begins by ignoring what it can newly perceive and drift decides whether
+%% to attend to it, which is the difference between an organ appearing and an
+%% organ being adopted.
+a_gained_sensor_inserts_a_zero_in_every_vector_test() ->
+    Parent = #{hidden => [[5, 6, 9]],
+               outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
+    {Child, _} = brain:inherit(Parent, {added, 2}, still(), rng()),
+    ?assertEqual([[5, 0, 6, 9]], maps:get(hidden, Child)),
+    ?assertEqual(#{inputs => [1, 0, 2, 3], hidden => [4]},
+                 maps:get(move, maps:get(outputs, Child))).
+
+a_lost_sensor_removes_its_column_from_every_vector_test() ->
+    Parent = #{hidden => [[5, 6, 9]],
+               outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
+    {Child, _} = brain:inherit(Parent, {dropped, 2}, still(), rng()),
+    ?assertEqual([[5, 9]], maps:get(hidden, Child)),
+    ?assertEqual(#{inputs => [1, 3], hidden => [4]},
+                 maps:get(move, maps:get(outputs, Child))).
+
+%% A NEW HIDDEN NODE COMPUTES SOMETHING AND NOTHING LISTENS TO IT. Its own input
+%% weights are drawn so it is not inert, but every output weighs it at zero, so
+%% the creature behaves exactly as its parent did until drift connects it. Same
+%% argument as a new sensor: capacity appears first and is adopted later, or
+%% never.
+a_gained_hidden_node_is_listened_to_by_nobody_test() ->
+    Grows = with(#{brain_mutation => 0, brain_mutation_structural => 1,
+                   max_hidden => 6}),
+    Parent = #{hidden => [], outputs => #{move => #{inputs => [1, 2],
+                                                    hidden => []}}},
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit([0, 0, 0], none, E, R) end,
+                      fun(_I, R) -> brain:inherit(Parent, none, Grows, R) end,
+                      rng(), lists:seq(1, 60)),
+    Grown = [C || C <- Children, brain:hidden_count(C) =:= 1],
+    ?assert(length(Grown) > 0),
+    ?assert(lists:all(fun(C) ->
+                              maps:get(hidden, maps:get(move,
+                                                        maps:get(outputs, C)))
+                                  =:= [0]
+                      end, Grown)).
+
+%% THE INVARIANT THAT MATTERS, stated directly: after any change, every vector
+%% fits what it reads. A mismatch is the only bug here that stays silent.
+every_vector_fits_after_any_change_test() ->
+    Parent = #{hidden => [[1, 2, 3], [4, 5, 6]],
+               outputs => #{move => #{inputs => [7, 8, 9], hidden => [1, 2]},
+                            breed => #{inputs => [1, 1, 1], hidden => [3, 4]}}},
+    Churn = with(#{brain_mutation => 1, brain_mutation_structural => 1}),
+    Changes = [none, {added, 1}, {added, 3}, {dropped, 1}, {dropped, 3}],
+    lists:foreach(fun(Change) -> fits(Parent, Change, Churn) end, Changes).
+
+fits(Parent, Change, Econ) ->
+    {Children, _} = lists:mapfoldl(
+                      fun(_I, R) -> brain:inherit(Parent, Change, Econ, R) end,
                       rng(), lists:seq(1, 40)),
-    Weights = lists:append(Children),
-    ?assert(lists:member(-1, Weights)),
-    ?assert(lists:member(1, Weights)).
+    lists:foreach(fun consistent/1, Children).
+
+consistent(#{hidden := Hidden, outputs := Outputs}) ->
+    Widths = lists:usort([length(Row) || Row <- Hidden]
+                         ++ [length(maps:get(inputs, O))
+                             || O <- maps:values(Outputs)]),
+    ?assert(length(Widths) =< 1),
+    lists:foreach(fun(O) ->
+                          ?assertEqual(length(Hidden),
+                                       length(maps:get(hidden, O)))
+                  end, maps:values(Outputs)).
+
+%% LOSING AN OUTPUT IS SURVIVABLE AND USUALLY TERRIBLE, which is the point. No
+%% `move' means it never moves, which in this world is a living rather than a
+%% death sentence. No `breed' means the lineage ends there, which is very strong
+%% selection rather than a rule against it.
+outputs_are_gained_and_lost_test() ->
+    Churn = with(#{brain_mutation => 0, brain_mutation_structural => 1}),
+    Parent = #{hidden => [], outputs => #{move => #{inputs => [1],
+                                                    hidden => []}}},
+    {Children, _} = lists:mapfoldl(
+                      fun(_I, R) -> brain:inherit(Parent, none, Churn, R) end,
+                      rng(), lists:seq(1, 90)),
+    ?assert(lists:any(fun(C) -> not brain:has(move, C) end, Children)),
+    ?assert(lists:any(fun(C) -> brain:has(breed, C) end, Children)).
 
 %%==============================================================================
-%% Following the body
+%% Attention
 %%==============================================================================
 
-%% A GAINED SENSOR ADDS A WEIGHT AT ITS OWN POSITION, not at the end. Appending
-%% would shift every weight after the insertion point onto a different
-%% measurement, and nothing would crash: the creature would simply behave like a
-%% scrambled version of its parent for reasons no test would name.
-a_gained_sensor_inserts_its_weight_in_place_test() ->
-    E = with(#{brain_mutation => 0}),
-    {Child, _} = brain:inherit([5, 6, 9], {added, 2}, E, rng()),
-    ?assertEqual([5, 0, 6, 9], Child).
+%% A sensor's input is read by every hidden node and by every output, so what it
+%% is WORTH to a creature is the sum of what all of them put on it. Zero means the
+%% measurement is taken, paid for, and acted on by nothing.
+attention_sums_every_vector_that_reads_a_column_test() ->
+    Brain = #{hidden => [[3, 0, 0], [-2, 0, 0]],
+              outputs => #{move => #{inputs => [1, 0, 0], hidden => [0, 0]}}},
+    ?assertEqual([6, 0], brain:attention(Brain, 2)).
 
-%% NEW MEASUREMENTS ARRIVE IGNORED. A random weight would make growing a sensor a
-%% large jump in a random direction, which is resampling rather than
-%% inheritance. At zero the child starts by disregarding what it can now perceive
-%% and drift decides over generations whether to attend to it. That is the
-%% difference between an organ appearing and an organ being adopted.
-a_gained_sensor_starts_unattended_test() ->
-    E = with(#{brain_mutation => 0}),
-    {Child, _} = brain:inherit([4, 4], {added, 1}, E, rng()),
-    ?assertEqual([0, 4, 4], Child).
-
-a_lost_sensor_removes_its_weight_test() ->
-    E = with(#{brain_mutation => 0}),
-    {Child, _} = brain:inherit([5, 6, 9], {dropped, 2}, E, rng()),
-    ?assertEqual([5, 9], Child).
-
-%% The invariant that matters, stated directly: after any change, the brain fits
-%% the body it will steer. A mismatch is the only bug here that stays silent.
-a_child_brain_always_fits_its_body_test() ->
-    E = with(#{brain_mutation => 1}),
-    Cases = [{[9, 9, 9], none, 3},
-             {[9, 9, 9], {added, 1}, 4},
-             {[9, 9, 9], {added, 3}, 4},
-             {[9, 9, 9], {dropped, 1}, 2},
-             {[9, 9, 9], {dropped, 3}, 2}],
-    lists:foreach(
-      fun({Parent, Change, Expected}) ->
-              {Child, _} = brain:inherit(Parent, Change, E, rng()),
-              ?assertEqual(Expected, length(Child))
-      end, Cases).
-
-%% And the same invariant through the world, where bodies and brains actually
-%% mutate together. Reaching the end at all means no creature ever valued a cell
-%% with a mismatched weight list, which would have crashed lists:zip.
-bodies_and_brains_stay_in_step_through_a_run_test() ->
-    W = world:tick(world:new(#{population => 30, seed => 17,
-                               body_mutation => 1}), 400),
-    #{population := Pop} = world:snapshot(W),
-    ?assert(Pop >= 0).
+a_brain_with_nothing_in_it_attends_to_nothing_test() ->
+    ?assertEqual([0, 0], brain:attention(#{hidden => [], outputs => #{}}, 2)).

@@ -1,122 +1,318 @@
-%% @doc The thing that decides. PURE, INTEGER, and now much smaller than it was.
+%% @doc The thing that decides. PURE, INTEGER, and now with somewhere to think.
 %%
-%% A BRAIN PUTS A VALUE ON A PLACE. It does not choose between named actions,
-%% because there are no longer any named actions to choose between. It reads what
-%% the body measured about a candidate cell and returns a number, the creature
-%% goes to whichever of the seven reachable cells scores highest, and everything
-%% else in this world is a consequence of where things ended up.
+%% A BRAIN PUTS A VALUE ON A PLACE and decides whether to spend itself on a
+%% child. It does not choose between named actions, because there are none:
+%% going where ground energy is IS grazing, going where creature energy is IS
+%% predation, avoiding it IS fleeing, and staying put IS being a plant. None of
+%% those words appear anywhere in this code.
 %%
-%% THE VERBS ARE GONE AND THAT IS THE WHOLE POINT. There used to be `graze',
-%% `hunt' and `rest', which meant the categories herbivore and carnivore were
-%% written into the physics and the diet statistic merely counted which of two
-%% words fired. Now:
+%% ==========================================================================
+%% WHY THERE IS A HIDDEN LAYER, WHICH WORLD 1 DID NOT HAVE
+%% ==========================================================================
 %%
-%%   valuing cells with plant energy         IS grazing
-%%   valuing cells with creature energy      IS predation
-%%   valuing cells with LITTLE creature energy IS fleeing
-%%   valuing your own cell where trails run  IS ambush
+%% Own energy is the same number for all seven cells a creature can reach. In a
+%% single linear layer it adds equally to every option and CANCELS IN THE
+%% COMPARISON, so a linear brain cannot act on self-knowledge at all, however
+%% much it has. World 1 therefore had no proprioception and would have gained
+%% nothing from any, and this is not a matter of degree: the two are worth
+%% nothing apart and something together.
 %%
-%% None of those words appear anywhere in this code. They are descriptions an
-%% observer may apply afterwards, which is what they should always have been, and
-%% strategies nobody thought of are reachable by the same machinery.
+%% A hidden node fixes it by combining a constant with something that varies. Once
+%% `self' can be multiplied against what is in a cell, "go where the flesh is, but
+%% only while I am the larger" becomes expressible, and that sentence is the
+%% difference between predation as a strategy and predation as weather.
 %%
-%% ONE WEIGHT PER SENSOR PLUS ONE FOR STAYING. A weight is what that measurement
-%% is worth to this creature, and its SIGN is what makes attraction and avoidance
-%% the same mechanism. There is no bias term, because a constant added to every
-%% candidate alike cannot change which is largest.
+%% RECTIFICATION, `max(0, x)', IS THE ONLY NONLINEARITY. Integer, monotone but
+%% not linear, and it needs no libm. That keeps a run bit-identical from its seed,
+%% which is what lets thousands of ticks be probed offline, and that property has
+%% already saved this project a fortnight of work built on a trait that turned out
+%% not to move. It is not being traded for a smoother curve that would change the
+%% numbers and not the decisions.
 %%
-%% THE STAYING WEIGHT IS NOT A HIDDEN VERB. Movement costs energy and standing
-%% still does not, so a creature that cannot tell where it already is cannot
-%% express sitting tight, and every sedentary strategy would be unreachable
-%% through no decision of its own. Knowing your own position is about as
-%% elementary as perception gets.
+%% ==========================================================================
+%% THE STRUCTURE, AND THE ONE BUG HERE THAT DOES NOT CRASH
+%% ==========================================================================
 %%
-%% NO FLOATS AND NO ACTIVATION FUNCTION. Only the ORDER of the scores matters,
-%% and every activation worth using is monotonic, so one would change the numbers
-%% and not the outcome. Staying integer keeps a run bit-identical from its seed,
-%% which is what lets the whole world be probed offline in seconds.
+%% Inputs are the sensor readings, then `here': a 1 for the cell the creature
+%% already occupies and 0 for the other six. That replaces world 1's special
+%% staying-weight with an ordinary input, so nothing is special-cased, and it is
+%% why staying put is expressible at all: movement costs and standing still does
+%% not, so a creature that cannot tell where it already is cannot be sedentary on
+%% purpose.
+%%
+%% Every hidden node holds one weight per input. Every output holds one weight per
+%% input AND one per hidden node. So a single added sensor must insert a column
+%% into every hidden node and every output, and an added hidden node must append a
+%% column to every output.
+%%
+%% GET ANY OF THAT WRONG AND NOTHING CRASHES. The vectors still have plausible
+%% lengths, every weight after the insertion point simply reads a different
+%% measurement, and the creature behaves like a garbled version of its parent for
+%% reasons no test would name. This is the main engineering risk in world 2 and
+%% the reason the shape after every kind of change is asserted directly.
 -module(brain).
 
--export([founder/3, inherit/4, value/3, width/1]).
+-export([founder/3, inherit/4, evaluate/3, attention/2]).
+-export([purposes/0, hidden_count/1, has/2, width/2]).
 
--type brain() :: [integer()].
--export_type([brain/0]).
+-type purpose() :: move | breed.
+-type output() :: #{inputs := [integer()], hidden := [integer()]}.
+-type brain() :: #{hidden := [[integer()]], outputs := #{purpose() => output()}}.
+-export_type([purpose/0, brain/0]).
 
-%% @doc How many weights a body of this many sensors needs: one each, and one
-%% for staying put.
--spec width(non_neg_integer()) -> pos_integer().
-width(Sensors) -> Sensors + 1.
+%% What a creature can do. TWO, AND THAT IS A FACT ABOUT THIS WORLD RATHER THAN
+%% AN OVERSIGHT: little here is physically distinct to do. Consumption is
+%% automatic on contact, and scent is left by moving because moving disturbs
+%% ground, which is physics and not a gland that could be switched off.
+-define(PURPOSES, [move, breed]).
 
-%% @doc A founding brain: uniform random weights, one per sensor plus staying.
+%% What a hidden node's total is divided by before it is read as a reading.
+%% Inputs run to sixty-odd and weights to eight, so a raw total runs to hundreds
+%% and would swamp every direct input weight in the outputs. Dividing by the
+%% weight range brings a node back into the range of the things it summarises, so
+%% an output can weigh a hidden node against a sensor without either drowning the
+%% other. A scale constant, and there is no physics that sets it.
+-define(HIDDEN_DIVISOR, 8).
+
+-spec purposes() -> [purpose()].
+purposes() -> ?PURPOSES.
+
+-spec hidden_count(brain()) -> non_neg_integer().
+hidden_count(#{hidden := H}) -> length(H).
+
+-spec has(purpose(), brain()) -> boolean().
+has(Purpose, #{outputs := Os}) -> maps:is_key(Purpose, Os).
+
+%% @doc How many weights a vector over this many sensors needs: one each, and one
+%% for `here'.
+-spec width(non_neg_integer(), inputs | non_neg_integer()) -> pos_integer().
+width(Sensors, inputs) -> Sensors + 1;
+width(_Sensors, Hidden) -> Hidden.
+
+%%==============================================================================
+%% Founding
+%%==============================================================================
+
+%% @doc A founding brain: random weights, a random number of hidden nodes, and a
+%% random subset of the things it could do.
 %%
-%% RANDOM RATHER THAN ZERO. A population of zeroed brains values every cell
-%% alike and wanders until mutation breaks the tie, wasting the early ticks.
-%% Random founders already contain creatures drawn to plants, drawn to other
-%% creatures, repelled by both, and disinclined to move at all, so selection has
-%% something to sort from the first tick.
+%% RANDOM RATHER THAN ZERO, and a SUBSET rather than all. A population of zeroed
+%% brains values every cell alike and wanders until mutation breaks the tie,
+%% wasting the early ticks. Founders drawn this way already contain creatures
+%% drawn to ground, drawn to flesh, repelled by both, disinclined to move, and
+%% some that cannot reproduce at all, so selection has something to sort from the
+%% first tick rather than waiting for mutation to invent variety.
 -spec founder(non_neg_integer(), map(), rand:state()) -> {brain(), rand:state()}.
 founder(Sensors, Econ, Rng0) ->
+    {N, Rng1} = rand:uniform_s(maps:get(founder_max_hidden, Econ) + 1, Rng0),
+    {Hidden, Rng2} = draw_rows(N - 1, width(Sensors, inputs), Econ, Rng1, []),
+    {Outputs, Rng3} = draw_outputs(?PURPOSES, Sensors, length(Hidden), Econ,
+                                   Rng2, #{}),
+    {#{hidden => Hidden, outputs => Outputs}, Rng3}.
+
+draw_rows(0, _Width, _Econ, Rng, Acc) -> {Acc, Rng};
+draw_rows(N, Width, Econ, Rng0, Acc) ->
+    {Row, Rng1} = draw_row(Width, Econ, Rng0),
+    draw_rows(N - 1, Width, Econ, Rng1, [Row | Acc]).
+
+draw_row(Width, Econ, Rng0) ->
     Range = maps:get(brain_range, Econ),
-    lists:mapfoldl(fun(_I, R0) -> draw(Range, R0) end, Rng0,
-                   lists:seq(1, width(Sensors))).
+    lists:mapfoldl(fun(_I, R) -> draw(Range, R) end, Rng0, lists:seq(1, Width)).
 
 draw(Range, Rng0) ->
     {N, Rng1} = rand:uniform_s(2 * Range + 1, Rng0),
     {N - Range - 1, Rng1}.
 
-%% @doc A child's brain: its parent's, restructured to match its body, then every
-%% weight nudged.
+draw_outputs([], _Sensors, _Hidden, _Econ, Rng, Acc) -> {Acc, Rng};
+draw_outputs([P | Rest], Sensors, Hidden, Econ, Rng0, Acc) ->
+    {Coin, Rng1} = rand:uniform_s(2, Rng0),
+    {Acc1, Rng2} = maybe_output(Coin, P, Sensors, Hidden, Econ, Rng1, Acc),
+    draw_outputs(Rest, Sensors, Hidden, Econ, Rng2, Acc1).
+
+maybe_output(2, _P, _Sensors, _Hidden, _Econ, Rng, Acc) ->
+    {Acc, Rng};
+maybe_output(1, P, Sensors, Hidden, Econ, Rng0, Acc) ->
+    {Ins, Rng1} = draw_row(width(Sensors, inputs), Econ, Rng0),
+    {Hids, Rng2} = draw_row(Hidden, Econ, Rng1),
+    {Acc#{P => #{inputs => Ins, hidden => Hids}}, Rng2}.
+
+%%==============================================================================
+%% Deciding
+%%==============================================================================
+
+%% @doc What this creature makes of one place: every output it has, for these
+%% readings.
 %%
-%% THE STRUCTURAL CHANGE COMES FIRST AND IT MUST MATCH THE BODY EXACTLY. A weight
-%% list out of step with the sensor list is the worst kind of bug available here,
-%% because nothing crashes: every weight after the change point quietly starts
-%% valuing a different measurement, and the creature behaves like a garbled
-%% version of its parent for reasons no test would name.
+%% The hidden layer is computed ONCE and shared by every output, which is not an
+%% optimisation so much as the difference between this world running and not: it
+%% is evaluated for seven candidate cells per creature per tick, and a board that
+%% can hold a forest holds a great many creatures.
+-spec evaluate(brain(), [integer()], map()) -> #{purpose() => integer()}.
+evaluate(#{hidden := Hidden, outputs := Outputs}, Inputs, _Econ) ->
+    Acts = [activate(Row, Inputs) || Row <- Hidden],
+    maps:map(fun(_P, O) -> fire(O, Inputs, Acts) end, Outputs).
+
+%% Rectified, then held to the range of an ordinary reading so an output can
+%% weigh a hidden node against a sensor without either drowning the other.
+activate(Row, Inputs) ->
+    max(0, min(body:reading_ceiling(), dot(Row, Inputs) div ?HIDDEN_DIVISOR)).
+
+fire(#{inputs := WI, hidden := WH}, Inputs, Acts) ->
+    dot(WI, Inputs) + dot(WH, Acts).
+
+dot(Weights, Values) ->
+    lists:sum([W * V || {W, V} <- lists:zip(Weights, Values)]).
+
+%% @doc How much total weight each input column carries, across every vector that
+%% reads it.
 %%
-%% A NEW SENSOR ARRIVES WEIGHTED AT ZERO rather than randomly. A random weight
-%% would make growing a sensor a large behavioural jump in a random direction,
-%% which is resampling rather than inheritance; at zero the child starts by
-%% ignoring its new measurement and drift decides over generations whether to
-%% attend to it. That is the difference between an organ appearing and an organ
-%% being adopted.
+%% A sensor's input is read by every hidden node and by every output, so what it
+%% is WORTH to a creature is the sum of what all of them put on it. Zero means
+%% the measurement is taken, paid for, and acted on by nothing.
+-spec attention(brain(), non_neg_integer()) -> [non_neg_integer()].
+attention(#{hidden := Hidden, outputs := Outputs}, Inputs) ->
+    Vectors = Hidden ++ [maps:get(inputs, O) || O <- maps:values(Outputs)],
+    [column(I, Vectors) || I <- lists:seq(1, Inputs)].
+
+column(I, Vectors) ->
+    lists:sum([abs(lists:nth(I, V)) || V <- Vectors, length(V) >= I]).
+
+%%==============================================================================
+%% Inheriting
+%%==============================================================================
+
+%% @doc A child's brain: its parent's, restructured to match its body, mutated in
+%% its own topology, then every weight nudged.
+%%
+%% THE BODY'S CHANGE IS APPLIED FIRST AND MUST MATCH IT EXACTLY, or every weight
+%% past the change point silently reads a different measurement.
 -spec inherit(brain(), none | {added, pos_integer()} | {dropped, pos_integer()},
               map(), rand:state()) -> {brain(), rand:state()}.
-inherit(Brain, Change, Econ, Rng0) ->
-    Mut = maps:get(brain_mutation, Econ),
-    Range = maps:get(brain_range, Econ),
-    lists:mapfoldl(fun(W, R0) -> nudge(W, Mut, Range, R0) end, Rng0,
-                   restructure(Change, Brain)).
+inherit(Brain, SensorChange, Econ, Rng0) ->
+    Followed = follow_body(SensorChange, Brain),
+    {Grown, Rng1} = mutate_topology(Followed, Econ, Rng0),
+    nudge_all(Grown, Econ, Rng1).
 
-restructure(none, Brain) -> Brain;
-restructure({added, Pos}, Brain) ->
-    {Before, After} = lists:split(Pos - 1, Brain),
-    Before ++ [0 | After];
-restructure({dropped, Pos}, Brain) ->
-    {Before, [_Gone | After]} = lists:split(Pos - 1, Brain),
+%% A GAINED SENSOR ARRIVES WEIGHTED AT ZERO in every vector that reads it, rather
+%% than randomly. A random weight makes growing a sensor a large behavioural jump
+%% in an arbitrary direction, which is resampling and not inheritance. At zero the
+%% child begins by ignoring what it can newly perceive and drift decides over
+%% generations whether to attend to it, which is the difference between an organ
+%% appearing and an organ being adopted.
+follow_body(none, Brain) ->
+    Brain;
+follow_body({added, Pos}, #{hidden := H, outputs := Os} = Brain) ->
+    Brain#{hidden => [insert(Pos, 0, Row) || Row <- H],
+           outputs => maps:map(fun(_P, O) -> on_inputs(O, Pos, insert) end, Os)};
+follow_body({dropped, Pos}, #{hidden := H, outputs := Os} = Brain) ->
+    Brain#{hidden => [remove(Pos, Row) || Row <- H],
+           outputs => maps:map(fun(_P, O) -> on_inputs(O, Pos, remove) end, Os)}.
+
+on_inputs(#{inputs := Ins} = O, Pos, insert) -> O#{inputs => insert(Pos, 0, Ins)};
+on_inputs(#{inputs := Ins} = O, Pos, remove) -> O#{inputs => remove(Pos, Ins)}.
+
+insert(Pos, Value, List) ->
+    {Before, After} = lists:split(Pos - 1, List),
+    Before ++ [Value | After].
+
+remove(Pos, List) ->
+    {Before, [_Gone | After]} = lists:split(Pos - 1, List),
     Before ++ After.
 
+%% One structural change to the brain's own shape per birth, at the same rate the
+%% body changes: grow a hidden node, prune one, or gain or lose the ability to do
+%% something at all.
+mutate_topology(Brain, Econ, Rng0) ->
+    {Roll, Rng1} = rand:uniform_s(max(1, maps:get(brain_mutation_structural,
+                                                  Econ)), Rng0),
+    topology(Roll, Brain, Econ, Rng1).
+
+topology(1, Brain, Econ, Rng0) ->
+    {Kind, Rng1} = rand:uniform_s(3, Rng0),
+    restructure(Kind, Brain, Econ, Rng1);
+topology(_NoMutation, Brain, _Econ, Rng) ->
+    {Brain, Rng}.
+
+%% A NEW HIDDEN NODE COMPUTES SOMETHING AND NOTHING LISTENS TO IT. Its own input
+%% weights are drawn, so it is not inert, but every output weighs it at zero, so
+%% the creature behaves exactly as its parent did until drift connects it. Same
+%% argument as a new sensor: the capacity appears first and is adopted later, or
+%% never.
+restructure(1, #{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
+    grow_hidden(length(H) < maps:get(max_hidden, Econ), Brain, H, Os, Econ, Rng0);
+restructure(2, #{hidden := []} = Brain, _Econ, Rng) ->
+    {Brain, Rng};
+restructure(2, #{hidden := H, outputs := Os} = Brain, _Econ, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(H), Rng0),
+    {Brain#{hidden => remove(N, H),
+            outputs => maps:map(fun(_P, O) -> on_hidden(O, N) end, Os)}, Rng1};
+restructure(3, Brain, Econ, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(?PURPOSES), Rng0),
+    toggle(lists:nth(N, ?PURPOSES), Brain, Econ, Rng1).
+
+grow_hidden(false, Brain, _H, _Os, _Econ, Rng) ->
+    {Brain, Rng};
+grow_hidden(true, Brain, H, Os, Econ, Rng0) ->
+    Width = width(inputs_of(Brain), inputs),
+    {Row, Rng1} = draw_row(Width, Econ, Rng0),
+    {Brain#{hidden => H ++ [Row],
+            outputs => maps:map(fun(_P, O) -> listen_to_nothing(O) end, Os)},
+     Rng1}.
+
+listen_to_nothing(#{hidden := WH} = O) -> O#{hidden => WH ++ [0]}.
+
+on_hidden(#{hidden := WH} = O, N) -> O#{hidden => remove(N, WH)}.
+
+%% LOSING AN OUTPUT IS SURVIVABLE AND USUALLY TERRIBLE, which is the point. A
+%% creature with no `move' never moves, and in this world that is a living rather
+%% than a death sentence: it takes what gathers where it stands. One with no
+%% `breed' leaves no descendants, so its lineage ends there, which is simply very
+%% strong selection rather than a rule against it.
+toggle(Purpose, #{outputs := Os} = Brain, Econ, Rng0) ->
+    flip(maps:is_key(Purpose, Os), Purpose, Brain, Econ, Rng0).
+
+flip(true, Purpose, #{outputs := Os} = Brain, _Econ, Rng) ->
+    {Brain#{outputs => maps:remove(Purpose, Os)}, Rng};
+flip(false, Purpose, #{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
+    {Ins, Rng1} = draw_row(width(inputs_of(Brain), inputs), Econ, Rng0),
+    {Hids, Rng2} = draw_row(length(H), Econ, Rng1),
+    {Brain#{outputs => Os#{Purpose => #{inputs => Ins, hidden => Hids}}}, Rng2}.
+
+%% Recovered from the brain's own shape rather than passed in, so it cannot
+%% disagree with what the vectors actually are.
+inputs_of(#{hidden := [Row | _]}) -> length(Row) - 1;
+inputs_of(#{outputs := Os}) -> from_outputs(maps:values(Os)).
+
+from_outputs([]) -> 0;
+from_outputs([#{inputs := Ins} | _]) -> length(Ins) - 1.
+
 %% Every weight, by a small symmetric step. Small and everywhere makes a lineage
-%% drift through strategy space so intermediate forms exist and selection has a
-%% gradient to climb. Symmetric so nothing here pushes weights anywhere on its
-%% own.
+%% DRIFT through strategy space so intermediate forms exist and selection has a
+%% gradient to climb; large and rare makes children unrelated to their parents,
+%% which is resampling. Symmetric so nothing pushes weights anywhere on its own.
+nudge_all(#{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
+    {Hidden, Rng1} = lists:mapfoldl(fun(Row, R) -> nudge_row(Row, Econ, R) end,
+                                    Rng0, H),
+    {Outputs, Rng2} = nudge_outputs(maps:to_list(Os), Econ, Rng1, #{}),
+    {Brain#{hidden => Hidden, outputs => Outputs}, Rng2}.
+
+nudge_outputs([], _Econ, Rng, Acc) -> {Acc, Rng};
+nudge_outputs([{P, #{inputs := Ins, hidden := Hids}} | Rest], Econ, Rng0, Acc) ->
+    {Ins1, Rng1} = nudge_row(Ins, Econ, Rng0),
+    {Hids1, Rng2} = nudge_row(Hids, Econ, Rng1),
+    nudge_outputs(Rest, Econ, Rng2, Acc#{P => #{inputs => Ins1,
+                                                hidden => Hids1}}).
+
+nudge_row(Row, Econ, Rng0) ->
+    Mut = maps:get(brain_mutation, Econ),
+    Range = maps:get(brain_range, Econ),
+    lists:mapfoldl(fun(W, R) -> nudge(W, Mut, Range, R) end, Rng0, Row).
+
 nudge(W, 0, _Range, Rng) -> {W, Rng};
 nudge(W, Mut, Range, Rng0) ->
     {Step, Rng1} = rand:uniform_s(2 * Mut + 1, Rng0),
     {clamp(W + Step - Mut - 1, Range), Rng1}.
 
-%% Bounded, so a long-lived lineage cannot drift to weights that swamp every
+%% Bounded, so a long lineage cannot drift to weights that swamp every
 %% measurement and turn the brain back into a constant that ignores the world.
 clamp(W, Range) -> max(-Range, min(Range, W)).
-
-%% @doc What this creature makes of a place.
-%%
-%% Readings arrive in sensor order and the weights follow it. `Staying' says
-%% whether the cell being valued is the one the creature is already standing on.
--spec value(brain(), [integer()], boolean()) -> integer().
-value(Brain, Readings, Staying) ->
-    {Weights, [Stay]} = lists:split(length(Readings), Brain),
-    lists:sum([W * R || {W, R} <- lists:zip(Weights, Readings)])
-        + settled(Staying, Stay).
-
-settled(true, Stay) -> Stay;
-settled(false, _Stay) -> 0.

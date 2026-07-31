@@ -35,7 +35,7 @@
 -export([world_advanced/2, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 2).
+-define(FACT_VERSION, 3).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -74,20 +74,23 @@ hostname() ->
 %% @doc Counts and totals. Small enough to keep forever.
 -spec world_advanced(map(), world_pace:pace()) -> map().
 world_advanced(Snapshot, Pace) ->
-    #{tick := Tick, population := Pop, plants := Plants, born := Born,
+    #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
-      plants_eaten := PlantsEaten, births_refused := Refused,
+      absorbed := Absorbed, births_refused := Refused,
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       sensors := Sensors, sensor_mean := SensorMean,
       sensors_gained := Gained, sensors_lost := Lost,
+      ground_total := GroundTotal, ground_spread := GroundSpread,
+      still_pct := Still, hidden_mean := HiddenMean,
+      movers := Movers, breeders := Breeders,
       scent_tags := Tags, scent_spread := Spread} = Snapshot,
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
       tick => Tick,
       population => Pop,
-      plants => Plants,
+      ground_total => GroundTotal,
       energy_total => Energy,
       radius => Radius,
       %% WHICH RULES THIS ISLAND RUNS. The id answers "are these two islands the
@@ -107,6 +110,23 @@ world_advanced(Snapshot, Pace) ->
       %% that came from other creatures. Zero means nothing alive has ever eaten
       %% anything that could have eaten it back.
       from_creatures_pct => FromCreatures,
+      %% THE PLANT-NESS OF THE POPULATION, observed and never declared: the
+      %% percentage that did not move this tick. A creature that stays where it
+      %% is and lives off what gathers there IS a plant, and nothing in the rules
+      %% calls it one. There are no plants to count because there is no such
+      %% kind of thing.
+      still_pct => Still,
+      %% HOW UNEVENLY THE GROUND HOLDS ENERGY: the percentage lying in the
+      %% richest tenth of cells. Ten is flat. Above that, places have become
+      %% different from each other, and since no terrain was installed, whatever
+      %% difference exists was made by things dying.
+      ground_spread => GroundSpread,
+      %% How much brain a creature carries, and how many can move or reproduce
+      %% at all. An absent output is not a weak one: it is a creature that never
+      %% does that thing.
+      hidden_mean => HiddenMean,
+      movers => Movers,
+      breeders => Breeders,
       %% Per field: how many creatures carry a sensor for it, and the total reach
       %% devoted to it. `sensor_mean' is sensors per creature, times a hundred,
       %% because everything on this wire is an integer.
@@ -126,7 +146,7 @@ world_advanced(Snapshot, Pace) ->
       starved => Starved,
       aged_out => Aged,
       consumed => Consumed,
-      plants_eaten => PlantsEaten,
+      absorbed => Absorbed,
       %% Non-zero means the safety valve bound and the population is NOT at a
       %% natural ceiling. Published so that never has to be guessed from shape.
       births_refused => Refused,
@@ -156,7 +176,7 @@ extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
 -spec world_charted(map(), world_pace:pace()) -> map().
 world_charted(Chart, Pace) ->
     #{creatures := Creatures, energies := Energies, signatures := Signatures,
-      plants := Plants, scent := Scent, radius := Radius, tick := Tick} = Chart,
+      ground := Ground, scent := Scent, radius := Radius, tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -164,7 +184,12 @@ world_charted(Chart, Pace) ->
       radius => Radius,
       stride => 2,
       creatures => Creatures,
-      plants => Plants,
+      %% THE GROUND AS POSITION AND AMOUNT, at a stride of three. Only cells
+      %% holding something are sent: an empty one is drawn bare, and on a grazed
+      %% board most of them are. This replaces the plant list, because a plant
+      %% was never a kind of thing and there is nothing left to enumerate.
+      ground => Ground,
+      ground_stride => 3,
       %% ONE ENERGY PER CREATURE, IN THE SAME ORDER, as a parallel list rather
       %% than interleaved. Interleaving would make the creature stride 3 while
       %% plants stayed 2, and a reader that got that wrong would draw a

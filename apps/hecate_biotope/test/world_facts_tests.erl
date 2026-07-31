@@ -42,19 +42,20 @@ carries_the_tick_and_the_pace_test() ->
 carries_totals_rather_than_rates_test() ->
     F = fact(),
     lists:foreach(fun(K) -> ?assert(is_integer(maps:get(K, F))) end,
-                  [born, starved, aged_out, consumed, plants_eaten,
-                   births_refused, population, plants, energy_total,
+                  [born, starved, aged_out, consumed, absorbed,
+                   births_refused, population, energy_total, ground_total,
+                   ground_spread, still_pct, hidden_mean, movers, breeders,
                    from_creatures_pct, sensor_mean, scent_tags, scent_spread]).
 
-%% VERSION 2 BECAUSE THE CONTRACT CHANGED MATERIALLY. The world was rebuilt to
-%% remove biology from its physics, so `eaten' became `plants_eaten', `killed'
-%% became `consumed', and the herbivore and carnivore buckets were replaced by
-%% `from_creatures_pct' and a sensor census. A spectator pinned to version 1
-%% would silently read fields that no longer mean what they did.
+%% VERSION 3, BECAUSE THERE ARE NO PLANTS ANY MORE. A plant was never a kind of
+%% thing: it is a way of living, and world 2 deleted the entity, the list of
+%% them on the chart and the counter of them eaten. Energy now gathers in the
+%% GROUND and a creature that stays put living off it simply is one. A spectator
+%% pinned to version 2 would look for a list that no longer exists.
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(2, V).
+    ?assertEqual(3, V).
 
 %%==============================================================================
 %% The chart
@@ -72,11 +73,19 @@ chart_topic_is_its_own_test() ->
 %% Flat integers with a stride of two. A pair would be a tuple, and tuples do not
 %% survive this mesh cleanly.
 the_chart_carries_flat_coordinates_test() ->
-    #{creatures := Cs, plants := Ps, stride := Stride} = chart(),
+    #{creatures := Cs, stride := Stride} = chart(),
     ?assertEqual(2, Stride),
     ?assertEqual(0, length(Cs) rem 2),
-    ?assertEqual(0, length(Ps) rem 2),
-    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)).
+    ?assert(lists:all(fun is_integer/1, Cs)).
+
+%% The ground is position AND amount, so it interleaves at its own stride, which
+%% travels with it rather than being assumed. Only cells holding something are
+%% sent: an empty one is drawn bare, and on a grazed board most of them are.
+the_ground_carries_its_own_stride_test() ->
+    #{ground := G, ground_stride := Stride} = chart(),
+    ?assertEqual(3, Stride),
+    ?assertEqual(0, length(G) rem 3),
+    ?assert(lists:all(fun is_integer/1, G)).
 
 %% ONE ENERGY PER CREATURE, IN THE SAME ORDER, as a parallel list. Interleaving
 %% would make the creature stride 3 while plants stayed 2, and a reader that got
