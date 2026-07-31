@@ -1,0 +1,11 @@
+## Node identity and runtime flags for hecate_biotope.
+-name ${HECATE_NODE_NAME}@${HECATE_NODE_HOST}
+-setcookie ${HECATE_COOKIE}
+
++K true
+
+## A world tick is CPU-bound arithmetic across many creatures, so the schedulers
+## are the resource that matters and the async thread pool is not on that path.
+## Left at a modest 8 until there is a world to measure; a number chosen before
+## the first measurement is a guess either way, and this one is cheap to revisit.
++A 8
