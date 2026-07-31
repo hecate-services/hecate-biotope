@@ -199,3 +199,59 @@ the_economy_itself_travels_with_the_fingerprint_test() ->
     #{econ := Econ} = world:snapshot(world:new(#{metabolism => 2})),
     ?assertEqual(2, maps:get(metabolism, Econ)),
     ?assertEqual(maps:keys(world:defaults()), maps:keys(Econ)).
+
+%%==============================================================================
+%% Extinction
+%%==============================================================================
+
+%% EXTINCTION IS PERMANENT AND THAT IS A PROPERTY OF THE RULES. Nothing external
+%% reseeds a world, and a population of zero has no way to produce a birth. So a
+%% dead island goes on publishing forever: its plants regrow, its tick advances,
+%% and every fact after the last death is identical to the one before.
+%%
+%% Population zero says the world is empty NOW. The tick it emptied is the part
+%% no later sample carries, and it is the only thing worth recording.
+a_world_that_dies_records_when_test() ->
+    W = barren(#{population => 3, start_energy => 4, metabolism => 1,
+                 move_cost => 1}),
+    #{extinct_at := Before} = world:snapshot(W),
+    ?assertEqual(undefined, Before),
+    #{population := Pop, extinct_at := At} = world:snapshot(world:tick(W, 10)),
+    ?assertEqual(0, Pop),
+    ?assert(is_integer(At)).
+
+%% Recorded once, on the transition, and never revised. Restamping every tick
+%% would turn the one interesting number into the current one.
+the_tick_of_death_is_not_revised_test() ->
+    W = world:tick(barren(#{population => 2, start_energy => 4, metabolism => 1,
+                            move_cost => 1}), 10),
+    #{extinct_at := At} = world:snapshot(W),
+    #{extinct_at := Later} = world:snapshot(world:tick(W, 500)),
+    ?assertEqual(At, Later).
+
+%% A LIVING WORLD CARRIES NO EXTINCTION AT ALL, not a sentinel. A tick of -1 or 0
+%% for a living world is the kind of number that gets plotted by accident.
+a_living_world_publishes_no_extinction_test() ->
+    Fact = world_facts:world_advanced(world:snapshot(world:new(#{})),
+                                      world_pace:from_map(#{})),
+    ?assertNot(maps:is_key(extinct_at, Fact)).
+
+a_dead_world_publishes_the_tick_it_died_test() ->
+    Dead = world:tick(barren(#{population => 1, start_energy => 4,
+                               metabolism => 1, move_cost => 1}), 10),
+    Fact = world_facts:world_advanced(world:snapshot(Dead),
+                                      world_pace:from_map(#{})),
+    ?assert(maps:is_key(extinct_at, Fact)),
+    ?assertEqual(0, maps:get(population, Fact)).
+
+%% The plants keep growing with nothing to eat them, which is the honest record
+%% of what an empty world does and is quietly the most interesting line on the
+%% chart after a collapse.
+plants_recover_after_everything_dies_test() ->
+    W = world:tick(world:new(#{population => 1, start_energy => 4,
+                               metabolism => 1, move_cost => 1,
+                               initial_plants => 0, regrowth_per_tick => 4,
+                               radius => 5, seed => 3}), 10),
+    #{population := 0, plants := Early} = world:snapshot(W),
+    #{plants := Later} = world:snapshot(world:tick(W, 50)),
+    ?assert(Later > Early).

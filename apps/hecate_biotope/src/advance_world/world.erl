@@ -77,7 +77,15 @@
                 starved = 0 :: non_neg_integer(),
                 aged_out = 0 :: non_neg_integer(),
                 eaten = 0 :: non_neg_integer(),
-                births_refused = 0 :: non_neg_integer()}).
+                births_refused = 0 :: non_neg_integer(),
+                %% The tick the last creature died, and never unset afterwards.
+                %% EXTINCTION IS PERMANENT HERE, and that is a property of the
+                %% rules rather than an oversight: nothing external reseeds a
+                %% world, and a population of zero has no way to produce a birth.
+                %% Recording WHEN it happened is the part a reader cannot
+                %% reconstruct from a later sample, because every sample after it
+                %% looks identical.
+                extinct_at = undefined :: non_neg_integer() | undefined}).
 
 -opaque world() :: #world{}.
 -export_type([world/0, creature/0, econ/0]).
@@ -239,8 +247,17 @@ room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
 %% total cannot tell them apart.
 reap(#world{creatures = Cs, econ = Econ} = W) ->
     MaxAge = maps:get(max_age, Econ),
-    maps:fold(fun(Id, C, Acc) -> reap_one(Id, C, MaxAge, Acc) end,
-              W#world{creatures = #{}}, Cs).
+    Reaped = maps:fold(fun(Id, C, Acc) -> reap_one(Id, C, MaxAge, Acc) end,
+                       W#world{creatures = #{}}, Cs),
+    note_extinction(map_size(Reaped#world.creatures), Reaped).
+
+%% Recorded once, on the transition, and never revised. A world that was already
+%% extinct keeps its original tick rather than restamping it every tick, which
+%% would turn the one interesting number into the current one.
+note_extinction(0, #world{extinct_at = undefined, tick = T} = W) ->
+    W#world{extinct_at = T};
+note_extinction(_Alive, W) ->
+    W.
 
 reap_one(_Id, #{energy := E}, _MaxAge, #world{starved = S} = W) when E =< 0 ->
     W#world{starved = S + 1};
@@ -271,7 +288,8 @@ snapshot(#world{} = W) ->
       energy_total => total_energy(W),
       radius => maps:get(radius, W#world.econ),
       econ => W#world.econ,
-      econ_id => econ_id(W#world.econ)}.
+      econ_id => econ_id(W#world.econ),
+      extinct_at => W#world.extinct_at}.
 
 %% @doc A short, stable fingerprint of the rules this world runs under.
 %%

@@ -77,8 +77,9 @@ world_advanced(Snapshot, Pace) ->
     #{tick := Tick, population := Pop, plants := Plants, born := Born,
       starved := Starved, aged_out := Aged, eaten := Eaten,
       births_refused := Refused, energy_total := Energy,
-      radius := Radius, econ := Econ, econ_id := EconId} = Snapshot,
-    #{type => world_advanced,
+      radius := Radius, econ := Econ, econ_id := EconId,
+      extinct_at := ExtinctAt} = Snapshot,
+    Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
       tick => Tick,
@@ -101,7 +102,22 @@ world_advanced(Snapshot, Pace) ->
       %% Non-zero means the safety valve bound and the population is NOT at a
       %% natural ceiling. Published so that never has to be guessed from shape.
       births_refused => Refused,
-      ticks_per_second => world_pace:ticks_per_second(Pace)}.
+      ticks_per_second => world_pace:ticks_per_second(Pace)},
+    extinction(Fact, ExtinctAt).
+
+%% PRESENT ONLY WHEN IT HAPPENED, rather than a sentinel value meaning "not
+%% yet". A tick of -1 or 0 for a living world is the kind of number that gets
+%% plotted by accident, and an atom like `undefined' would arrive as the STRING
+%% "undefined" because CBOR has no atoms. A missing key is unambiguous in every
+%% language that will ever read this.
+%%
+%% EXTINCTION IS PERMANENT AND THEREFORE WORTH NAMING. A dead island keeps
+%% publishing: its plants regrow, its tick advances, and every fact after the
+%% last death looks identical to the one before. Population zero says the world
+%% is empty NOW; this says when it emptied, which is the part no later sample
+%% carries.
+extinction(Fact, undefined) -> Fact;
+extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
 
 %% @doc Where everything is. Ephemeral by nature: nobody wants last Tuesday's
 %% frame, so a reader is expected to hold the latest and drop the rest.
