@@ -1,4 +1,9 @@
-# Results: first frozen run
+# Results: world 1, first and only frozen run
+
+> **SUPERSEDED.** These describe world 1, whose physics is gone. Nothing here may
+> be compared with anything measured under
+> [PREREGISTRATION.md](PREREGISTRATION.md). The reasons world 1 was replaced are
+> in that document, and they largely come from the numbers below.
 
 Rules as committed in `7363541`, which also carried [PREREGISTRATION.md](PREREGISTRATION.md).
 The rules were not touched between that commit and this run. 4000 ticks, 8 seeds,
