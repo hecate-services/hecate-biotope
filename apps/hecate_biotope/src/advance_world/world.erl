@@ -37,7 +37,7 @@
 %% them for an intent instead of drawing one.
 -module(world).
 
--export([new/0, new/1, tick/1, tick/2, snapshot/1, defaults/0]).
+-export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0]).
 -export([population/1, plant_count/1, at_tick/1, alive/2]).
 
 -type hex() :: hex:hex().
@@ -270,6 +270,35 @@ snapshot(#world{} = W) ->
       births_refused => W#world.births_refused,
       energy_total => total_energy(W),
       radius => maps:get(radius, W#world.econ)}.
+
+%% @doc Where everything is, as two flat lists of coordinates: `[Q1, R1, Q2, R2
+%% | ...]'. This is what a spectator draws.
+%%
+%% FLAT INTEGERS RATHER THAN A LIST OF PAIRS, because a pair is a tuple and
+%% tuples do not survive this mesh cleanly, and because a map per entity would
+%% repeat the keys `q' and `r' a hundred and seventy times per frame for no
+%% information. The stride is two and it never changes; a reader chunks by two.
+%%
+%% POSITIONS ONLY. Not energy, not age, not lineage. A view that wants to colour
+%% a creature by how hungry it is can have that, and the honest way to give it is
+%% a version bump rather than fields shipped now on the chance somebody uses
+%% them.
+%%
+%% Sorted by creature id so two charts of the same world are the same bytes,
+%% which makes a diff between frames mean something.
+%% The radius travels with the chart so a viewer sizes its board from the fact
+%% rather than from configuration that has to be kept in agreement with a world
+%% it cannot see.
+-spec chart(world()) -> #{creatures := [integer()], plants := [integer()],
+                          radius := non_neg_integer(), tick := non_neg_integer()}.
+chart(#world{creatures = Cs, plants = Plants, econ = Econ, tick = Tick}) ->
+    Positions = [maps:get(at, maps:get(Id, Cs)) || Id <- lists:sort(maps:keys(Cs))],
+    #{creatures => flatten_hexes(Positions),
+      plants => flatten_hexes(lists:sort(maps:keys(Plants))),
+      radius => maps:get(radius, Econ),
+      tick => Tick}.
+
+flatten_hexes(Hexes) -> lists:append([[Q, R] || {Q, R} <- Hexes]).
 
 %% The single number that says whether the books balance. Energy enters only by
 %% eating and leaves only by metabolism and movement, so a run whose total climbs

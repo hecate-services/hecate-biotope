@@ -64,7 +64,8 @@ identity_spec_has_the_shape_hecate_om_expects_test() ->
 authority_covers_every_topic_published_and_no_more_test() ->
     #{actions := Actions, resources := Resources} = ?SERVICE:identity_spec(),
     ?assertEqual([<<"publish">>], Actions),
-    ?assertEqual([world_facts:topic(world)], Resources).
+    ?assertEqual(lists:sort([world_facts:topic(world), world_facts:topic(chart)]),
+                 lists:sort(Resources)).
 
 %% It speaks and takes no requests, so it promises nothing another service could
 %% call. Accepting a migrant would be a capability, and this fails when that

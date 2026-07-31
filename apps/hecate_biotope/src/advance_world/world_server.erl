@@ -54,6 +54,7 @@ init([]) ->
                  maps:get(publish_ms, Pace)]),
     schedule(slot, maps:get(slot_ms, Pace)),
     schedule(publish, maps:get(publish_ms, Pace)),
+    schedule_chart(maps:get(chart_ms, Pace)),
     {ok, #state{world = World, pace = Pace}}.
 
 handle_call(snapshot, _From, #state{world = W} = S) ->
@@ -79,6 +80,12 @@ handle_info(publish, #state{world = W, pace = P} = S) ->
     schedule(publish, maps:get(publish_ms, P)),
     {noreply, S1};
 
+handle_info(chart, #state{world = W, pace = P} = S) ->
+    Fact = world_facts:world_charted(world:chart(W), P),
+    S1 = record(biotope_mesh:publish(world_facts:topic(chart), Fact), S),
+    schedule_chart(maps:get(chart_ms, P)),
+    {noreply, S1};
+
 handle_info(_Msg, S) -> {noreply, S}.
 
 %%==============================================================================
@@ -86,6 +93,12 @@ handle_info(_Msg, S) -> {noreply, S}.
 %%==============================================================================
 
 schedule(Msg, Ms) -> erlang:send_after(Ms, self(), Msg).
+
+%% Zero means the picture is off: no timer at all rather than one that fires and
+%% decides not to publish, so a headless run pays nothing for a feature it is not
+%% using.
+schedule_chart(0) -> no_chart;
+schedule_chart(Ms) -> schedule(chart, Ms).
 
 %% A dark mesh is counted, not fatal, and not logged per failure: a biotope that
 %% cannot reach a station would otherwise fill a disk with one line per second

@@ -26,21 +26,34 @@
 
 -type pace() :: #{ticks_per_slot := pos_integer(),
                   slot_ms := non_neg_integer(),
-                  publish_ms := pos_integer()}.
+                  publish_ms := pos_integer(),
+                  chart_ms := non_neg_integer()}.
 -export_type([pace/0]).
 
 %% Watchable by default. An island nobody can see is hard to care about, and the
 %% headless speed stays available to any experiment through the pure `world'
 %% module without a service in the way.
+%%
+%% `chart_ms' of 0 turns the picture off entirely, which is what a headless run
+%% wants: at speed the frames are meaningless and the bytes are waste.
+%%
+%% FOR A SMOOTH PICTURE, `chart_ms' WANTS TO BE ABOUT `1000 / ticks_per_second'.
+%% The defaults here are ten ticks a second against one frame a second, so the
+%% creatures jump ten steps between frames. That is the honest default for a
+%% service whose job is to run rather than to be watched; an island meant for
+%% watching should slow its ticks or quicken its frames, and the fact carries the
+%% tick rate so a viewer can say which it is looking at.
 -define(DEFAULTS, #{ticks_per_slot => 1,
                     slot_ms => 100,
-                    publish_ms => 1000}).
+                    publish_ms => 1000,
+                    chart_ms => 1000}).
 
 -spec from_env() -> pace().
 from_env() ->
     from_map(#{ticks_per_slot => env_int("HECATE_BIOTOPE_TICKS_PER_SLOT"),
                slot_ms        => env_int("HECATE_BIOTOPE_SLOT_MS"),
-               publish_ms     => env_int("HECATE_BIOTOPE_PUBLISH_MS")}).
+               publish_ms     => env_int("HECATE_BIOTOPE_PUBLISH_MS"),
+               chart_ms       => env_int("HECATE_BIOTOPE_CHART_MS")}).
 
 %% Unset keys fall back; a set-but-unparseable key is an error rather than a
 %% fallback, because a typo that silently runs at the default pace is a service

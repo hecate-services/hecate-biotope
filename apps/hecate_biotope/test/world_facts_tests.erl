@@ -49,3 +49,61 @@ reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
     ?assertEqual(1, V).
+
+%%==============================================================================
+%% The chart
+%%==============================================================================
+
+chart() ->
+    world_facts:world_charted(world:chart(world:new(#{population => 7,
+                                                     radius => 5})),
+                              world_pace:from_map(#{})).
+
+chart_topic_is_its_own_test() ->
+    ?assertEqual(<<"biotope/chart">>, world_facts:topic(chart)),
+    ?assertNotEqual(world_facts:topic(world), world_facts:topic(chart)).
+
+%% Flat integers with a stride of two. A pair would be a tuple, and tuples do not
+%% survive this encoder; a map per entity would repeat two keys a hundred and
+%% seventy times a frame for no information.
+positions_are_flat_integer_pairs_test() ->
+    #{creatures := Cs, plants := Ps, stride := Stride} = chart(),
+    ?assertEqual(2, Stride),
+    ?assert(lists:all(fun is_integer/1, Cs ++ Ps)),
+    ?assertEqual(0, length(Cs) rem 2),
+    ?assertEqual(0, length(Ps) rem 2),
+    ?assertEqual(7 * 2, length(Cs)).
+
+%% A viewer sizes its board from the fact rather than from configuration it would
+%% have to keep in agreement with a world it cannot see.
+chart_carries_the_radius_test() ->
+    ?assertMatch(#{radius := 5}, chart()).
+
+chart_obeys_the_wire_rules_test() ->
+    F = chart(),
+    ?assert(lists:all(fun is_atom/1, maps:keys(F))),
+    ?assertEqual([], [V || V <- maps:values(F), is_tuple(V)]).
+
+%%==============================================================================
+%% Island identity
+%%==============================================================================
+
+%% THE ISLAND IS IN THE PAYLOAD AND NEVER IN THE TOPIC. A thousand islands must
+%% not become a thousand topics, and a reader who wants "all islands" has to be
+%% able to ask for it.
+both_facts_name_their_island_test() ->
+    true = os:putenv("HECATE_BIOTOPE_ISLAND", "beam01"),
+    try
+        ?assertMatch(#{island := <<"beam01">>}, fact()),
+        ?assertMatch(#{island := <<"beam01">>}, chart()),
+        ?assertEqual(<<"biotope/world">>, world_facts:topic(world))
+    after
+        os:unsetenv("HECATE_BIOTOPE_ISLAND")
+    end.
+
+%% A machine already has an identity; inventing a second one that nobody
+%% configures produces a fleet of islands all called the same thing.
+island_defaults_to_the_hostname_test() ->
+    os:unsetenv("HECATE_BIOTOPE_ISLAND"),
+    {ok, Host} = inet:gethostname(),
+    ?assertEqual(list_to_binary(Host), world_facts:island()).

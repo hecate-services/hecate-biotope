@@ -46,5 +46,5 @@ capabilities() -> [].
 identity_spec() ->
     #{scope => <<"biotope">>,
       actions => [<<"publish">>],
-      resources => [world_facts:topic(world)],
+      resources => [world_facts:topic(world), world_facts:topic(chart)],
       ttl_days => 30}.
