@@ -463,3 +463,50 @@ an_empty_world_charts_empty_lists_test() ->
 the_chart_is_stable_test() ->
     W = world:tick(world:new(#{population => 8, radius => 4, seed => 6}), 20),
     ?assertEqual(world:chart(W), world:chart(W)).
+
+%% ONE SIGNATURE PER CREATURE, IN THE SAME ORDER, so a viewer can colour them by
+%% kinship. A creature reads a trail by how unlike itself it smells, so this is
+%% what relatedness IS here, and comparing creatures against each other is the
+%% only way to see whether a population has become one family or several without
+%% reading it off a table.
+signatures_run_parallel_to_creatures_test() ->
+    W = world:new(#{population => 6, radius => 3, seed => 4,
+                    founder_scent => 2#10110010}),
+    #{creatures := Cs, signatures := Sigs} = world:chart(W),
+    ?assertEqual(length(Cs) div 2, length(Sigs)),
+    ?assertEqual(lists:duplicate(6, 2#10110010), Sigs).
+
+%% A CENSUS SAYS WHAT THE POPULATION IS BUILT FROM NOW; these say whether that is
+%% still moving. Both flat is a settled body plan and both climbing is a lineage
+%% churning through them, which a census alone cannot tell apart.
+structural_change_is_counted_test() ->
+    Settled = world:tick(world:new(#{population => 20, seed => 9,
+                                     body_mutation => 1000000}), 200),
+    #{sensors_gained := G0, sensors_lost := L0} = world:snapshot(Settled),
+    ?assertEqual(0, G0),
+    ?assertEqual(0, L0),
+
+    Churning = world:tick(world:new(#{population => 20, seed => 9,
+                                      body_mutation => 1}), 200),
+    #{sensors_gained := G1, sensors_lost := L1} = world:snapshot(Churning),
+    ?assert(G1 > 0),
+    ?assert(L1 > 0).
+
+%% AN ORGAN THAT EXISTS AND AN ORGAN THAT MATTERS ARE DIFFERENT THINGS, and the
+%% census reports both. A creature can pay rent every tick for a measurement its
+%% brain weights at zero, so carriers alone would overstate perception and a
+%% population could look equipped while being effectively blind.
+the_census_separates_carrying_from_acting_test() ->
+    Ignored = world:new(#{population => 5, radius => 3, seed => 2,
+                          founder_body => [{creatures, 1}],
+                          founder_brain => [0, 0]}),
+    #{sensors := Census} = world:snapshot(Ignored),
+    Field = maps:get(creatures, Census),
+    ?assertEqual(5, maps:get(carriers, Field)),
+    ?assertEqual(0, maps:get(attention, Field)),
+
+    Heeded = world:new(#{population => 5, radius => 3, seed => 2,
+                         founder_body => [{creatures, 1}],
+                         founder_brain => [7, 0]}),
+    #{sensors := Acted} = world:snapshot(Heeded),
+    ?assertEqual(700, maps:get(attention, maps:get(creatures, Acted))).

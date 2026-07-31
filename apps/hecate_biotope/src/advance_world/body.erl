@@ -150,18 +150,48 @@ reach(N, Step, Body, Econ) ->
 -spec scale(integer()) -> non_neg_integer().
 scale(Total) -> max(0, min(15, Total div 20)).
 
-%% @doc What a population is built from: how many carry each field, and the
-%% total reach devoted to it.
+%% @doc What a population is built from: how many carry each field, how much
+%% reach is devoted to it, and how hard it is actually acted on.
 %%
 %% A CENSUS AND NOT A VERDICT. It says what survived, not what was useful, and
 %% the two are only the same thing after enough generations that drift has been
 %% outvoted.
--spec census([body()]) -> #{field() => #{carriers := non_neg_integer(),
-                                         reach := non_neg_integer()}}.
-census(Bodies) ->
-    Sensors = lists:append(Bodies),
-    maps:from_list([{F, tally(F, Bodies, Sensors)} || F <- ?FIELDS]).
+%%
+%% TAKES BODIES PAIRED WITH THEIR BRAINS, and that pairing is the whole reason
+%% this changed. Carrier counts alone cannot answer "has an organ developed",
+%% because CARRYING A SENSOR AND USING ONE ARE DIFFERENT THINGS. A creature can
+%% pay rent every tick for a measurement its brain weights at zero: the organ
+%% exists, is charged for, and changes nothing. Counting those as perception
+%% overstates it, and a population could look equipped while being effectively
+%% blind.
+-spec census([{body(), [integer()]}]) ->
+          #{field() => #{carriers := non_neg_integer(),
+                         reach := non_neg_integer(),
+                         attention := non_neg_integer()}}.
+census(Creatures) ->
+    Attributed = lists:append([attribute(B, Br) || {B, Br} <- Creatures]),
+    maps:from_list([{F, tally(F, Creatures, Attributed)} || F <- ?FIELDS]).
 
-tally(Field, Bodies, Sensors) ->
-    #{carriers => length([B || B <- Bodies, lists:keymember(Field, 1, B)]),
-      reach => lists:sum([R || {F, R} <- Sensors, F =:= Field])}.
+%% Each sensor beside the weight that reads it. The brain carries one weight per
+%% sensor in the same order, then one more for staying put, so the sensors line
+%% up with everything but the last. A brain shorter than its body crashes here,
+%% loudly, which is the correct response to the one bug in this system that
+%% otherwise stays silent.
+attribute(Body, Brain) ->
+    lists:zip(Body, lists:sublist(Brain, length(Body))).
+
+tally(Field, Creatures, Attributed) ->
+    Mine = [{R, W} || {{F, R}, W} <- Attributed, F =:= Field],
+    #{carriers => length([B || {B, _Brain} <- Creatures,
+                               lists:keymember(Field, 1, B)]),
+      reach => lists:sum([R || {R, _W} <- Mine]),
+      attention => attention(Mine)}.
+
+%% HOW HARD THIS MEASUREMENT IS ACTED ON: the mean absolute weight, times a
+%% hundred because everything here is an integer. Zero means the population
+%% carries the organ and ignores what it says, which is a vestigial organ being
+%% paid for. This is the number that tells an organ that has DEVELOPED from one
+%% that has merely APPEARED.
+attention([]) -> 0;
+attention(Mine) ->
+    lists:sum([abs(W) || {_R, W} <- Mine]) * 100 div length(Mine).

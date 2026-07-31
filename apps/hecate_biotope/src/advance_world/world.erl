@@ -115,6 +115,13 @@
                 consumed = 0 :: non_neg_integer(),
                 plants_eaten = 0 :: non_neg_integer(),
                 births_refused = 0 :: non_neg_integer(),
+                %% SENSORS GAINED AND LOST AT BIRTH, cumulatively. A census says
+                %% what the population is built from NOW; these say whether that
+                %% is still moving. Both climbing together is a lineage churning
+                %% through body plans; both flat is a settled one, and a census
+                %% alone cannot tell those apart.
+                sensors_gained = 0 :: non_neg_integer(),
+                sensors_lost = 0 :: non_neg_integer(),
                 extinct_at = undefined :: non_neg_integer() | undefined}).
 
 -opaque world() :: #world{}.
@@ -447,9 +454,18 @@ room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
     #{at := At, energy := E, breed_at := Threshold} = C = maps:get(Id, Cs),
     Dowry = Threshold div 2,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
-    {Traits, Rng2} = inherit_traits(C, Econ, Rng1),
-    W1 = W#world{creatures = Cs#{Id => C#{energy => E - Dowry}}, rng = Rng2},
+    {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
+    W1 = note_change(Change,
+                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
+                             rng = Rng2}),
     add_creature(Where, Dowry, Id, Traits, W1).
+
+note_change({added, _Pos}, #world{sensors_gained = G} = W) ->
+    W#world{sensors_gained = G + 1};
+note_change({dropped, _Pos}, #world{sensors_lost = L} = W) ->
+    W#world{sensors_lost = L + 1};
+note_change(none, W) ->
+    W.
 
 %% Four heritable things, mutated together. THE BODY AND THE BRAIN MUST STAY IN
 %% STEP: a weight list out of order with the sensor list is the worst bug
@@ -463,7 +479,7 @@ inherit_traits(Parent, Econ, Rng0) ->
     {ChildBrain, Rng3} = brain:inherit(Brain, Change, Econ, Rng2),
     {ChildTag, Rng4} = scent:inherit(Tag, Econ, Rng3),
     {#{breed_at => BreedAt, body => ChildBody, brain => ChildBrain,
-       scent => ChildTag}, Rng4}.
+       scent => ChildTag}, Change, Rng4}.
 
 inherit_threshold(Threshold, Econ, Rng0) ->
     Mut = maps:get(breed_mutation, Econ),
@@ -549,12 +565,20 @@ snapshot(#world{} = W) ->
       %% WHAT THE POPULATION IS BUILT FROM, per field: how many carry a sensor
       %% for it and how much total reach is devoted to it. A census, not a
       %% verdict: it says what survived, not what was useful.
-      sensors => body:census([B || #{body := B} <- maps:values(W#world.creatures)]),
+      sensors => sensor_census(W),
       sensor_mean => mean_sensors(W),
+      %% Whether the body plan is still moving at all.
+      sensors_gained => W#world.sensors_gained,
+      sensors_lost => W#world.sensors_lost,
       %% Properties of the signature, independent of anything evolved to use it.
       scent_cells => map_size(W#world.scent),
       scent_tags => length(lists:usort(tags(W))),
       scent_spread => scent:spread(tags(W))}.
+
+%% Bodies paired with their brains, because a carried sensor and a used one are
+%% different things and only the pair can tell them apart.
+sensor_census(#world{creatures = Cs}) ->
+    body:census([{B, Br} || #{body := B, brain := Br} <- maps:values(Cs)]).
 
 tags(#world{creatures = Cs}) -> [T || #{scent := T} <- maps:values(Cs)].
 
@@ -614,7 +638,8 @@ econ_id(Econ) ->
 %% strength and there is no list it runs parallel to. The signature is left out:
 %% it would double the payload and a spectator has nothing to compare it against.
 -spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
-                          plants := [integer()], scent := [integer()],
+                          signatures := [integer()], plants := [integer()],
+                          scent := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
 chart(#world{creatures = Cs, plants = Plants, scent = Scent,
              econ = Econ, tick = Tick}) ->
@@ -624,6 +649,13 @@ chart(#world{creatures = Cs, plants = Plants, scent = Scent,
       %% balance, and a viewer sizing a dot by it would be asked to draw a
       %% negative radius.
       energies => [max(0, maps:get(energy, maps:get(Id, Cs))) || Id <- Ids],
+      %% WHO IS RELATED TO WHOM, one signature per creature in the same order.
+      %% The scent MARKS deliberately leave this out, because there are hundreds
+      %% of them and a viewer has nothing to compare one against. Creatures are a
+      %% different case on both counts: there are tens, and they can be compared
+      %% against EACH OTHER, which is the only way to see whether a population is
+      %% one family or several without reading a number off a table.
+      signatures => [maps:get(scent, maps:get(Id, Cs)) || Id <- Ids],
       plants => flatten_hexes(lists:sort(maps:keys(Plants))),
       scent => flatten_scent(Scent),
       radius => maps:get(radius, Econ),

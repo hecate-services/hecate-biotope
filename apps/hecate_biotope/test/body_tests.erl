@@ -194,12 +194,33 @@ a_rare_mutation_usually_clones_test() ->
 %% A CENSUS AND NOT A VERDICT. It says what survived, not what was useful, and
 %% those are only the same thing after enough generations that drift has been
 %% outvoted.
-the_census_counts_carriers_and_reach_test() ->
-    Bodies = [[{plants, 0}], [{plants, 2}, {scent, 1}], [], [{plants, 1}]],
-    Census = body:census(Bodies),
-    ?assertEqual(#{carriers => 3, reach => 3}, maps:get(plants, Census)),
-    ?assertEqual(#{carriers => 1, reach => 1}, maps:get(scent, Census)),
-    ?assertEqual(#{carriers => 0, reach => 0}, maps:get(creatures, Census)).
+the_census_counts_carriers_reach_and_attention_test() ->
+    %% Bodies paired with the brains that read them: one weight per sensor, then
+    %% one more for staying put.
+    Creatures = [{[{plants, 0}], [4, 0]},
+                 {[{plants, 2}, {scent, 1}], [2, -6, 0]},
+                 {[], [0]},
+                 {[{plants, 1}], [0, 0]}],
+    Census = body:census(Creatures),
+    %% Three carriers, reach 0+2+1, and a mean absolute weight of (4+2+0)/3.
+    ?assertEqual(#{carriers => 3, reach => 3, attention => 200},
+                 maps:get(plants, Census)),
+    %% Sign does not matter to attention: avoidance is acting on a measurement
+    %% just as much as attraction is.
+    ?assertEqual(#{carriers => 1, reach => 1, attention => 600},
+                 maps:get(scent, Census)),
+    ?assertEqual(#{carriers => 0, reach => 0, attention => 0},
+                 maps:get(creatures, Census)).
+
+%% THE DIFFERENCE BETWEEN AN ORGAN APPEARING AND AN ORGAN BEING ADOPTED, which is
+%% the thing carrier counts alone cannot answer. A creature can pay rent every
+%% tick for a measurement its brain weights at zero: the sensor exists, is
+%% charged for, and changes nothing it does.
+a_carried_sensor_nobody_acts_on_has_no_attention_test() ->
+    Vestigial = [{[{creatures, 2}], [0, 3]}, {[{creatures, 1}], [0, -1]}],
+    Census = body:census(Vestigial),
+    ?assertEqual(2, maps:get(carriers, maps:get(creatures, Census))),
+    ?assertEqual(0, maps:get(attention, maps:get(creatures, Census))).
 
 %% Zeroes rather than missing keys, so a reader plotting a field over time gets a
 %% line at zero instead of a gap it has to interpret.
@@ -212,5 +233,6 @@ the_census_of_nothing_is_zeroes_test() ->
 %% A creature carrying the same field twice is ONE carrier with the reach of
 %% both, or a population of hoarders would look like a population of many.
 duplicate_fields_count_once_per_carrier_test() ->
-    Census = body:census([[{plants, 1}, {plants, 3}]]),
-    ?assertEqual(#{carriers => 1, reach => 4}, maps:get(plants, Census)).
+    Census = body:census([{[{plants, 1}, {plants, 3}], [2, 4, 0]}]),
+    ?assertEqual(#{carriers => 1, reach => 4, attention => 300},
+                 maps:get(plants, Census)).

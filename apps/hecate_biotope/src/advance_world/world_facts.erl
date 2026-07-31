@@ -80,6 +80,7 @@ world_advanced(Snapshot, Pace) ->
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       sensors := Sensors, sensor_mean := SensorMean,
+      sensors_gained := Gained, sensors_lost := Lost,
       scent_tags := Tags, scent_spread := Spread} = Snapshot,
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
@@ -111,6 +112,11 @@ world_advanced(Snapshot, Pace) ->
       %% because everything on this wire is an integer.
       sensors => Sensors,
       sensor_mean => SensorMean,
+      %% WHETHER THE BODY PLAN IS STILL MOVING. A census says what the population
+      %% is built from now; these say whether that is settled or still churning,
+      %% which a census alone cannot distinguish.
+      sensors_gained => Gained,
+      sensors_lost => Lost,
       %% Properties of the SIGNATURE, independent of whether anything evolved to
       %% use it. One distinct tag means the whole population is mutual kin.
       scent_tags => Tags,
@@ -149,8 +155,8 @@ extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
 %% from the fact alone rather than being configured to agree with the world.
 -spec world_charted(map(), world_pace:pace()) -> map().
 world_charted(Chart, Pace) ->
-    #{creatures := Creatures, energies := Energies, plants := Plants,
-      scent := Scent, radius := Radius, tick := Tick} = Chart,
+    #{creatures := Creatures, energies := Energies, signatures := Signatures,
+      plants := Plants, scent := Scent, radius := Radius, tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -168,6 +174,11 @@ world_charted(Chart, Pace) ->
       %% the weaker, so the size of a dot is the single most informative thing
       %% about it, and without this every creature is drawn identical.
       energies => Energies,
+      %% ONE SIGNATURE PER CREATURE, same order again. A creature reads a trail
+      %% by how unlike itself it smells, so this is what kinship IS here, and
+      %% comparing creatures against each other is the only way to see whether a
+      %% population has become one family or several.
+      signatures => Signatures,
       %% Position AND strength, interleaved at a stride of three, because a mark
       %% has no list to run parallel to. The signature is deliberately left out:
       %% it would double the payload and a spectator has nothing to compare it
