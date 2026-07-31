@@ -77,7 +77,7 @@ world_advanced(Snapshot, Pace) ->
     #{tick := Tick, population := Pop, plants := Plants, born := Born,
       starved := Starved, aged_out := Aged, eaten := Eaten,
       births_refused := Refused, energy_total := Energy,
-      radius := Radius} = Snapshot,
+      radius := Radius, econ := Econ, econ_id := EconId} = Snapshot,
     #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -86,6 +86,13 @@ world_advanced(Snapshot, Pace) ->
       plants => Plants,
       energy_total => Energy,
       radius => Radius,
+      %% WHICH RULES THIS ISLAND RUNS. The id answers "are these two islands the
+      %% same experiment", the values answer "how do they differ". Both travel on
+      %% every fact rather than in a roster published once, because a spectator
+      %% that arrives late would otherwise be comparing islands it cannot
+      %% distinguish, and ten small integers a second is not a cost.
+      econ_id => EconId,
+      econ => Econ,
       %% Totals since the world began, never reset.
       born => Born,
       starved => Starved,

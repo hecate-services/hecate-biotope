@@ -37,7 +37,7 @@
 %% them for an intent instead of drawing one.
 -module(world).
 
--export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0]).
+-export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0, econ_id/1]).
 -export([population/1, plant_count/1, at_tick/1, alive/2]).
 
 -type hex() :: hex:hex().
@@ -269,7 +269,35 @@ snapshot(#world{} = W) ->
       eaten => W#world.eaten,
       births_refused => W#world.births_refused,
       energy_total => total_energy(W),
-      radius => maps:get(radius, W#world.econ)}.
+      radius => maps:get(radius, W#world.econ),
+      econ => W#world.econ,
+      econ_id => econ_id(W#world.econ)}.
+
+%% @doc A short, stable fingerprint of the rules this world runs under.
+%%
+%% TWO ISLANDS RUNNING DIFFERENT ECONOMIES ARE NOT COMPARABLE, and nothing else
+%% on the wire would say so. Differentiated local pressure is the whole point of
+%% having more than one island, so they will deliberately differ, and a reader
+%% plotting two populations against each other would silently be comparing two
+%% different games. This is the field that stops that, and it is the same idea as
+%% the engine fingerprint the sibling rumbler carries.
+%%
+%% CANONICAL BYTES, HAND-BUILT, and term_to_binary is deliberately not used. Its
+%% output is only stable WITHIN an OTP release: atom encoding has changed between
+%% releases, so two honest islands on different releases would compute different
+%% ids for identical rules, which destroys the only property a fingerprint has.
+%% Sorted `key=value' pairs have no runtime freedom left in them.
+%%
+%% Eight bytes rather than thirty-two, because this is read by a human off a page
+%% to answer "same rules or not", and sixteen hex characters is already far more
+%% than the number of distinct economies that will ever exist.
+-spec econ_id(econ()) -> binary().
+econ_id(Econ) ->
+    Pairs = [[atom_to_list(K), $=, integer_to_list(V)]
+             || {K, V} <- lists:sort(maps:to_list(Econ))],
+    Canonical = lists:join($,, Pairs),
+    <<Short:8/binary, _/binary>> = crypto:hash(sha256, iolist_to_binary(Canonical)),
+    string:lowercase(binary:encode_hex(Short)).
 
 %% @doc Where everything is, as two flat lists of coordinates: `[Q1, R1, Q2, R2
 %% | ...]'. This is what a spectator draws.

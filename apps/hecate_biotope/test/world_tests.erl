@@ -161,3 +161,41 @@ the_default_economy_sustains_a_population_test() ->
     ?assert(Pop > 0),
     ?assert(S > 0),
     ?assertEqual(0, R).
+
+%%==============================================================================
+%% Which rules this world runs under
+%%==============================================================================
+
+%% TWO ISLANDS RUNNING DIFFERENT ECONOMIES ARE NOT COMPARABLE, and without this
+%% nothing on the wire would say so. Differentiated local pressure is the point
+%% of having more than one island, so they will deliberately differ, and a
+%% spectator plotting two populations together would be comparing two games.
+identical_economies_share_a_fingerprint_test() ->
+    A = world:new(#{seed => 1, radius => 9}),
+    B = world:new(#{seed => 2, radius => 9}),
+    #{econ_id := IdA} = world:snapshot(A),
+    #{econ_id := IdB} = world:snapshot(B),
+    %% Different seeds are different WORLDS but the same RULES, and it is the
+    %% rules that decide comparability.
+    ?assertEqual(IdA, IdB).
+
+one_changed_number_changes_the_fingerprint_test() ->
+    #{econ_id := Default} = world:snapshot(world:new(#{})),
+    #{econ_id := Leaner} = world:snapshot(world:new(#{metabolism => 2})),
+    ?assertNotEqual(Default, Leaner).
+
+%% Map iteration order is not a promise, so the canonical form sorts. Built by
+%% hand rather than with term_to_binary, whose bytes are only stable within an
+%% OTP release: two honest islands on different releases would otherwise compute
+%% different ids for identical rules.
+fingerprint_is_short_lowercase_hex_test() ->
+    #{econ_id := Id} = world:snapshot(world:new(#{})),
+    ?assertEqual(16, byte_size(Id)),
+    ?assertMatch({match, _}, re:run(Id, "^[0-9a-f]{16}$")).
+
+%% The values travel too, because a fingerprint answers "same or different" and
+%% a reader also wants "how". Ten small integers a second is not a cost.
+the_economy_itself_travels_with_the_fingerprint_test() ->
+    #{econ := Econ} = world:snapshot(world:new(#{metabolism => 2})),
+    ?assertEqual(2, maps:get(metabolism, Econ)),
+    ?assertEqual(maps:keys(world:defaults()), maps:keys(Econ)).

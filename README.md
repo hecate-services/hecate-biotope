@@ -41,6 +41,20 @@ Separate on purpose. A statistics reader should not pay for a hundred and
 seventy coordinates it will never draw, and the two want different rates: a
 chart keeps up with the eye, a statistic is small enough to keep forever.
 
+**Every fact says which rules the island runs.** `econ_id` is a short
+fingerprint of the economy; `econ` is the economy itself. Differentiated local
+pressure is the point of having more than one island, so they will deliberately
+differ, and a spectator plotting two populations together would otherwise be
+comparing two different games without knowing it. The id answers "same
+experiment or not", the values answer "how do they differ". Both travel on every
+fact rather than in a roster published once, because a late subscriber would
+otherwise be unable to tell islands apart at all.
+
+The fingerprint is built from sorted `key=value` pairs rather than with
+`term_to_binary`, whose bytes are only stable within an OTP release: two honest
+islands on different releases would otherwise compute different ids for
+identical rules.
+
 **The island id is in the payload and never in the topic.** A thousand islands
 must not become a thousand topics, and a reader who wants "all islands" has to
 be able to ask for it. The namespace separates whole deployments, a laptop from
