@@ -97,15 +97,15 @@ print_row(#{seed := S, peak := Pk, trough := Tr,
 %% wrecked by between-seed spread that a median would have hidden.
 diet_table(Rows) ->
     io:format("~n~s~n", [row(["seed", "herb", "omni", "carn", "undec",
-                              "eye", "gut", "nose"])]),
+                              "eye", "gut", "nose", "scent"])]),
     lists:foreach(fun print_diet/1, Rows).
 
-print_diet(#{seed := S, final := #{diet := D, organs := O}}) ->
+print_diet(#{seed := S, final := #{diet := D, organs := O, scent_cells := Sc}}) ->
     Get = fun(Map, K) -> maps:get(K, Map, 0) end,
     io:format("~s~n", [row([S,
                             Get(D, herbivores), Get(D, omnivores),
                             Get(D, carnivores), Get(D, undecided),
-                            Get(O, eye), Get(O, gut), Get(O, nose)])]).
+                            Get(O, eye), Get(O, gut), Get(O, nose), Sc])]).
 
 %% Of the creatures that have a diet at all. Counting the undecided newborns in
 %% the denominator would make a fast-breeding world look permanently vegetarian.

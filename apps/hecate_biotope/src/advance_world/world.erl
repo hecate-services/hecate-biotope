@@ -95,6 +95,9 @@
                   move_cost := non_neg_integer(),
                   organ_upkeep := non_neg_integer(),
                   attack_cost := non_neg_integer(),
+                  scent_per_tick := non_neg_integer(),
+                  scent_decay := pos_integer(),
+                  scent_ceiling := pos_integer(),
                   brain_range := pos_integer(),
                   brain_mutation := non_neg_integer(),
                   body_mutation := pos_integer(),
@@ -110,6 +113,19 @@
 -record(world, {tick = 0 :: non_neg_integer(),
                 econ :: econ(),
                 plants = #{} :: #{hex() => true},
+                %% WHERE SOMETHING HAS WALKED, and how recently. The only state
+                %% in this world that a creature can leave behind it. Sparse on
+                %% purpose: a cell is present only while it still smells, so
+                %% both the fade and the cost of carrying it scale with how much
+                %% traffic there has been rather than with the size of the disc.
+                %%
+                %% EACH MARK REMEMBERS WHO LEFT IT, and that one extra term is
+                %% what makes the whole sense work. Without it a hunter's own
+                %% path is the freshest thing in its neighbourhood and it follows
+                %% itself backward forever; measured, that made a nose strictly
+                %% WORSE than wandering, 14 kills against 24. Every real animal
+                %% can tell its own scent from a stranger's.
+                scent = #{} :: #{hex() => {pos_integer(), id()}},
                 creatures = #{} :: #{id() => creature()},
                 next_id = 1 :: id(),
                 rng :: rand:state(),
@@ -164,6 +180,18 @@ defaults() ->
       %% Roughly three quarters of a plant: enough that a bad strike hurts,
       %% little enough that a good one is clearly worth taking.
       attack_cost       => 30,
+      %% WHAT A MOVING CREATURE LEAVES BEHIND. Scent is the only thing in this
+      %% world that outlives the moment it was made, and that is the entire
+      %% reason a nose is a different sense from an eye rather than a second one
+      %% pointed at meat. An eye reports what is here NOW; a trail reports that
+      %% something was here RECENTLY and which way it went.
+      scent_per_tick    => 10,
+      %% How fast a mark fades. Together with the ceiling this sets how long a
+      %% trail is followable: thirty over two is fifteen ticks. Too slow and the
+      %% whole board smells equally, which is the same as no information at all;
+      %% too fast and a trail is gone before anything can follow it.
+      scent_decay       => 2,
+      scent_ceiling     => 30,
       %% How large a brain weight may grow. Bounded so a long lineage cannot
       %% drift to weights that swamp every sense and turn the brain back into a
       %% constant that ignores the world.
@@ -279,10 +307,11 @@ add_creature(At, Energy, Parent, Traits, #world{next_id = Id, creatures = Cs,
 -spec tick(world()) -> world().
 tick(W) -> tick(W, 1).
 
-%% FIVE PHASES IN A FIXED ORDER, because the order is a rule of the world and
-%% not an implementation detail. Charging metabolism first means a creature that
+%% SIX PHASES IN A FIXED ORDER, because the order is a rule of the world and not
+%% an implementation detail. Charging metabolism first means a creature that
 %% cannot afford to exist does not get a free turn; acting before breeding means
-%% this tick's meal can pay for this tick's child.
+%% this tick's meal can pay for this tick's child; fading last means a trail laid
+%% this tick is still at full strength when the next one begins.
 -spec tick(world(), non_neg_integer()) -> world().
 tick(W, 0) -> W;
 tick(W, N) ->
@@ -291,7 +320,37 @@ tick(W, N) ->
     W3 = breed_everyone(W2),
     W4 = reap(W3),
     W5 = regrow(W4),
-    tick(W5#world{tick = W5#world.tick + 1}, N - 1).
+    W6 = fade(W5),
+    tick(W6#world{tick = W6#world.tick + 1}, N - 1).
+
+%% Every mark weakens, and one that has weakened to nothing is dropped rather
+%% than kept at zero, so the map holds only cells that still smell.
+fade(#world{scent = Scent, econ = Econ} = W) ->
+    Decay = maps:get(scent_decay, Econ),
+    Weaken = fun(H, {S, Who}, Acc) -> linger(S - Decay, Who, H, Acc) end,
+    W#world{scent = maps:fold(Weaken, #{}, Scent)}.
+
+linger(S, _Who, _H, Acc) when S =< 0 -> Acc;
+linger(S, Who, H, Acc) -> Acc#{H => {S, Who}}.
+
+%% A MOVING CREATURE MARKS THE GROUND AND A STILL ONE DOES NOT. That asymmetry
+%% is not decoration: it is what makes resting a way to HIDE as well as a way to
+%% save energy, and it hands prey a counter-strategy against being tracked. An
+%% arms race needs both sides to have a move available.
+mark(At, Id, #world{scent = Scent, econ = Econ} = W) ->
+    Fresh = strength(maps:get(At, Scent, none)) + maps:get(scent_per_tick, Econ),
+    Capped = min(maps:get(scent_ceiling, Econ), Fresh),
+    W#world{scent = Scent#{At => {Capped, Id}}}.
+
+strength(none) -> 0;
+strength({S, _Who}) -> S.
+
+%% SOMEONE ELSE'S MARK, OR NOTHING. The creature's own scent reads as zero, which
+%% is the difference between tracking prey and pacing your own footprints.
+foreign(H, Id, Scent) -> theirs(maps:get(H, Scent, {0, none}), Id).
+
+theirs({_S, Id}, Id) -> 0;
+theirs({S, _Other}, _Id) -> S.
 
 %% Existing costs energy, every tick, unconditionally, and a body costs more than
 %% a bare one. THIS IS WHERE CAPABILITY IS PAID FOR: an eye that is not earning
@@ -356,9 +415,16 @@ perceive(Id, #{at := At, energy := E}, {#world{} = W, Index}) ->
     Others = [maps:get(N, W#world.creatures)
               || H <- Field, N <- maps:get(H, Index, []), N =/= Id],
     #{plants_near => length([H || H <- Field, maps:is_key(H, W#world.plants)]),
-      creatures_near => length(Others),
+      scent_near => scent_around(At, Id, W),
       fattest_near => fattest(Others),
       own_energy => E}.
+
+%% NEIGHBOURS ONLY, never the creature's own cell. A creature that has just moved
+%% has marked the ground under its own feet, and including that would have every
+%% creature in the world smelling mostly itself and reading its own trail as
+%% evidence of prey.
+scent_around(At, Id, #world{scent = Scent} = W) ->
+    lists:sum([foreign(H, Id, Scent) || H <- around(At, W)]).
 
 field(At, #world{econ = Econ}) ->
     [At | hex:neighbours_in(At, maps:get(radius, Econ))].
@@ -406,12 +472,13 @@ wander(At, #world{econ = Econ, rng = Rng0} = W) ->
     {To, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {To, W#world{rng = Rng1}}.
 
-%% Standing still is free; a step costs. Staying put is what a creature already
-%% on a plant does, so the meal it is standing on is not taxed.
+%% Standing still is free; a step costs, and a step is also what leaves a trail.
+%% Staying put is what a creature already on a plant does, so the meal it is
+%% standing on is neither taxed nor announced to anything that can smell.
 moved(_Id, _C, At, At, W, Index) -> {W, Index};
 moved(Id, C, From, To, #world{creatures = Cs, econ = Econ} = W, Index) ->
     Stepped = spend(C#{at => To}, maps:get(move_cost, Econ)),
-    {W#world{creatures = Cs#{Id => Stepped}},
+    {mark(To, Id, W#world{creatures = Cs#{Id => Stepped}}),
      occupy(Id, To, vacate(Id, From, Index))}.
 
 %% A plant feeds exactly one creature and is gone. Whoever reaches it first in
@@ -430,24 +497,56 @@ eat_here(_At, _Id, Acc) ->
 %% Hunting
 %%------------------------------------------------------------------------------
 
-%% A STRIKE COSTS WHETHER OR NOT IT LANDS, and a creature with no nose cannot
-%% choose whom it lands on. That is what the nose is for and what its upkeep buys:
-%% the difference between taking the fattest neighbour and taking whoever is
-%% nearest. A hunter with no prey in reach has simply wasted its turn, which is
-%% the price of a bad decision and is exactly what selection needs to see.
+%% HUNTING IS TWO DIFFERENT ACTS SHARING ONE INTENT: strike what is in reach, or
+%% close on what is not. Which one happens is decided by the world rather than by
+%% the brain, because "is there anything next to me" is not a preference.
+%%
+%% THE SECOND ACT IS WHAT THE NOSE BUYS AND IT IS THE ONLY WAY IN THIS WORLD TO
+%% ACT ON SOMETHING THAT CANNOT BE PERCEIVED DIRECTLY. Plants do not move and
+%% there are hundreds of them; prey moves and there are forty, so a hunter
+%% restricted to what is in reach is playing a rarer, worse version of grazing
+%% and measurement said so: no carnivore niche at any density where worlds
+%% survived. A trail is the asymmetry that makes predation a different living
+%% rather than a worse one.
 hunt(Id, #{at := At, body := Body} = C, {W, Index}) ->
     Reachable = [N || H <- field(At, W), N <- maps:get(H, Index, []), N =/= Id],
-    strike(Reachable, body:has(nose, Body), Id, C, {W, Index}).
+    strike(Reachable, Body, Id, C, {W, Index}).
 
-strike([], _Nose, Id, C, {W, Index}) ->
-    {To, W1} = wander(maps:get(at, C), W),
-    moved(Id, C, maps:get(at, C), To, W1, Index);
-strike(Prey, Nose, Id, C, {W, Index}) ->
-    {Victim, W1} = choose_prey(Nose, Prey, W),
+strike([], Body, Id, #{at := From} = C, {W, Index}) ->
+    {To, W1} = track(body:has(nose, Body), From, Id, W),
+    moved(Id, C, From, To, W1, Index);
+strike(Prey, Body, Id, C, {W, Index}) ->
+    {Victim, W1} = choose_prey(body:has(eye, Body), Prey, W),
     kill(Victim, Id, C, {W1, Index}).
 
-%% With a nose, the fattest. Without, whoever is nearest to hand, resolved by the
-%% world's generator so it is a coin rather than an artefact of list order.
+%% Climb the gradient: step to whichever neighbouring cell smells strongest. A
+%% creature with no nose has nothing to climb and wanders, which is what the
+%% whole population did before any of this existed.
+track(true, At, Id, W) ->
+    strongest([{foreign(H, Id, W#world.scent), H} || H <- around(At, W)], At, W);
+track(false, At, _Id, W) ->
+    wander(At, W).
+
+around(At, #world{econ = Econ}) -> hex:neighbours_in(At, maps:get(radius, Econ)).
+
+strongest([], At, W) -> wander(At, W);
+strongest(Smelled, At, W) ->
+    Best = lists:max([S || {S, _H} <- Smelled]),
+    followed(Best, [H || {S, H} <- Smelled, S =:= Best], At, W).
+
+%% AN UNMARKED NEIGHBOURHOOD IS NOT A GRADIENT OF ZERO, it is an absence of
+%% information, and following it would make every noseless-looking hunter walk
+%% deterministically north. Nothing to smell means wander, same as having no nose
+%% at all.
+followed(0, _Tied, At, W) -> wander(At, W);
+followed(_Strength, Tied, _At, #world{rng = Rng0} = W) ->
+    {To, Rng1} = pick(Tied, Rng0),
+    {To, W#world{rng = Rng1}}.
+
+%% With an eye, the fattest thing in reach. Without, whoever is to hand, resolved
+%% by the world's generator so it is a coin rather than an artefact of list
+%% order. THE EYE CHOOSES THE TARGET AND THE NOSE FINDS IT: one reports what is
+%% here now, the other that something passed recently and which way it went.
 choose_prey(true, Prey, #world{creatures = Cs} = W) ->
     Fattest = lists:max([{maps:get(energy, maps:get(N, Cs)), N} || N <- Prey]),
     {element(2, Fattest), W};
@@ -473,8 +572,8 @@ kill(Victim, Id, C, {#world{creatures = Cs, econ = Econ} = W, Index}) ->
     Fed = C#{at => Where,
              energy => E + max(0, Loot) - maps:get(attack_cost, Econ),
              hunted => H + 1},
-    {W#world{creatures = maps:remove(Victim, Cs#{Id => Fed}),
-             killed = W#world.killed + 1},
+    {mark(Where, Id, W#world{creatures = maps:remove(Victim, Cs#{Id => Fed}),
+                             killed = W#world.killed + 1}),
      occupy(Id, Where, vacate(Id, From, vacate(Victim, Where, Index)))}.
 
 %% A surplus buys a child, placed on a neighbouring cell. The parent pays exactly
@@ -576,6 +675,11 @@ snapshot(#world{} = W) ->
       aged_out => W#world.aged_out,
       eaten => W#world.eaten,
       killed => W#world.killed,
+      %% HOW MUCH OF THE BOARD STILL SMELLS. The tuning number for the whole
+      %% olfactory idea: near zero and there is no trail to follow, near the cell
+      %% count and every cell smells the same, which is the same as no
+      %% information. It has to sit in between for a nose to be worth its upkeep.
+      scent_cells => map_size(W#world.scent),
       births_refused => W#world.births_refused,
       %% WHAT THE POPULATION TURNED OUT TO BE, counted from what creatures
       %% actually ate. Nothing was assigned; if every count but `herbivores' is

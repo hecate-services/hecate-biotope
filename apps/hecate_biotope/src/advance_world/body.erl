@@ -10,10 +10,22 @@
 %%
 %% THREE ORGANS, EACH WITH A JOB:
 %%
-%%   eye    sees plants, and makes grazing DIRECTED rather than a random step
-%%   nose   smells other creatures, both how many and how fat the fattest is,
-%%          and makes hunting pick a target rather than lash out
+%%   eye    sees what is HERE NOW: plants to graze, and how fat the fattest
+%%          creature in reach is. Makes grazing directed and picks a target.
+%%   nose   smells what PASSED RECENTLY: the trail a moving creature leaves.
+%%          Makes hunting able to close on prey that cannot be seen at all.
 %%   gut    reports the creature's own energy back to its brain
+%%
+%% THE EYE AND THE NOSE ARE DIFFERENT KINDS OF SENSE AND THAT IS THE POINT. An
+%% earlier version had the nose detecting creatures directly, in the same seven
+%% cells the eye already covered, which made it a second eye pointed at meat: a
+%% strictly worse eye, since plants are stationary and numerous while prey moves
+%% and is rare. Measurement was blunt about it. The nose was lost in almost every
+%% run and no carnivore niche appeared at any density where worlds survived.
+%%
+%% A trail is what fixes that, because it is the only thing in this world that
+%% outlives the moment it was made. Smelling is not seeing further; it is reading
+%% the past, and that is a genuinely different way to make a living.
 %%
 %% The eye and the nose gate an ACTION as well as supplying a sense, and that
 %% matters: an organ that only fed the brain a number could be dropped with no
@@ -115,11 +127,11 @@ flip(false, Organ, Body) -> lists:sort([Organ | Body]).
 %% four hundred and one carrying four hundred and one are the same situation.
 -spec senses(body(), map()) -> [non_neg_integer()].
 senses(Body, Raw) ->
-    #{plants_near := Plants, creatures_near := Creatures,
+    #{plants_near := Plants, scent_near := Scent,
       fattest_near := Fattest, own_energy := Own} = Raw,
     [gated(has(eye, Body), Plants),
-     gated(has(nose, Body), Creatures),
-     gated(has(nose, Body), scale(Fattest)),
+     gated(has(nose, Body), scale(Scent)),
+     gated(has(eye, Body), scale(Fattest)),
      gated(has(gut, Body), scale(Own))].
 
 gated(true, Value) -> clamp(Value);

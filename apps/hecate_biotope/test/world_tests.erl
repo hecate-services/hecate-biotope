@@ -265,20 +265,75 @@ resting_pays_only_metabolism_test() ->
     #{energy_total := After} = world:snapshot(world:tick(W, 5)),
     ?assertEqual(100 - 10, After).
 
-%% WHAT THE NOSE IS FOR, and why its upkeep can be earned back. A hunter that can
-%% smell takes the fattest neighbour, which in a crowd means taking whoever has
-%% just eaten and compounding it; one that cannot takes whoever is to hand.
+%% WHAT THE EYE IS FOR WHEN HUNTING. A hunter that can see takes the fattest
+%% neighbour, which in a crowd means taking whoever has just eaten and
+%% compounding it; a blind one takes whoever is to hand.
 %%
 %% Both worlds run from the same seed and shuffle identically, so the difference
 %% in how much of the crowd is left after one tick is the targeting and nothing
 %% else.
-the_nose_picks_the_fattest_prey_test() ->
+the_eye_picks_the_fattest_prey_test() ->
     Blind = crowd(4, #{attack_cost => 0, founder_body => []}),
-    Smeller = crowd(4, #{attack_cost => 0, founder_body => [nose],
+    Sighted = crowd(4, #{attack_cost => 0, founder_body => [eye],
                          organ_upkeep => 0}),
     #{population := PBlind} = world:snapshot(world:tick(Blind)),
-    #{population := PSmell} = world:snapshot(world:tick(Smeller)),
-    ?assert(PSmell < PBlind).
+    #{population := PSighted} = world:snapshot(world:tick(Sighted)),
+    ?assert(PSighted < PBlind).
+
+%%==============================================================================
+%% Trails
+%%==============================================================================
+
+%% A MOVING CREATURE MARKS THE GROUND AND A STILL ONE DOES NOT, and that
+%% asymmetry is load bearing rather than flavour. It makes resting a way to HIDE
+%% as well as a way to save energy, which hands prey a counter-move against being
+%% tracked. An arms race needs both sides to have one.
+moving_leaves_a_trail_and_resting_does_not_test() ->
+    Walker = crowd(1, #{radius => 3, founder_body => [],
+                        founder_brain => only(hunt)}),
+    Sitter = crowd(1, #{radius => 3, founder_body => [],
+                        founder_brain => only(rest)}),
+    #{scent_cells := Walked} = world:snapshot(world:tick(Walker, 5)),
+    #{scent_cells := Sat} = world:snapshot(world:tick(Sitter, 5)),
+    ?assert(Walked > 0),
+    ?assertEqual(0, Sat).
+
+%% A TRAIL THAT NEVER FADED WOULD BE A ROAD, and a board where every cell smells
+%% equally carries exactly as much information as one where none does. The mark
+%% is dropped rather than kept at zero, so the map holds only what still smells.
+a_trail_fades_to_nothing_test() ->
+    W = crowd(1, #{radius => 3, scent_per_tick => 10, scent_decay => 2,
+                   scent_ceiling => 10, founder_body => [],
+                   founder_brain => only(hunt)}),
+    #{scent_cells := Fresh} = world:snapshot(world:tick(W, 1)),
+    ?assertEqual(1, Fresh),
+    %% Ten laid down, two lost per tick: gone on the fifth fade, and the
+    %% creature must be gone too or it would keep laying more.
+    Dead = world:tick(crowd(1, #{radius => 3, start_energy => 1,
+                                 metabolism => 1, scent_ceiling => 10,
+                                 scent_decay => 2, founder_body => [],
+                                 founder_brain => only(hunt)}), 10),
+    #{population := Pop, scent_cells := Stale} = world:snapshot(Dead),
+    ?assertEqual(0, Pop),
+    ?assertEqual(0, Stale).
+
+%% THE ONLY WAY IN THIS WORLD TO ACT ON SOMETHING THAT CANNOT BE PERCEIVED. A
+%% hunter with nothing in reach either wanders, which is what the population did
+%% before any of this existed, or follows the strongest trail out of its cell.
+%% That difference is the entire case for the organ, so it is asserted on the
+%% observable that matters: whether the hunting actually lands.
+a_nose_finds_prey_that_wandering_does_not_test() ->
+    Hunt = fun(Body) ->
+                   W = world:new(#{population => 30, radius => 10, seed => 12,
+                                   initial_plants => 40, regrowth_per_tick => 4,
+                                   organ_upkeep => 0, max_age => 100000,
+                                   breed_at => 1000000, breed_ceiling => 1000000,
+                                   founder_body => Body,
+                                   founder_brain => only(hunt)}),
+                   #{killed := K} = world:snapshot(world:tick(W, 60)),
+                   K
+           end,
+    ?assert(Hunt([nose]) > Hunt([])).
 
 %%==============================================================================
 %% What the population turned out to be

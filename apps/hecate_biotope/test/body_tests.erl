@@ -15,7 +15,7 @@ rng() -> rand:seed_s(exsss, {4, 5, 6}).
 %% A neighbourhood with something for every sense to find, so a zero in the
 %% output can only be a missing organ.
 busy() ->
-    #{plants_near => 5, creatures_near => 3, fattest_near => 200,
+    #{plants_near => 5, scent_near => 120, fattest_near => 200,
       own_energy => 120}.
 
 %%==============================================================================
@@ -26,7 +26,7 @@ busy() ->
 %% If it ever changed silently, every evolved brain in every running world would
 %% keep its weights and start reading the wrong columns.
 a_full_body_perceives_everything_test() ->
-    ?assertEqual([5, 3, 10, 6], body:senses([eye, gut, nose], busy())).
+    ?assertEqual([5, 6, 10, 6], body:senses([eye, gut, nose], busy())).
 
 %% A MISSING ORGAN READS AS ZERO, NOT AS A SHORTER VECTOR. Fixed width means a
 %% brain never has to be resized when a body mutates, which is what makes it
@@ -35,14 +35,19 @@ a_bare_body_perceives_nothing_test() ->
     ?assertEqual([0, 0, 0, 0], body:senses([], busy())),
     ?assertEqual(body:sense_width(), length(body:senses([], busy()))).
 
-the_eye_gates_plants_test() ->
-    ?assertEqual([5, 0, 0, 0], body:senses([eye], busy())).
+%% ONE ORGAN, TWO SENSES, AND THEY ARE THE SAME FACULTY: what is here now. The
+%% plants worth eating and the creature worth eating are both simply things in
+%% front of you, and an eye that could see one but not the other would be two
+%% organs wearing one name.
+the_eye_gates_what_is_here_now_test() ->
+    ?assertEqual([5, 0, 10, 0], body:senses([eye], busy())).
 
-%% One organ, two senses: how many are near and how fat the fattest is. They are
-%% the same faculty, and splitting them would let a lineage smell prey without
-%% being able to tell a meal from a corpse.
-the_nose_gates_both_creature_senses_test() ->
-    ?assertEqual([0, 3, 10, 0], body:senses([nose], busy())).
+%% THE NOSE READS THE PAST AND NOTHING ELSE. It cannot see the creature standing
+%% next to it, however fat; it knows only that something came this way recently.
+%% That is what makes it a different sense rather than a shorter-sighted eye, and
+%% it is the whole reason a hunter can close on prey it cannot perceive.
+the_nose_gates_the_trail_test() ->
+    ?assertEqual([0, 6, 0, 0], body:senses([nose], busy())).
 
 %% PROPRIOCEPTION IS THE SUBTLE ONE. Without it a brain cannot condition on its
 %% own hunger, so "graze while comfortable, take the risk when desperate" is
@@ -54,14 +59,14 @@ the_gut_gates_own_energy_test() ->
 %% and a mutation of one is a nudge rather than a rounding error. A creature
 %% carrying four hundred and one carrying six hundred are the same situation.
 energies_are_scaled_and_clamped_test() ->
-    Rich = #{plants_near => 0, creatures_near => 0, fattest_near => 100000,
+    Rich = #{plants_near => 0, scent_near => 100000, fattest_near => 100000,
              own_energy => 100000},
-    ?assertEqual([0, 0, 15, 15], body:senses([eye, gut, nose], Rich)).
+    ?assertEqual([0, 15, 15, 15], body:senses([eye, gut, nose], Rich)).
 
 %% Energy can be negative for a creature about to be reaped, and a negative sense
 %% would flip the meaning of every weight reading it.
 a_starving_creature_perceives_no_negative_energy_test() ->
-    Broke = #{plants_near => 0, creatures_near => 0, fattest_near => -50,
+    Broke = #{plants_near => 0, scent_near => 0, fattest_near => -50,
               own_energy => -30},
     ?assertEqual([0, 0, 0, 0], body:senses([eye, gut, nose], Broke)).
 
