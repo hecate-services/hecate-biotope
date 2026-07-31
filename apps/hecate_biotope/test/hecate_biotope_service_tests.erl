@@ -47,12 +47,6 @@ info_version_matches_the_application_test() ->
 health_is_green_test() ->
     ?assertEqual(ok, ?SERVICE:health()).
 
-%% An empty list is the correct answer for a biotope that holds no world. The
-%% assertion is here so that adding a capability is a deliberate act that breaks
-%% a test and makes someone write down what the service can now actually do.
-announces_no_capability_yet_test() ->
-    ?assertEqual([], ?SERVICE:capabilities()).
-
 identity_spec_has_the_shape_hecate_om_expects_test() ->
     Spec = ?SERVICE:identity_spec(),
     #{scope := Scope, actions := Actions,
@@ -62,20 +56,31 @@ identity_spec_has_the_shape_hecate_om_expects_test() ->
     ?assert(is_list(Resources)),
     ?assert(is_integer(Ttl) andalso Ttl > 0).
 
-%% A resource this service is not authorised for is a publish that the realm
-%% would refuse once UCAN delegation lands. Asking for nothing and claiming
-%% nothing must stay in step, so the two lists are asserted together.
-authority_matches_what_is_announced_test() ->
+%% THE AUTHORITY MUST MATCH WHAT THE CODE ACTUALLY DOES, in both directions.
+%% Asking for a topic it never publishes to is authority handed over for nothing;
+%% publishing to a topic it never asked for is a call the realm would refuse once
+%% UCAN delegation lands. The sibling rumbler drifted exactly this way, quietly
+%% publishing on two topics its spec did not name.
+authority_covers_every_topic_published_and_no_more_test() ->
     #{actions := Actions, resources := Resources} = ?SERVICE:identity_spec(),
-    ?assertEqual([], ?SERVICE:capabilities()),
-    ?assertEqual([], Actions),
-    ?assertEqual([], Resources).
+    ?assertEqual([<<"publish">>], Actions),
+    ?assertEqual([world_facts:topic(world)], Resources).
 
-%% The supervisor starts and stops cleanly on its own, without hecate_om. It has
-%% no children today; this asserts the tree is startable, not that it does work.
-supervisor_starts_and_stops_test() ->
+%% It speaks and takes no requests, so it promises nothing another service could
+%% call. Accepting a migrant would be a capability, and this fails when that
+%% happens, which is the point.
+announces_nothing_callable_test() ->
+    ?assertEqual([], ?SERVICE:capabilities()).
+
+%% The tree starts and runs a world WITHOUT hecate_om, which is the property that
+%% matters: the mesh is an output, not a dependency. A biotope that could not
+%% boot without a station would be an island that needs a boat to exist.
+supervisor_starts_a_running_world_test() ->
     {ok, Pid} = hecate_biotope_sup:start_link(),
     ?assert(is_process_alive(Pid)),
-    ?assertEqual([], supervisor:which_children(Pid)),
+    ?assertMatch([{world_server, _, worker, _}], supervisor:which_children(Pid)),
+    #{population := Pop, tick := Tick} = world_server:snapshot(),
+    ?assert(Pop > 0),
+    ?assert(Tick >= 0),
     unlink(Pid),
     exit(Pid, shutdown).

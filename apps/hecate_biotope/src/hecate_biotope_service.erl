@@ -26,20 +26,25 @@ start(_Opts) -> hecate_biotope_sup:start_link().
 
 stop(_State) -> ok.
 
-%% Green once the supervision tree is up. A dark mesh is deliberately NOT a
-%% health failure: an island whose neighbours are unreachable is an island, and
-%% its own population carries on living without them.
+%% Green once the world is running. A dark mesh is deliberately NOT a health
+%% failure: an island whose neighbours are unreachable is still an island, and
+%% its population carries on living, eating and dying without them. The only
+%% thing lost is that nobody hears about it.
 health() -> ok.
 
-%% WHAT THIS SERVICE ANNOUNCES IT CAN DO. Nothing, yet. See the module doc.
+%% WHAT THIS SERVICE ANNOUNCES IT CAN DO. Still nothing, and that is not an
+%% oversight. A capability is a promise that something answers when another
+%% service calls it, and a biotope currently only speaks: it publishes what
+%% happened and takes no requests. When it accepts a migrant, that is a
+%% capability and it goes here.
 capabilities() -> [].
 
-%% THE AUTHORITY THIS SERVICE ASKS THE REALM FOR. None, yet, for the same reason.
-%% The scope is claimed now because it is the namespace every later resource will
-%% hang under, and because a scope costs nothing while a rename costs every
-%% deployed peer.
+%% THE AUTHORITY THIS SERVICE ASKS THE REALM FOR: publish on its own world
+%% topic, and nothing else. It subscribes to nothing, so it asks for no
+%% subscribe. Popped, an attacker gains the ability to post population figures
+%% for an island.
 identity_spec() ->
     #{scope => <<"biotope">>,
-      actions => [],
-      resources => [],
+      actions => [<<"publish">>],
+      resources => [world_facts:topic(world)],
       ttl_days => 30}.

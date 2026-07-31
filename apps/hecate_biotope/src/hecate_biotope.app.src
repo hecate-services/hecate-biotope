@@ -1,7 +1,7 @@
 {application, hecate_biotope, [
     {description, "One island: an open population of creatures, their organs, and the energy economy that decides who breeds"},
     {vsn, "0.1.0"},
-    {registered, [hecate_biotope_sup]},
+    {registered, [hecate_biotope_sup, world_server]},
     {mod, {hecate_biotope_app, []}},
     {applications, [
         kernel,
