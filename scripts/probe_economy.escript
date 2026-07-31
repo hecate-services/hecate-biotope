@@ -91,10 +91,11 @@ sample(W, Left, Every, Acc) ->
            [world:snapshot(W) | Acc]).
 
 report(Rows, Ticks) ->
-    io:format("~s~n", [row(["seed", "final", "peak", "trough", "plants",
+    io:format("~s~n", [row(["seed", "final", "peak", "trough", "ground",
                             "born", "starved", "eaten", "aged", "refused"])]),
-    lists:foreach(fun print_row/1, Rows),
+    lists:foreach(fun print_viability/1, Rows),
     outcomes(Rows),
+    census(Rows),
     Finals = [P || #{final := #{population := P}} <- Rows],
     Extinct = length([P || P <- Finals, P =:= 0]),
     io:format("~n~p/~p seeds extinct after ~p ticks~n",
@@ -103,36 +104,56 @@ report(Rows, Ticks) ->
               [lists:min(Finals), median(Finals), lists:max(Finals)]),
     trajectory(hd(Rows)).
 
-print_row(#{seed := S, peak := Pk, trough := Tr,
-            final := #{population := P, plants := Pl, born := B,
-                       starved := St, consumed := C, aged_out := Ag,
-                       births_refused := Rf}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, C, Ag, Rf])]).
+%% VIABILITY ONLY. Whether the world works, which is the only thing a number may
+%% ever be tuned against.
+print_viability(#{seed := S, peak := Pk, trough := Tr,
+                  final := #{population := P, ground_total := G, born := B,
+                             starved := St, consumed := C, aged_out := Ag,
+                             births_refused := Rf}}) ->
+    io:format("~s~n", [row([S, P, Pk, Tr, G, B, St, C, Ag, Rf])]).
 
 %% WHAT THE POPULATION TURNED OUT TO BE. Everything that varies, side by side,
 %% with NONE OF IT PRIVILEGED: no headline metric and no summary line that picks
 %% a winner. A probe that reports one number at the top is a probe that will be
-%% run until that number moves, and an earlier round of sweeps here did exactly
-%% that. See PREREGISTRATION.md.
+%% run until that number moves, and this project has already made that mistake.
 %%
-%% `meat%%' is the share of all energy the living have eaten that came from other
-%% creatures. `body' is sensors per creature, times a hundred. The three field
-%% columns are how many creatures carry a sensor for each, which is a census of
-%% what survived and not a verdict on what was useful.
+%% `still' is the plant-ness of the population and nothing in the rules calls it
+%% that: there are no plants, so a creature that stays where it is and lives off
+%% what gathers there simply is one. `gspr' is the share of ground energy in the
+%% richest tenth of cells, where ten is flat and above it the landscape has
+%% structure that nobody installed. `move' and `bred' are how many creatures can
+%% do those things AT ALL, since an absent output is not a weak one.
 outcomes(Rows) ->
-    io:format("~n~s~n", [row(["seed", "breed_at", "meat%", "body",
-                              "s:plant", "s:creat", "s:scent",
-                              "tags", "spread"])]),
+    io:format("~n~s~n", [row(["seed", "still%", "meat%", "body", "brain",
+                              "move", "bred", "gspr", "tags", "sspr"])]),
     lists:foreach(fun print_outcome/1, Rows).
 
 print_outcome(#{seed := S,
-                final := #{breed_at_mean := Br, from_creatures_pct := Meat,
-                           sensor_mean := Body, sensors := Census,
-                           scent_tags := Tags, scent_spread := Spread}}) ->
-    Carriers = fun(F) -> maps:get(carriers, maps:get(F, Census, #{}), 0) end,
-    io:format("~s~n", [row([S, Br, Meat, Body,
-                            Carriers(plants), Carriers(creatures),
-                            Carriers(scent), Tags, Spread])]).
+                final := #{still_pct := Still, from_creatures_pct := Meat,
+                           sensor_mean := Body, hidden_mean := Brain,
+                           movers := Movers, breeders := Breeders,
+                           ground_spread := GSpread, scent_tags := Tags,
+                           scent_spread := SSpread}}) ->
+    io:format("~s~n", [row([S, Still, Meat, Body, Brain, Movers, Breeders,
+                            GSpread, Tags, SSpread])]).
+
+%% WHAT THEY MEASURE, AND WHETHER ANYTHING ACTS ON IT. Carriers then attention,
+%% per field, because CARRYING A SENSOR AND USING ONE ARE DIFFERENT THINGS: a
+%% creature can pay rent every tick for a measurement nothing in its brain
+%% weights, and carriers alone would report that as perception.
+census(Rows) ->
+    io:format("~n~s~n", [row(["seed", "grnd", "grnd:a", "crea", "crea:a",
+                              "scnt", "scnt:a", "self", "self:a"])]),
+    lists:foreach(fun print_census/1, Rows).
+
+print_census(#{seed := S, final := #{sensors := Sensors}}) ->
+    Cell = fun(F, K) -> maps:get(K, maps:get(F, Sensors, #{}), 0) end,
+    io:format("~s~n",
+              [row([S,
+                    Cell(ground, carriers), Cell(ground, attention),
+                    Cell(creatures, carriers), Cell(creatures, attention),
+                    Cell(scent, carriers), Cell(scent, attention),
+                    Cell(self, carriers), Cell(self, attention)])]).
 
 %% Columns padded by hand. A negative field width on ~p is not accepted, and the
 %% failure is a bare "failed to format string" that names no column.
@@ -143,9 +164,9 @@ pad(C) -> string:pad(C, 9, trailing).
 
 %% One seed's shape in full, because the summary above can hide an oscillation.
 trajectory(#{seed := S, samples := Samples}) ->
-    io:format("~nseed ~p trajectory (tick: population/plants)~n", [S]),
+    io:format("~nseed ~p trajectory (tick: population/ground)~n", [S]),
     Line = [io_lib:format("~p:~p/~p  ", [T, P, Pl])
-            || #{tick := T, population := P, plants := Pl} <- Samples],
+            || #{tick := T, population := P, ground_total := Pl} <- Samples],
     io:format("~s~n", [Line]).
 
 median(L) ->
