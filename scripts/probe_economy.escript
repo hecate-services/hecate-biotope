@@ -69,8 +69,9 @@ sample(W, Left, Every, Acc) ->
 
 report(Rows, Ticks) ->
     io:format("~s~n", [row(["seed", "final", "peak", "trough", "plants",
-                            "born", "starved", "aged", "breed_at"])]),
+                            "born", "starved", "killed", "aged", "breed_at"])]),
     lists:foreach(fun print_row/1, Rows),
+    diet_table(Rows),
     Finals = [P || #{final := #{population := P}} <- Rows],
     Extinct = length([P || P <- Finals, P =:= 0]),
     io:format("~n~p/~p seeds extinct after ~p ticks~n",
@@ -80,13 +81,41 @@ report(Rows, Ticks) ->
     Breeds = [B || #{final := #{breed_at_mean := B}} <- Rows],
     io:format("mean breed_at:    min ~p median ~p max ~p~n",
               [lists:min(Breeds), median(Breeds), lists:max(Breeds)]),
+    Carn = [pct(carnivores, D) || #{final := #{diet := D}} <- Rows],
+    io:format("carnivore pct:    min ~p median ~p max ~p~n",
+              [lists:min(Carn), median(Carn), lists:max(Carn)]),
     trajectory(hd(Rows)).
 
 print_row(#{seed := S, peak := Pk, trough := Tr,
             final := #{population := P, plants := Pl, born := B,
-                       starved := St, aged_out := Ag,
+                       starved := St, killed := K, aged_out := Ag,
                        breed_at_mean := Breed}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, Ag, Breed])]).
+    io:format("~s~n", [row([S, P, Pk, Tr, Pl, B, St, K, Ag, Breed])]).
+
+%% WHAT THE POPULATION TURNED OUT TO BE, and whether its equipment paid for
+%% itself. Per seed rather than averaged, because the last measurement here was
+%% wrecked by between-seed spread that a median would have hidden.
+diet_table(Rows) ->
+    io:format("~n~s~n", [row(["seed", "herb", "omni", "carn", "undec",
+                              "eye", "gut", "nose"])]),
+    lists:foreach(fun print_diet/1, Rows).
+
+print_diet(#{seed := S, final := #{diet := D, organs := O}}) ->
+    Get = fun(Map, K) -> maps:get(K, Map, 0) end,
+    io:format("~s~n", [row([S,
+                            Get(D, herbivores), Get(D, omnivores),
+                            Get(D, carnivores), Get(D, undecided),
+                            Get(O, eye), Get(O, gut), Get(O, nose)])]).
+
+%% Of the creatures that have a diet at all. Counting the undecided newborns in
+%% the denominator would make a fast-breeding world look permanently vegetarian.
+pct(Class, Diet) ->
+    Decided = maps:get(herbivores, Diet) + maps:get(omnivores, Diet)
+              + maps:get(carnivores, Diet),
+    share(Decided, maps:get(Class, Diet)).
+
+share(0, _N) -> 0;
+share(Decided, N) -> N * 100 div Decided.
 
 %% Columns padded by hand. A negative field width on ~p is not accepted, and the
 %% failure is a bare "failed to format string" that names no column.
