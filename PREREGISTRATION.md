@@ -12,7 +12,7 @@ frozen run: **predation was most of the economy and required no adaptation at
 all**, perception was selected out almost everywhere, and movement was mostly a
 literal coin toss because most creatures carried no sensors.
 
-Four defects explain that. They interlock, which is why they are fixed together
+Five defects explain that. They interlock, which is why they are fixed together
 rather than one per world.
 
 ### 1. A plant was a KIND OF THING rather than a WAY OF LIVING
@@ -30,7 +30,21 @@ permanent floor of the food chain around another one. The trophic structure was
 celebrated for falling out of a single rule while its foundation had been
 installed by hand.
 
-### 2. The instrument could not resolve what it was measuring
+### 2. Death destroyed energy
+
+A creature that died of old age was simply removed and **the energy it was
+carrying vanished from the world**. Not rounded away: a well-fed creature could
+be holding several hundred, and reaping it deleted every unit.
+
+That is a bug in the physics rather than a simplification of it. Energy is not
+destroyed by dying, it is returned. The only true sink in an ecosystem is the
+work done staying alive, which leaves as heat; everything else circulates.
+
+It also meant the energy books were never actually checkable. World 1 could only
+assert that the total fell, never that it fell by exactly what was spent, so a
+leak anywhere else would have been invisible behind the leak we had built in.
+
+### 3. The instrument could not resolve what it was measuring
 
 `body:scale/1` divided every field by 20 and clamped at 15. In natural terms a
 plant read **2**, a full-strength scent mark read **1**, and two well-fed
@@ -39,14 +53,14 @@ spanning 30 to 900. Scent was quantised to a single bit, which is very likely wh
 scent sensors went extinct in every seed: not because trails are useless, but
 because the device could barely register them.
 
-### 3. A creature could not perceive itself
+### 4. A creature could not perceive itself
 
 There was no proprioception. The central rule is that the stronger consumes the
 weaker, so whether you are currently the eater or the eaten is the most
 decision-relevant fact available, and it was not available. Every strategy of the
 form *behave differently when weak* was unreachable.
 
-### 4. There was no nonlinearity, so fixing 3 alone would have done nothing
+### 5. There was no nonlinearity, so fixing 4 alone would have done nothing
 
 Own energy is **constant across all seven candidate cells**. In a single linear
 layer it contributes equally to every option and cancels in the argmax. Adding
@@ -68,6 +82,20 @@ Energy entering the world is physics. A plant is not. So:
 - A creature absorbs whatever has gathered in the cell it occupies. All of it. No
   rate limit and therefore no further constant.
 - Contest resolves first, then the survivor absorbs. One order, stated.
+- **A creature that dies returns everything it was carrying to the cell it died
+  in**, and that deposit sits ON TOP of `ground_ceiling` rather than being capped
+  by it. The ceiling limits what the ambient supply will build up to; it is not a
+  statement about how much ground can hold.
+
+The energy budget is then closed and exactly checkable, which world 1's never
+was:
+
+    system energy  =  ground + creatures
+    change/tick    =  influx in, minus metabolism, movement and rent out
+
+Nothing else moves it. Consumption and death and birth all shuffle energy between
+the two terms without changing the total, so a run whose books do not balance to
+the unit has a leak, and that is now a test rather than a hope.
 
 `plant_energy`, `regrowth_per_tick`, the plants map and the sowing machinery are
 all deleted. **Patchiness stops being sprinkled by a random number generator and
@@ -83,6 +111,44 @@ Two ways of making a living now exist, and neither is named anywhere:
 
 A creature that stays put and lives off ambient energy **is** a plant. Nothing in
 the rules will call it one.
+
+### Places become different because things died there
+
+Raf's second point, and the reason the deposit rule earns its place beyond mere
+conservation: **barren rock will not sustain much, while a forest where things die
+without being eaten enriches the ground beneath it.**
+
+Because a deposit sits above the ambient ceiling, a cell where creatures have
+died is richer than any virgin cell can ever be. Somewhere the population is
+dense, deaths keep happening, and the ground there stays persistently better than
+average. Somewhere nothing lives, the ground sits at ambient and no better.
+
+**So the landscape differentiates itself, and life is what differentiates it.**
+That is the forest making its own soil, and it arrives from one conservation rule
+rather than from a terrain map.
+
+**NO TERRAIN IS INSTALLED, and that is a deliberate choice worth defending.**
+Fixed per-cell fertility is perfectly good physics: real ground does vary. The
+objection is not that terrain is biology, it is that a terrain GENERATOR has free
+parameters I would have to choose, and the honest criterion for choosing them
+would be something like "correlated over the distances a sensor can evolve to
+reach" — which is choosing the world's structure so that sensors pay. That is
+steering, in the same way that choosing `scent_mutation` by counting carnivores
+was steering.
+
+Emergent enrichment has no such knob. Its correlation length is whatever the
+population's own spatial structure produces, which nobody picked.
+
+Two consequences are accepted as costs. Enrichment here is **transient**: it lasts
+until something grazes it, so this world has fertile PATCHES rather than fertile
+SOIL, and it cannot express ground that is permanently good or permanently dead.
+And a barren cell is not possible at all, since ambient influx is uniform.
+
+If the finding is that heterogeneity is too short-lived to navigate toward, the
+honest next step is soil that persists: a per-cell capacity raised by deposits and
+decaying slowly back. That is deferred rather than dismissed, because it needs two
+new constants whose values I would be picking in the hope of seeing fertile
+patches, and hoping for an outcome is how the last mistake started.
 
 **A world begins with every cell full**, since no cell has been drained. The
 opening phase of a run is colonisation of a virgin larder and is not equilibrium;
@@ -180,10 +246,10 @@ and the frozen run is expected to take minutes rather than seconds.
 Unchanged, and it is the rule this project exists to keep.
 
 A number may be chosen for **viability**: nothing goes extinct or extinction is
-the finding, the population is not pinned at `max_creatures`, the energy books
-balance, an instrument can resolve what it measures, **both ways of making a
-living are reachable**, and a run completes fast enough to repeat across at least
-eight seeds.
+the finding, the population is not pinned at `max_creatures`, **the energy books
+balance to the unit** rather than merely falling, an instrument can resolve what
+it measures, **both ways of making a living are reachable**, and a run completes
+fast enough to repeat across at least eight seeds.
 
 A number may be chosen for **scale**: `max_sensors`, `max_sensor_range` and
 `max_hidden` are safety valves against a runaway genome making one tick cost as
@@ -230,8 +296,8 @@ until that number moves, and this project has already made that mistake.
 Viability, deaths by cause, the share of energy taken from other creatures rather
 than from the ground, the sensor census with **carriers, reach and attention**
 separately, hidden node counts, structural gains and losses, signature count and
-spread, **the fraction of creatures that did not move**, and the distribution of
-all of it across seeds.
+spread, **the fraction of creatures that did not move**, **how unevenly the
+ground holds energy**, and the distribution of all of it across seeds.
 
 ## What would count as a finding
 
@@ -251,7 +317,12 @@ Stated in advance so nothing can be promoted to one afterwards.
 5. **Predation as a strategy rather than as weather.** A high share of energy
    from creatures TOGETHER with creature sensors carried and attended. World 1 had
    the first without the second, and that distinction is the one worth keeping.
-6. **Divergence between seeds**, with within-seed spread smaller than
+6. **Location coming to matter.** Ground energy distributed more unevenly than
+   grazing alone would produce, meaning the places things die have become
+   persistently better than average. The landscape differentiating itself is a
+   result; a landscape that stays flat is equally a result and says the deposit
+   rule conserves energy without structuring anything.
+7. **Divergence between seeds**, with within-seed spread smaller than
    between-seed spread. Not establishable from one run per seed, and will not be
    claimed from one.
 
@@ -264,10 +335,12 @@ fixed near 100%, and nothing else happening.
 one of them.** The ground, the units, proprioception, the nonlinearity, topology,
 reproduction and the grain all move together.
 
-Accepted deliberately. Two of the four defects are provably useless to fix
-without the fourth, and the first makes the others moot, since a world with its
-food chain nailed to the floor cannot answer what a food chain does. Changing one
-at a time would mean three worlds guaranteed in advance to show nothing.
+Accepted deliberately. Two of the five defects are provably useless to fix
+without the fifth, and the first makes the others moot, since a world with its
+food chain nailed to the floor cannot answer what a food chain does. The second
+is a conservation bug and would have to be fixed regardless of any of this.
+Changing one at a time would mean several worlds guaranteed in advance to show
+nothing.
 
 The question world 2 asks is not *which change mattered* but **does this world
 have room for evolution at all**, and that does not decompose. If the answer is
