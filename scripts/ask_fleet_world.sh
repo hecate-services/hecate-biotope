@@ -34,7 +34,23 @@ CONTAINER=${CONTAINER:-biotope}
 # on indentation silently dropped exactly the fields this script exists to check:
 # `depth', `lineages' and `dissipated' are the three that only a world 9 build
 # has, and an empty result for them reads as "not deployed" whether or not it is.
-FIELDS='number =>|seed =>|tick =>|population =>|transfer_efficiency =>|depth =>|lineages =>|from_creatures_pct =>|extinct_at =>'
+# WHICH REGIME, not just which world. World 12 found two stable states from the
+# same rules: many small creatures on a flat board, or a few enormous ones on a
+# lumpy one. `structure_max' and `ground_spread' are what tell them apart, and
+# without them three islands that differ by a factor of twelve in population look
+# like a bug rather than the most interesting result here.
+#
+# WORD-ANCHORED, because underscore is a word character and the first version of
+# this list was not. `seed' matched inside `ground_seed' and `tick' inside
+# `scent_per_tick', so every node reported a phantom `seed => 12' and
+# `tick => 10' alongside its real ones: two economy constants wearing the names
+# of two state variables. Exactly the kind of reading this script exists to stop
+# anyone taking on trust.
+NAMES='number|seed|tick|population|transfer_efficiency|depth|lineages'
+NAMES="${NAMES}|from_creatures_pct|extinct_at|structure_max|structure_total"
+NAMES="${NAMES}|ground_spread|sensor_mean|hidden_mean|scent_spread|still_pct"
+NAMES="${NAMES}|energy_total|ground_total|uptake_min|uptake_mean|uptake_max"
+FIELDS="\\<(${NAMES}) => *[a-z0-9_]*"
 
 for node in ${NODES}; do
   echo "── ${node}"
@@ -42,6 +58,6 @@ for node in ${NODES}; do
     "C=\$(docker ps -q --filter name=${CONTAINER} | head -1); \
      { docker exec \$C /app/bin/hecate_biotope rpc world ruleset; \
        docker exec \$C /app/bin/hecate_biotope rpc world_server snapshot; } \
-       | tr ',' '\n' | grep -Eo '(${FIELDS}) *[a-z0-9_]*' | sed 's/^ *//' | sed 's/^/  /'" \
+       | tr ',' '\n' | grep -Eo '${FIELDS}' | sed 's/^ *//' | sort | sed 's/^/  /'" \
     2>/dev/null || echo "  unreachable, or no biotope container"
 done
