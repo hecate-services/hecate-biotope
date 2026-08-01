@@ -19,6 +19,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **8** | **capacity is a property of structure**: `absorbed = min(uptake, frame, cell)` (`B.6`) | **Ghosts became impossible**, largest frame 400-560 at every efficiency against zero from 70% down in world 7. And **every seed ended**, 42 of 45 at exactly tick 602, which is `max_age` arriving: the survivors are the FOUNDERS, they stopped breeding before tick 35, and they died of old age on the same day. Not for want of energy. They carry stores of 11,643 to **183,500** against the 400 they were born with. **The world ran out of variation, not energy** (`G.1`). [results](RESULTS_WORLD8.md) |
 
+| **9** | **reproduction is paid out of the store**: a parent does not dismantle its own body to make a child (`C.7`) | **The engine restarted and the world stopped ending.** 3 seeds of 5 run the full 2000 ticks at 100%, still giving birth at the limit, with creatures **54 to 129 generations** descended from the founding against world 8's best of 15. **World 4's landscape came back** (`ground_spread` 86 against 9-30 since world 5) and **something eats for a living for the first time** (`from_creatures_pct` 18-33, 5-31 individuals, zero in every world since 4). Checked and it is NOT infanticide. Dead below 90%: at low efficiency a child is delivered too little to feed itself. [results](RESULTS_WORLD9.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a

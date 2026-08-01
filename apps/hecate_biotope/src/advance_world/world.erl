@@ -156,6 +156,15 @@
                 %% "the population crashed" is not a finding and three causes
                 %% sharing one total cannot be told apart afterwards.
                 consumed = 0 :: non_neg_integer(),
+                %% THE AGE OF EVERYTHING EVER EATEN, summed. An observable, read
+                %% by no rule. World 9 is the first world in which anything makes
+                %% a living off other creatures, and the same world made a
+                %% newborn the lightest thing on the board, which was declared in
+                %% PREREGISTRATION.md before the run. Those are different
+                %% findings and only this number tells them apart: a predator
+                %% niche eats what is out there, and eating your own newborns
+                %% eats things one tick old.
+                eaten_age = 0 :: non_neg_integer(),
                 absorbed = 0 :: non_neg_integer(),
                 births_refused = 0 :: non_neg_integer(),
                 %% SENSORS GAINED AND LOST AT BIRTH, cumulatively. A census says
@@ -680,7 +689,9 @@ take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
     Fed = C#{energy => E + Gain, from_creatures => F + Gain},
     W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
             dissipated = W#world.dissipated + (Taken - Gain),
-            consumed = W#world.consumed + length(Weaker)}.
+            consumed = W#world.consumed + length(Weaker),
+            eaten_age = W#world.eaten_age
+                + lists:sum([maps:get(age, maps:get(I, Cs)) || I <- Weaker])}.
 
 %% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and that is the whole of world 4.
 %% World 3 took everything, so every grazed cell sat at zero, so stock-dependent
@@ -1011,6 +1022,13 @@ snapshot(#world{econ = Econ} = W) ->
       %% from ground is one the world treats exactly like every other, and the
       %% comparison is made here by an observer after the fact.
       fed_by_creatures => living_off_creatures(W),
+      %% HOW OLD THE EATEN WERE, in hundredths of a tick. World 9 is the first
+      %% world where anything lives off other creatures, and it is also the world
+      %% that made a newborn the lightest thing on the board. A mean near one
+      %% says the prey is newborns and the niche is infanticide; a mean well
+      %% above the population's own mean lifespan says something else is being
+      %% hunted. The share cannot tell them apart and neither can the count.
+      eaten_age_mean => share(W#world.consumed, W#world.eaten_age),
       %% WHAT THE POPULATION IS BUILT FROM, per field: how many carry a sensor
       %% for it and how much total reach is devoted to it. A census, not a
       %% verdict: it says what survived, not what was useful.
