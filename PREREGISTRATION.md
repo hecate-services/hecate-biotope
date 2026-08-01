@@ -114,10 +114,12 @@ register entry **D.5**.
 
 - **No temperature.** Ornament at one temperature. See Zeroth above.
 - **No separate entropy quantity.** It would be the dissipation account renamed.
-- **No different efficiency for eating creatures than for eating ground.** Real
-  carnivores assimilate better than herbivores, but that is a **biological** fact
-  about tissue similarity, not a thermodynamic law, and this world may not write
-  it. See the prediction below, which follows from refusing it.
+- **No different step count for eating creatures than for eating ground**, which
+  makes this world the test of whether predation pays without one. An earlier
+  draft justified leaving it out by calling assimilation efficiency biology
+  rather than thermodynamics. **That justification was wrong** and is withdrawn;
+  it follows from the step-counting rule itself. See the predation section, which
+  now predicts no direction at all.
 - **No finite heat sink.** It is the interesting entry and it is a second change.
 
 ## What may set a constant
@@ -148,35 +150,71 @@ Stated in advance.
    stop being the dominant move.
 2. **Density falls below world 6's ~2,300**, and the population stops sitting
    permanently above what the ground can feed.
-3. **`ground_spread` rises above 11 to 13.** This is Prigogine's prediction and
+3. **`from_creatures_pct` moves at all**, in either direction, having been 0 in
+   all five seeds of world 6. No direction is predicted; see the section below.
+4. **`ground_spread` rises above 11 to 13.** This is Prigogine's prediction and
    the sharpest one available: a system far from equilibrium should organise
    *because* structure dissipates a gradient faster than disorder does. World 6
    has genuine throughflow and produces almost no local order, and one candidate
    reason is that its dissipation has no structure at all, happening entirely as
    a flat per-tick tax. World 7 distributes it across every transformation.
-4. **Something amortises.** Sensor carriers above the 0 to 11 they have been
+5. **Something amortises.** Sensor carriers above the 0 to 11 they have been
    stuck at in every world, or hidden nodes above ~0.
-5. **Age and size decouple.** Creatures of the same age at different sizes, which
+6. **Age and size decouple.** Creatures of the same age at different sizes, which
    is what world 6 looked like and turned out not to be.
 
 ## What will NOT happen, stated in advance
 
-**Predation will get worse, not better, and that is correct physics.** A uniform
-`E` does not make eating creatures more profitable than eating ground, since both
-lose the same fraction in one step. But the energy in a creature has already been
-through one transformation to get there, so eating it is **cumulatively** lossier
-than eating the ground it came from. That is precisely why real food chains are
-short and top predators rare.
-
-So `from_creatures_pct` should **fall**. If it rises, something is wrong with the
-implementation rather than interesting about the world.
-
-This is worth stating plainly because it cuts against what we have been hoping
-for since world 1. Thermodynamics says carnivory is a worse living unless it buys
-something back, and this world refuses to write the thing that buys it back.
-
 **`still%` may well stay at 100.** That is the density relation and it is
 untouched here.
+
+## Predation: the direction is NOT predicted, and an earlier draft got this wrong
+
+A first draft of this file predicted that predation would get worse, on the
+grounds that energy in a creature has already been degraded once to get there.
+**Raf objected that meat is denser than grass, and the objection is correct.**
+The claim is withdrawn and no direction is predicted. What follows is why,
+because the reasoning matters more than the retraction.
+
+**Two different questions were conflated.** Whether carnivory is lossy for the
+ECOSYSTEM, which it is and which is why food chains are short, is not the same
+as whether eating a creature beats eating ground for an INDIVIDUAL deciding
+right now. A uniform `E` scales both by the same factor and therefore changes
+their ratio not at all.
+
+**Two effects then fight, and which wins is not determined in advance:**
+
+- lossy transformation means less energy reaches bodies at all, so prey get
+  emptier, and predation is worth less
+- longer lives, which is finding 1, mean more time to accumulate, so bodies get
+  richer, and predation is worth more
+
+**And the concentration argument is real.** A cell holds about 12 energy. A
+large creature in world 6 held a frame of 100 to 130. Ten times as much, in one
+place, and this world's `devour` takes the WHOLE of it instantly with no rate
+limit, while grazing is capped by `uptake`. That asymmetry already favours
+predation heavily and it is fiat rather than physics: see register entry `D.2`.
+
+### What the paradigm actually says, which is the opposite of the first draft
+
+Real carnivores assimilate about 80% of what they eat against roughly 20-50%
+for herbivores. An earlier draft dismissed that as biology rather than
+thermodynamics. **That dismissal was wrong**, because under this world's own
+step-counting rule it follows directly: the number of degradation steps depends
+on how far the source material sits from the destination, and prey tissue is
+already organised much like the consumer's own.
+
+Taken seriously, eating a body could hand a creature **ready-made structure at
+`E`, one step to reorganise**, where building the same frame from its own store
+costs `E²`. **Predation as a shortcut to structure**, derived from the paradigm
+rather than asserted, and the exact thermodynamic form of Raf's point about
+energy density.
+
+**World 7 does NOT include it**, deliberately. It keeps a uniform step count
+everywhere, which makes this world the test of whether predation can pay
+WITHOUT the shortcut. If predation dies here, that is evidence the differentiated
+version is needed, and entry `D.5` acquires a physical justification instead of
+remaining a preference. Building both at once would leave neither answered.
 
 ## The commitments
 
