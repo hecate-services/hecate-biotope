@@ -25,9 +25,10 @@ seed  final  still%  eats  meat%  body  brain  gspr  ground
 **1. Movement that persists: NO.** 100% still in six seeds, 99% in two. Worlds 2
 and 3 were the same.
 
-**2. A feeding rate that settles: NO.** Mean `eats` ranges 109 to 311 around a
-founding average of about 200. It **drifted and did not converge**, in either
-direction.
+**2. A feeding rate that settles: NO from the default start, YES from a narrow
+one.** Mean `eats` ranges 109 to 311 around a founding average of about 200,
+which is drift. Started instead where a gradient exists, it moves consistently
+and in one direction. See the addendum below.
 
 **3. Both livings coexisting: NO.**
 
@@ -64,6 +65,52 @@ like. Seed 8 wandered down to 109 and the rest did not.
 **A trait can be strongly advantageous at one end and still be unreachable, if
 everything between here and there is equally bad.** That is a general point about
 this world and probably about the next one.
+
+## Addendum: the open question, closed
+
+World 4's negative left two readings it could not separate. Either the neutral
+plateau blocked selection, or prudence is simply not favoured. Same rules, same
+fingerprint, different opening position: the founding feeding draw narrowed from
+0-400 to **0-60, straddling the sustainable line of 22**, where a gradient exists.
+
+    founding mean            29
+    final mean, 8 seeds      65  71  89  110  118  124  140  163
+
+**Every seed moved upward, away from prudence.** That is direction, not drift, and
+it is consistent across all eight.
+
+### So it was not the plateau. Prudence is not favoured.
+
+Which is the opposite of what the arithmetic predicted, and the arithmetic was
+not wrong: a prudent lineage really does net 12 a tick where a greedy one nets 2.
+**What the arithmetic left out is how creatures die here.**
+
+    deaths by being eaten     ~500,000 per run
+    deaths by starving        ~10,000 per run
+
+**Ninety-seven percent of deaths are being eaten.** Starving is a rounding error.
+So the return on a cell that yields for ever is only collected by a creature that
+survives to collect it, and the thing that decides survival is being larger than
+whatever shares your cell.
+
+A greedy creature on full ground takes hundreds in a single tick and is
+immediately large. A prudent one takes twenty-two and stays small. The prudent
+one does not starve. **It gets eaten**, long before its sustainable income
+matters.
+
+This is the classic reason prudent exploitation does not evolve: short-term
+competitive ability beats long-run yield whenever the competition is direct and
+immediate. Energy is armour in this world, and grabbing fast is how you get
+armour.
+
+### What this does and does not license
+
+It says what happens **from this starting position**, and the physics is untouched
+so it is the same game from a different opening. It does not say prudence could
+never win under some other arrangement, and it says nothing about any other
+world.
+
+It does close world 4's ambiguity, which is what it was run for.
 
 ## What that implies for world 5
 

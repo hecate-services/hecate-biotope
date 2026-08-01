@@ -275,15 +275,34 @@ founder_traits(Econ, Opts, Rng0) ->
     {Brain, Rng2} = founder_brain(maps:get(founder_brain, Opts, draw),
                                   Body, Econ, Rng1),
     {Tag, Rng3} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng2),
-    {Rate, Rng4} = given(founder_uptake, Opts, fun founder_rate/2, Econ, Rng3),
+    Widest = maps:get(founder_uptake_max, Opts,
+                      maps:get(ground_ceiling, Econ)),
+    {Rate, Rng4} = given(founder_uptake, Opts, rates_up_to(Widest), Econ, Rng3),
     {#{body => Body, brain => Brain, scent => Tag, uptake => Rate}, Rng4}.
 
-%% Uniform across the physically meaningful range. The ceiling is DERIVED rather
-%% than chosen: no more than a full cell holds can be taken from it, so nothing
-%% narrower was picked and the draw favours neither prudence nor greed.
-founder_rate(Econ, Rng0) ->
-    {N, Rng1} = rand:uniform_s(maps:get(ground_ceiling, Econ) + 1, Rng0),
-    {N - 1, Rng1}.
+%% Uniform across the range. The default ceiling is DERIVED rather than chosen:
+%% no more than a full cell holds can be taken from it.
+%%
+%% NARROWABLE, BECAUSE WORLD 4 LEFT A QUESTION OPEN THAT ONLY THIS CAN CLOSE. Its
+%% feeding rate drifted and never converged, though prudence pays six times what
+%% greed does, and the reason looked structural: everything above the sustainable
+%% line strips the cell and lives on the same floor, so there is NO GRADIENT over
+%% most of the range and selection has nothing to climb. From a founding average
+%% of 200 the optimum near 22 is twenty-five neutral steps away.
+%%
+%% That leaves two readings and the run cannot tell them apart: the plateau
+%% blocked selection, or prudence is not actually favoured. Starting the draw
+%% where the gradient exists separates them.
+%%
+%% IT IS A STARTING CONDITION AND NOT A RULE. The physics is untouched, the
+%% economy fingerprint is unchanged, and a result from a narrow start says only
+%% what happens FROM THERE. It would not license a claim about what happens from
+%% anywhere else.
+rates_up_to(Max) ->
+    fun(_Econ, Rng0) ->
+            {N, Rng1} = rand:uniform_s(Max + 1, Rng0),
+            {N - 1, Rng1}
+    end.
 
 given(Key, Opts, Draw, Econ, Rng) ->
     specified(maps:get(Key, Opts, draw), Draw, Econ, Rng).

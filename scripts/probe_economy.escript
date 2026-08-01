@@ -60,10 +60,15 @@ overrides([KV | Rest], Acc) ->
     [K, V] = string:split(KV, "="),
     overrides(Rest, Acc#{list_to_atom(K) => list_to_integer(V)}).
 
+%% Starting conditions rather than rules. They do not change the physics and do
+%% not change the economy fingerprint, so a run using them is the same game from
+%% a different opening position, and a result says only what happens FROM THERE.
+-define(FOUNDING, [founder_uptake_max]).
+
 %% A key the economy does not have is a typo, and a typo that silently does
 %% nothing turns a tuning session into a ghost hunt.
 check_keys(Overrides) ->
-    Known = maps:keys(world:defaults()),
+    Known = maps:keys(world:defaults()) ++ ?FOUNDING,
     case maps:keys(Overrides) -- Known of
         []      -> ok;
         Unknown -> io:format("unknown economy keys: ~p~nknown: ~p~n",
