@@ -54,18 +54,42 @@ carries_totals_rather_than_rates_test() ->
                           ?assert(lists:all(fun is_integer/1, Bars))
                   end, [sensor_hist, hidden_hist, uptake_hist]).
 
-%% VERSION 4, WHICH NAMES WHICH WORLD IS RUNNING. Before it, a spectator watching
-%% a fleet mid-rollout had no way to tell that two cards were showing different
-%% physics, because the econ id it would reach for is identical across the
-%% change.
+%% VERSION 5 PUBLISHES THE TWO THINGS A SPECTATOR COULD NOT SEE.
 %%
-%% Version 3 was the one where plants stopped existing. A plant was never a kind
-%% of thing, it is a way of living, and world 2 deleted the entity, the list of
-%% them on the chart and the counter of them eaten.
+%% `dissipated' is the entropy account, the one quantity in this world that
+%% cannot fall, and the third term that closes the books: ground plus creatures
+%% plus burnt changes only by what the sun adds. Two of those three were on the
+%% wire and the third was not, so the First Law could be asserted on the page and
+%% never checked from it.
+%%
+%% `depth' and `lineages' say whether the population can still CHANGE, which
+%% every other field on this wire describes a population without answering. World
+%% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
+%% could have shown that.
+%%
+%% Version 4 named which world is running, so a fleet mid-rollout could be read.
+%% Version 3 was the one where plants stopped existing.
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(4, V).
+    ?assertEqual(5, V).
+
+%% THE BOOKS CLOSE, AND NOW THEY CLOSE ON THE WIRE. A spectator holding one fact
+%% has every term of the First Law and can check the arithmetic itself rather
+%% than trusting the island. Before version 5 the heat was missing, which is
+%% exactly the term that makes the sum constant.
+carries_every_term_of_the_energy_books_test() ->
+    #{ground_total := Ground, energy_total := InCreatures,
+      dissipated := Burnt} = fact(),
+    lists:foreach(fun(V) -> ?assert(is_integer(V) andalso V >= 0) end,
+                  [Ground, InCreatures, Burnt]).
+
+%% ZERO DEPTH MEANS EVERY CREATURE ALIVE IS A FOUNDER, so a fresh world reports
+%% it and that is the correct answer rather than a missing one.
+carries_whether_the_population_can_still_change_test() ->
+    #{lineages := Lines, depth := Depth} = fact(),
+    ?assertEqual(0, Depth),
+    ?assert(Lines > 0).
 
 %% WHICH WORLD, IN THE PAYLOAD. The econ id beside it says whether two islands
 %% are comparable and cannot say what either of them IS: world 6 changed the

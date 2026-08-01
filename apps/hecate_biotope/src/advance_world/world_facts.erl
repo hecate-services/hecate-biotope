@@ -35,7 +35,7 @@
 -export([world_advanced/2, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 4).
+-define(FACT_VERSION, 5).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -86,6 +86,10 @@ world_advanced(Snapshot, Pace) ->
       ground_total := GroundTotal, ground_spread := GroundSpread,
       still_pct := Still, hidden_mean := HiddenMean,
       movers := Movers, breeders := Breeders,
+      dissipated := Dissipated, structure_total := StructureTotal,
+      structure_max := StructureMax, lineages := Lineages, depth := Depth,
+      uptake_min := UptakeMin, uptake_max := UptakeMax,
+      eaten_age_mean := EatenAge,
       scent_tags := Tags, scent_spread := Spread} = Snapshot,
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
@@ -162,6 +166,51 @@ world_advanced(Snapshot, Pace) ->
       %% use it. One distinct tag means the whole population is mutual kin.
       scent_tags => Tags,
       scent_spread => Spread,
+      %% ==================================================================
+      %% THE ENTROPY ACCOUNT, WHICH IS THE ONE NUMBER THAT CANNOT GO DOWN
+      %% ==================================================================
+      %%
+      %% Every unit ever spent on living, in heat. At one temperature this IS the
+      %% entropy of this world, so the Second Law is the statement that this line
+      %% only ever rises, and a reader can watch it do so.
+      %%
+      %% IT IS ALSO THE THIRD TERM THAT CLOSES THE BOOKS. Energy is in the ground,
+      %% in creatures, or already burnt. Ground plus creatures plus this changes
+      %% only by what the sun adds, so a spectator can check the First Law
+      %% arithmetic itself rather than taking the island's word for it. That was
+      %% impossible to publish before because two of the three terms were on the
+      %% wire and the third was not.
+      dissipated => Dissipated,
+      %% WHAT THE POPULATION IS BUILT OF, as against what it is carrying. Since
+      %% world 6 these are different quantities with opposite physics, and since
+      %% world 8 the frame is what a creature can feed through. A contest is
+      %% decided on structure alone, so this is the quantity that says who wins
+      %% one, and the store never was.
+      structure_total => StructureTotal,
+      structure_max => StructureMax,
+      %% ==================================================================
+      %% WHETHER THE POPULATION CAN STILL CHANGE, WHICH IS NOT WHAT IT IS
+      %% ==================================================================
+      %%
+      %% World 8 ended with creatures carrying four hundred times what they were
+      %% founded with, and it ended because nothing had been born since tick 15.
+      %% Every number above describes a population and not one of them could tell
+      %% those two apart. Fisher prices adaptation in the variance available to
+      %% select on: no variance, no adaptation, at any wealth.
+      %%
+      %% `depth' is generations in the deepest living line, so ZERO MEANS EVERY
+      %% CREATURE ALIVE IS A FOUNDER and the world has selected nothing at all.
+      %% `lineages' is how many separate foundings still have descendants.
+      lineages => Lineages,
+      depth => Depth,
+      %% The range of the one heritable quantity that visibly varies. Selection
+      %% has nothing to act on when this closes to nothing.
+      uptake_min => UptakeMin,
+      uptake_max => UptakeMax,
+      %% HOW OLD THE EATEN WERE, in hundredths of a tick. A living made off other
+      %% creatures and a living made off newborns are different findings, and
+      %% neither the share nor the count can tell them apart.
+      eaten_age_mean => EatenAge,
       %% Totals since the world began, never reset.
       born => Born,
       starved => Starved,
