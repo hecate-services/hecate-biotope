@@ -97,15 +97,30 @@ entropy_never_falls_test() ->
 %% A LOSSY WORLD REALLY IS LOSSIER, which sounds obvious and is the check that
 %% the efficiency is wired to anything at all. Three of the six sites were once
 %% added to a snapshot and left out of the report, so wiring is worth testing.
-a_lower_efficiency_burns_more_of_the_same_world_test() ->
-    Gone = fun(Eff) ->
-                   #{dissipated := D} =
-                       world:snapshot(world:tick(
-                                        sealed(#{transfer_efficiency => Eff}),
-                                        60)),
-                   D
-           end,
-    ?assert(Gone(40) > Gone(90)).
+%%
+%% MEASURED PER UNIT MOVED, and the first version of this measured the TOTAL,
+%% which is a different claim and not a true one. A sealed world holds a fixed
+%% amount of energy, so what a low efficiency changes is not how much can ever
+%% burn but how fast anything happens, and at 20% the creatures starve early and
+%% stop transacting. Total dissipation over a fixed window therefore peaks in the
+%% MIDDLE, near 60%, and falls at both ends: 16,537 at 90%, 17,142 at 60%,
+%% 14,845 at 40%, 10,140 at 20%. That is a maximum-power curve of the shape Odum
+%% and Pinkerton describe, and the old assertion was monotone only by accident.
+%%
+%% What IS monotone is the loss per unit transferred, because that is the law
+%% itself rather than a consequence of it: 95, 126, 229, 369 and 949 units burnt
+%% per hundred absorbed, as efficiency falls from 100 to 20.
+a_lower_efficiency_loses_more_of_what_it_moves_test() ->
+    Ratio = fun(Eff) ->
+                    #{dissipated := D, absorbed := A} =
+                        world:snapshot(world:tick(
+                                         sealed(#{transfer_efficiency => Eff}),
+                                         60)),
+                    D * 100 div max(A, 1)
+            end,
+    Falling = [Ratio(Eff) || Eff <- [100, 90, 60, 40, 20]],
+    ?assertEqual(lists:sort(Falling), Falling),
+    ?assert(hd(Falling) < lists:last(Falling)).
 
 %%==============================================================================
 %% The books
@@ -832,3 +847,43 @@ hungry(Energy, Uptake) ->
                        body_mutation => 1000000, uptake_mutation => 0,
                        founder_uptake => Uptake,
                        start_energy => Energy}, fertile())).
+
+%%==============================================================================
+%% Feeding belongs to a creature, not to a contest, which is world 11
+%%==============================================================================
+
+%% ONLY THE WINNER ATE. `absorb' ran for the strongest creature in a cell and for
+%% nobody else, so anything that tied with it survived the contest and then did
+%% not feed at all. Sharing a cell with an equal cost a creature its entire meal.
+%%
+%% ASSERTED ON THE EXACT AMOUNT, because the first version of this test asserted
+%% only that the pair gained SOMETHING, which one eater satisfies as easily as
+%% two. It passed with the fix reverted, which makes it not a test.
+%%
+%% Two identical founders on one cell, uptake 30 against a frame of 200, so each
+%% may draw exactly 30 and neither can eat the other.
+everyone_left_standing_in_a_cell_eats_test() ->
+    #{absorbed := Fed} = world:snapshot(world:tick(crowded(), 1)),
+    ?assertEqual(60, Fed).
+
+%% AND THE WINNER ATE TWICE. World 8 bounds grazing by min(uptake, frame) and
+%% world 10 bounds meat by the same expression; applied independently they let a
+%% creature that made a kill take its body's worth of meat AND its body's worth
+%% of ground in the same tick.
+%%
+%% `absorbed' counts GROUND intake alone, which is the exact quantity the second
+%% helping was made of. A parent whose whole capacity went on its child must draw
+%% nothing from the cell it is standing on, however much is there.
+a_kill_does_not_buy_a_second_helping_test() ->
+    Bred = world:tick(hungry(200, 10), 1),
+    #{absorbed := Before} = world:snapshot(Bred),
+    #{absorbed := After, consumed := Eaten} = world:snapshot(world:tick(Bred, 1)),
+    ?assertEqual(1, Eaten),
+    ?assertEqual(Before, After).
+
+crowded() ->
+    quiet(maps:merge(#{population => 2, radius => 0, ground_seed => 0,
+                       ground_growth_pct => 0, ground_ceiling => 5000,
+                       metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                       max_age => 100000, uptake_mutation => 0,
+                       founder_uptake => 30, start_energy => 400}, inert())).

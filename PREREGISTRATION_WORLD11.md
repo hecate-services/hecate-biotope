@@ -1,5 +1,7 @@
 # Pre-registration: world 11
 
+> **ARCHIVED COPY** of the criteria as frozen before world 11 ran.
+
 **Written before world 11 was built.** Corrects register entry **B.8**. World 10
 is superseded, not edited:
 [PREREGISTRATION_WORLD10.md](PREREGISTRATION_WORLD10.md) and its

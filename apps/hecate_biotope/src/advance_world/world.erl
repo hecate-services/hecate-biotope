@@ -217,10 +217,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 10,
-      line => <<"You can only eat as fast as your body allows, and that is true "
-                "of meat as well: what you kill and cannot finish is left on "
-                "the ground for something else to find.">>}.
+    #{number => 11,
+      line => <<"You can only eat as fast as your body allows, counting meat "
+                "and ground together, and everyone standing in a place gets to "
+                "eat rather than only the biggest.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -677,6 +677,35 @@ occupancy(Cs) -> maps:fold(fun share_cell/3, #{}, Cs).
 share_cell(Id, #{at := At}, Acc) ->
     maps:update_with(At, fun(Together) -> [Id | Together] end, [Id], Acc).
 
+%% ==========================================================================
+%% FEEDING IS A PROPERTY OF A CREATURE, NOT OF A CONTEST, AND IT IS BOUNDED ONCE
+%% ==========================================================================
+%%
+%% This function was wrong in two ways that were invisible in it and visible
+%% only across it, which is now the third time in this register: `C.6' was the
+%% movement fare, `B.7' was capacity at one feeding site and not the other, and
+%% this is `B.8'.
+%%
+%% ONLY THE WINNER ATE. `absorb' was called for the strongest creature in the
+%% cell and for nobody else, so anything that tied with it survived the contest
+%% and then did not feed at all. Sharing a cell with an equal cost a creature its
+%% entire meal, and no rule anywhere says that.
+%%
+%% AND THE WINNER ATE TWICE. World 8 bounds grazing by `min(uptake, frame)' and
+%% world 10 bounds meat by the same, INDEPENDENTLY, so a creature that made a
+%% kill took its body's worth of meat and then its body's worth of ground in the
+%% same tick. The stated law is that a creature cannot take in more than its
+%% body allows. What was implemented is that it cannot take more than its body
+%% allows FROM ANY ONE SOURCE.
+%%
+%% World 10 handed that a second mouthful without noticing: the carrion a
+%% predator cannot finish is buried on its own cell inside `devour', and the
+%% grazing ran immediately afterwards on that same cell.
+%%
+%% So every creature still standing feeds, once, up to its own capacity, from
+%% what is left where it stands. Strongest first, because that is the order the
+%% contest already established and an earlier grazer really does strip the cell.
+%% NO NEW CONSTANT: the bound is the expression that was already at both sites.
 resolve(Ids, #world{creatures = Cs} = W) ->
     %% CONTEST IS DECIDED BY STRUCTURE, not by what a creature is carrying, so a
     %% fat small creature loses to a lean large one. Before world 6 the two were
@@ -684,15 +713,28 @@ resolve(Ids, #world{creatures = Cs} = W) ->
     Ranked = lists:reverse(lists:sort([{maps:get(structure, maps:get(I, Cs)), I}
                                        || I <- Ids])),
     [{_Strongest, Winner} | Rest] = Ranked,
-    absorb(Winner, devour(Winner, [I || {_E, I} <- Rest], W)).
+    {W1, Eaten} = devour(Winner, [I || {_E, I} <- Rest], W),
+    graze(surviving([Winner | [I || {_E, I} <- Rest]], W1), Winner, Eaten, W1).
 
-devour(_Winner, [], W) -> W;
+%% Everything the contest left alive, in the order the contest ranked it.
+surviving(Ids, #world{creatures = Cs}) ->
+    [I || I <- Ids, maps:is_key(I, Cs)].
+
+%% The winner arrives here having already taken `Eaten' of its capacity as meat,
+%% so what it may still draw from the ground is what remains of that same bound.
+graze([], _Winner, _Eaten, W) -> W;
+graze([Winner | Rest], Winner, Eaten, W) ->
+    graze(Rest, Winner, Eaten, absorb(Winner, Eaten, W));
+graze([Id | Rest], Winner, Eaten, W) ->
+    graze(Rest, Winner, Eaten, absorb(Id, 0, W)).
+
+devour(_Winner, [], W) -> {W, 0};
 devour(Winner, Losers, #world{creatures = Cs} = W) ->
     #{structure := Mine} = maps:get(Winner, Cs),
     Weaker = [I || I <- Losers, maps:get(structure, maps:get(I, Cs)) < Mine],
     take_them(Weaker, Winner, W).
 
-take_them([], _Winner, W) -> W;
+take_them([], _Winner, W) -> {W, 0};
 %% A VICTIM YIELDS BOTH HALVES AS STORE. Structure is energy in another form, so
 %% eating something digests its body into what you are carrying, and the books
 %% close over ground plus stores plus structures.
@@ -740,7 +782,7 @@ take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
                   consumed = W#world.consumed + length(Weaker),
                   eaten_age = W#world.eaten_age
                       + lists:sum([maps:get(age, maps:get(I, Cs)) || I <- Weaker])},
-    bury(At, Carcass - Eaten, Ate).
+    {bury(At, Carcass - Eaten, Ate), Eaten}.
 
 %% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and that is the whole of world 4.
 %% World 3 took everything, so every grazed cell sat at zero, so stock-dependent
@@ -770,10 +812,13 @@ whole(#{energy := E, structure := S}) -> max(0, E) + max(0, S).
 %% Death from having no body is then a CONSEQUENCE rather than a decree: a
 %% creature with no frame cannot feed, so it starves like anything else that
 %% cannot feed. No rule anywhere says a frame of zero is fatal.
-absorb(Id, #world{creatures = Cs, ground = G} = W) ->
+absorb(Id, Already, #world{creatures = Cs, ground = G} = W) ->
     #{at := At, energy := E, from_ground := P, uptake := Want,
       structure := Body} = C = maps:get(Id, Cs),
-    Rate = min(Want, max(0, Body)),
+    %% WHAT IS LEFT OF ONE BOUND, not a second helping of it. `Already' is what
+    %% this creature has taken as meat in this same tick, and before world 11
+    %% the two were counted apart, so a kill bought a whole extra body's worth.
+    Rate = max(0, min(Want, max(0, Body)) - Already),
     {Drawn, G1} = ground:draw(At, Rate, G),
     %% ASSIMILATION IS A TRANSFORMATION AND LOSES ITS SHARE. What leaves the
     %% ground is not what arrives in the creature, and the difference is heat.
