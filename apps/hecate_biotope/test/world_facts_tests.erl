@@ -54,15 +54,29 @@ carries_totals_rather_than_rates_test() ->
                           ?assert(lists:all(fun is_integer/1, Bars))
                   end, [sensor_hist, hidden_hist, uptake_hist]).
 
-%% VERSION 3, BECAUSE THERE ARE NO PLANTS ANY MORE. A plant was never a kind of
-%% thing: it is a way of living, and world 2 deleted the entity, the list of
-%% them on the chart and the counter of them eaten. Energy now gathers in the
-%% GROUND and a creature that stays put living off it simply is one. A spectator
-%% pinned to version 2 would look for a list that no longer exists.
+%% VERSION 4, WHICH NAMES WHICH WORLD IS RUNNING. Before it, a spectator watching
+%% a fleet mid-rollout had no way to tell that two cards were showing different
+%% physics, because the econ id it would reach for is identical across the
+%% change.
+%%
+%% Version 3 was the one where plants stopped existing. A plant was never a kind
+%% of thing, it is a way of living, and world 2 deleted the entity, the list of
+%% them on the chart and the counter of them eaten.
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(3, V).
+    ?assertEqual(4, V).
+
+%% WHICH WORLD, IN THE PAYLOAD. The econ id beside it says whether two islands
+%% are comparable and cannot say what either of them IS: world 6 changed the
+%% rules and not one constant, so an island a whole world apart carries an
+%% identical econ id. A fleet is redeployed one node at a time, so during a
+%% rollout that difference is real and a reader must be able to see it.
+carries_which_world_it_is_and_a_sentence_saying_what_that_means_test() ->
+    #{world := N, world_line := Line} = fact(),
+    #{number := Expected} = world:ruleset(),
+    ?assertEqual(Expected, N),
+    ?assert(byte_size(Line) > 0).
 
 %%==============================================================================
 %% The chart

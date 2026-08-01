@@ -35,7 +35,7 @@
 -export([world_advanced/2, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 3).
+-define(FACT_VERSION, 4).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -102,6 +102,16 @@ world_advanced(Snapshot, Pace) ->
       %% distinguish, and ten small integers a second is not a cost.
       econ_id => EconId,
       econ => Econ,
+      %% WHICH WORLD, and one sentence describing it. The econ id above says
+      %% whether two islands are comparable and cannot say WHAT either of them
+      %% is: two islands can share every constant and still be running different
+      %% physics, because the rules live in code and the constants do not.
+      %%
+      %% A fleet is redeployed island by island, so during a rollout the cards
+      %% genuinely disagree, and a reader with no way to see that is left
+      %% comparing two experiments as though they were one.
+      world => maps:get(number, world:ruleset()),
+      world_line => maps:get(line, world:ruleset()),
       %% WHAT THE POPULATION TURNED OUT TO BE, all of it observational. Nothing
       %% here is read by the physics and no creature is treated differently for
       %% what any of it says, which is what makes it legitimate to publish at
