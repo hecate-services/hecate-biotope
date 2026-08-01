@@ -183,3 +183,38 @@ a_pinned_seed_never_begins_again_test() ->
                  ?assertEqual(4242, Seed),
                  ?assertEqual(0, Pop)
              end).
+
+%% AN ISLAND LOOKS BEFORE IT COMMITS. World 12 splits by tick 40 and eight seeds
+%% in twelve die, so a fleet drawing freely shows three worlds in the act of
+%% failing most of the time. A world is a pure function of its seed and headless
+%% ticking is fast, so a candidate can be run through its founding phase and kept
+%% only if it survives.
+%%
+%% Asserted as the world being alive well past the founding phase, which an
+%% unscreened draw fails two times in three.
+a_drawn_seed_is_screened_for_viability_test() ->
+    with_env([{"HECATE_BIOTOPE_SLOT_MS", "1"},
+              {"HECATE_BIOTOPE_TICKS_PER_SLOT", "800"}],
+             fun() ->
+                 Pid = start(),
+                 timer:sleep(200),
+                 #{population := Pop, tick := Tick} = world_server:snapshot(),
+                 stop(Pid),
+                 ?assert(Tick > 700),
+                 ?assert(Pop > 0)
+             end).
+
+%% A PINNED SEED IS NEVER SCREENED. Pinning means run exactly this world, and
+%% quietly running a different one because the pinned one dies is the opposite of
+%% what pinning asks for. Seed 303 dies, and it must be allowed to.
+a_pinned_seed_is_run_even_when_it_dies_test() ->
+    with_env([{"HECATE_BIOTOPE_SEED", "303"},
+              {"HECATE_BIOTOPE_SLOT_MS", "1"},
+              {"HECATE_BIOTOPE_TICKS_PER_SLOT", "800"}],
+             fun() ->
+                 Pid = start(),
+                 timer:sleep(200),
+                 #{seed := Seed} = world_server:snapshot(),
+                 stop(Pid),
+                 ?assertEqual(303, Seed)
+             end).

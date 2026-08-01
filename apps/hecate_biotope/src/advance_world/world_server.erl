@@ -39,7 +39,11 @@
                 %% The tick the PREVIOUS world ended on. Published, because a
                 %% spectator watching the tick reset to nothing deserves to be
                 %% told it is a new world and not a glitch.
-                previous_end :: non_neg_integer() | undefined}).
+                previous_end :: non_neg_integer() | undefined,
+                %% How many candidate seeds were drawn and found dead before
+                %% this one. Published, because a screened fleet is a BIASED
+                %% sample and saying so is the difference between honest and not.
+                rejected = 0 :: non_neg_integer()}).
 
 -define(SERVER, ?MODULE).
 
@@ -59,10 +63,10 @@ pace() -> gen_server:call(?SERVER, pace).
 
 init([]) ->
     Pace = world_pace:from_env(),
-    Opts = world_opts(),
-    World = world:new(Opts),
     Reseeds = os:getenv("HECATE_BIOTOPE_SEED") =:= false
         orelse os:getenv("HECATE_BIOTOPE_SEED") =:= "",
+    {Opts, Rejected} = screened(world_opts(), Reseeds),
+    World = world:new(Opts),
     logger:info("biotope: ~p creatures, radius ~p, ~p ticks/s, fact every ~pms",
                 [world:population(World), maps:get(radius, world:defaults()),
                  world_pace:ticks_per_second(Pace),
@@ -70,7 +74,8 @@ init([]) ->
     schedule(slot, maps:get(slot_ms, Pace)),
     schedule(publish, maps:get(publish_ms, Pace)),
     schedule_chart(maps:get(chart_ms, Pace)),
-    {ok, #state{world = World, pace = Pace, reseeds = Reseeds}}.
+    {ok, #state{world = World, pace = Pace, reseeds = Reseeds,
+                rejected = Rejected}}.
 
 handle_call(snapshot, _From, #state{world = W} = S) ->
     {reply, world:snapshot(W), S};
@@ -90,8 +95,8 @@ handle_info(slot, #state{world = W, pace = P} = S) ->
     {noreply, still_going(world:population(W1), S#state{world = W1})};
 
 handle_info(publish, #state{world = W, pace = P, run = Run,
-                            previous_end = Was} = S) ->
-    Fact = world_facts:world_advanced(world:snapshot(W), P, Run, Was),
+                            previous_end = Was, rejected = Rejected} = S) ->
+    Fact = world_facts:world_advanced(world:snapshot(W), P, Run, Was, Rejected),
     S1 = record(biotope_mesh:publish(world_facts:topic(world), Fact), S),
     schedule(publish, maps:get(publish_ms, P)),
     {noreply, S1};
@@ -143,11 +148,12 @@ begin_again(false, S) ->
     S;
 begin_again(true, #state{world = Old, run = Run} = S) ->
     #{extinct_at := Ended} = world:snapshot(Old),
-    Fresh = world:new(world_opts()),
+    {Opts, Rejected} = screened(world_opts(), true),
+    Fresh = world:new(Opts),
     logger:info("biotope: world ~p ended at tick ~p, beginning run ~p on seed ~p",
                 [Run, Ended, Run + 1, maps:get(seed, world:snapshot(Fresh))]),
     S#state{world = Fresh, run = Run + 1, ended_at = undefined,
-            previous_end = Ended}.
+            previous_end = Ended, rejected = Rejected}.
 
 %% How long a finished world is left on show. A SERVICE setting and not a
 %% physical constant: it changes nothing inside any world and belongs with the
@@ -202,6 +208,48 @@ seed(Str) -> #{seed => list_to_integer(string:trim(Str))}.
 
 fresh_seed() ->
     erlang:phash2({erlang:system_time(microsecond), erlang:unique_integer()}).
+
+%% ==========================================================================
+%% A DRAWN SEED IS SCREENED FOR VIABILITY, AND THE SCREENING IS PUBLISHED
+%% ==========================================================================
+%%
+%% World 12 splits by tick 40 and never reverses. Two seeds in six climb past a
+%% thousand creatures; the rest collapse to single digits by tick 60, sit flat
+%% for five hundred ticks, and end when the founders age out at 601. Eight of
+%% twelve seeds die. A fleet drawing freely therefore spends most of its time
+%% showing three worlds in the act of failing, which is a true picture of the
+%% distribution and a poor picture of the world.
+%%
+%% SO THE ISLAND LOOKS BEFORE IT COMMITS. A world is a pure function of its seed
+%% and headless ticking is fast, so a candidate can simply be run for its
+%% founding phase and kept only if it is still alive at the end. That is the one
+%% thing this determinism is unambiguously good for.
+%%
+%% THE CRITERION IS VIABILITY AND NOTHING ELSE, which is the single exception the
+%% standing rule allows: a seed is never chosen for the population it reaches,
+%% the depth it gets to or how the chart looks, only for being alive. The first
+%% candidate that survives is taken.
+%%
+%% AND THE COUNT IS PUBLISHED, because a screened fleet is a BIASED sample and
+%% saying so is the whole difference between honest and not. The offline sweeps
+%% remain the unbiased record; the fleet shows worlds that got past the founding
+%% phase, and every fact says how many did not.
+-define(SCREEN_TICKS, 700).
+-define(SCREEN_TRIES, 24).
+
+screened(#{seed := _Pinned} = Opts, false) -> {Opts, 0};
+screened(Opts, true) -> try_seed(Opts, 0).
+
+try_seed(Opts, ?SCREEN_TRIES) -> {Opts, ?SCREEN_TRIES};
+try_seed(Opts, Rejected) ->
+    keep(survives(Opts), Opts, Rejected).
+
+keep(true, Opts, Rejected) -> {Opts, Rejected};
+keep(false, Opts, Rejected) ->
+    try_seed(Opts#{seed => fresh_seed()}, Rejected + 1).
+
+survives(Opts) ->
+    world:population(world:tick(world:new(Opts), ?SCREEN_TICKS)) > 0.
 
 econ_overrides(false) -> #{};
 econ_overrides("") -> #{};

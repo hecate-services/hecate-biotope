@@ -54,6 +54,9 @@ carries_totals_rather_than_rates_test() ->
                           ?assert(lists:all(fun is_integer/1, Bars))
                   end, [sensor_hist, hidden_hist, uptake_hist]).
 
+%% VERSION 8 SAYS HOW MANY SEEDS WERE REJECTED, because a screened fleet is a
+%% biased sample and saying so is the difference between honest and not.
+%%
 %% VERSION 7 SAYS WHICH RUN THIS IS. A world that ended stays ended and an island
 %% that has finished one begins another, so a spectator watching the tick drop
 %% back to nothing is told it is a new world rather than left to read a glitch.
@@ -80,7 +83,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(7, V).
+    ?assertEqual(8, V).
 
 %% THE BOOKS CLOSE, AND NOW THEY CLOSE ON THE WIRE. A spectator holding one fact
 %% has every term of the First Law and can check the arithmetic itself rather
@@ -206,8 +209,8 @@ carries_which_run_this_is_test() ->
     ?assertMatch(#{run := 1}, fact()),
     ?assertEqual(false, maps:is_key(previous_end, fact())),
     Later = world_facts:world_advanced(world:snapshot(world:new(#{population => 7})),
-                                       world_pace:from_map(#{}), 3, 630),
-    ?assertMatch(#{run := 3, previous_end := 630}, Later).
+                                       world_pace:from_map(#{}), 3, 630, 5),
+    ?assertMatch(#{run := 3, previous_end := 630, seeds_rejected := 5}, Later).
 
 %% EVERYTHING THE PICTURE NEEDS, ON THE WIRE. `chart/1' computes more than this
 %% function used to forward, and the one it dropped was `structures': a

@@ -32,10 +32,10 @@
 -module(world_facts).
 
 -export([topic/1, namespace/0, island/0]).
--export([world_advanced/2, world_advanced/4, world_charted/2]).
+-export([world_advanced/2, world_advanced/5, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 7).
+-define(FACT_VERSION, 8).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -73,7 +73,7 @@ hostname() ->
 
 %% @doc Counts and totals. Small enough to keep forever.
 -spec world_advanced(map(), world_pace:pace()) -> map().
-world_advanced(Snapshot, Pace) -> world_advanced(Snapshot, Pace, 1, undefined).
+world_advanced(Snapshot, Pace) -> world_advanced(Snapshot, Pace, 1, undefined, 0).
 
 %% @doc As above, saying which RUN this is on this island.
 %%
@@ -82,8 +82,8 @@ world_advanced(Snapshot, Pace) -> world_advanced(Snapshot, Pace, 1, undefined).
 %% told that rather than left to read it as a glitch. `previous_end' is the tick
 %% the last world died on, so the ending survives the world that owned it.
 -spec world_advanced(map(), world_pace:pace(), pos_integer(),
-                     non_neg_integer() | undefined) -> map().
-world_advanced(Snapshot, Pace, Run, PreviousEnd) ->
+                     non_neg_integer() | undefined, non_neg_integer()) -> map().
+world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected) ->
     #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
       absorbed := Absorbed, births_refused := Refused,
@@ -125,6 +125,19 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd) ->
       %% and an unrepeatable exhibit only ever conflicted while this was secret.
       seed => Seed,
       run => Run,
+      %% HOW MANY CANDIDATE SEEDS WERE DRAWN AND FOUND DEAD before this one.
+      %%
+      %% A world is a pure function of its seed, so an island can run a
+      %% candidate headless through its founding phase and keep it only if it is
+      %% still alive. World 12 kills eight seeds in twelve, so a fleet drawing
+      %% freely spends most of its time showing worlds in the act of failing.
+      %%
+      %% THE COUNT IS ON THE WIRE BECAUSE A SCREENED FLEET IS A BIASED SAMPLE.
+      %% The offline sweeps stay the unbiased record; these islands show worlds
+      %% that got past their founding, and every fact says how many did not. The
+      %% criterion is viability and nothing else: never the population reached,
+      %% never the depth, only being alive.
+      seeds_rejected => Rejected,
       %% WHICH WORLD, and one sentence describing it. The econ id above says
       %% whether two islands are comparable and cannot say WHAT either of them
       %% is: two islands can share every constant and still be running different
