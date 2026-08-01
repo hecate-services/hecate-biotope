@@ -20,6 +20,68 @@ should appear" is a conclusion and must never be installed. Every entry below is
 of the first kind, and an entry earns its place by being a fact about energy that
 this world currently gets wrong, not by being likely to produce anything.
 
+## What an entry is actually worth: does it price a free good?
+
+Raf, on method: **tradeoff** is the load-bearing word.
+
+The precise claim is not that tradeoffs drive evolution. Evolution runs without
+them: if longer legs are always better, legs get longer, and we have had plenty
+of that. Sensors were removed, feeding rate climbed, brains were deleted. All
+real selection, all converging on one answer.
+
+**Tradeoffs are the motor of DIVERSITY.** When increasing one good decreases
+another, the best point becomes conditional, so different circumstances give
+different optima and there is finally something to be good at. Without one there
+is a single answer and everything finds it.
+
+It fits every result this project has:
+
+| | live tradeoff? | outcome |
+|---|---|---|
+| `breed_at`, world 1 | designed as one, but children almost never starved, so the cost side was near zero | drifted |
+| scent signature | none: costs nothing, does nothing for its bearer | drifted |
+| the nose, world 1 | yes, but rent exceeded the gain about threefold | selected out |
+| sensors, every world | rent against information, and information is worthless when nothing moves | selected out |
+| stock-dependent recovery, world 3 | created none: a stayer's income was unchanged | nothing happened |
+| **feeding rate, world 4** | **yes, genuinely: eat now against the cell sustaining you later** | **the first trait in five worlds to be SELECTED rather than drift** |
+
+### And the refinement world 4 forced
+
+That tradeoff was live and it still resolved toward greed, because a third term
+with no tradeoff attached overrode it: large creatures win contests, 97% of all
+deaths are being eaten, and **holding energy costs nothing**.
+
+**A tradeoff only motors anything if nothing adjacent is free. One free good
+neutralises every tradeoff it touches.**
+
+### The free goods currently in this world
+
+- **holding energy** (2.1) — flat metabolism regardless of mass
+- **eating at all** (4.2) — no cost to subdue, and no decision either
+- **eating a creature specifically** (4.3) — perfect trophic efficiency, so
+  carnivory costs no more than grazing
+- **being still** (3.2) — costs nothing and risks nothing, since nothing can find
+  you
+
+Every failure recorded here traces to one of those four. **An entry that prices a
+free good is worth more than one that does not**, and the four above are marked
+in the tables.
+
+### Why the brains keep being deleted
+
+A brain is the organ for resolving a tradeoff CONDITIONALLY: eat fast when the
+cell is rich, flee when small, fight when large. It is worth its rent exactly
+when the right answer depends on circumstance.
+
+This world has **one drive**. Hunger, survival and reproduction all reduce to
+*get more energy*, which is food, armour and offspring at once. Nothing pulls
+against anything. And the one place a genuinely competing drive could have lived
+is gone: **flight does not exist** because nothing can escape, and **fight is not
+optional** because consumption is unconditional.
+
+So the brains are not being deleted for being too small. **They are being deleted
+because there is nothing to decide.**
+
 ## The order of work
 
 **Follow the energy.** Where it enters, what it costs to hold, what it costs to
@@ -42,7 +104,7 @@ seems most promising this week.
 
 | # | The simplification | Status |
 |---|---|---|
-| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **OPEN.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
+| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **OPEN. PRICES A FREE GOOD: holding energy.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
 | 2.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
 | 2.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
 | 2.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
@@ -52,7 +114,7 @@ seems most promising this week.
 | # | The simplification | Status |
 |---|---|---|
 | 3.1 | Movement costs the same whatever a creature weighs | **OPEN.** Removes the small-and-quick against large-and-slow axis entirely. |
-| 3.2 | Everything moves exactly one cell per tick | **OPEN.** No pursuit and no flight, so escape does not exist and "prey" has no strategy available but being larger, which is the predator strategy. |
+| 3.2 | Everything moves exactly one cell per tick | **OPEN. PRICES A FREE GOOD: being still.** No pursuit and no flight, so escape does not exist and "prey" has no strategy available but being larger, which is the predator strategy. |
 | 3.3 | Reproduction costs only the dowry: no gestation, no gamete production | **OPEN.** |
 | 3.4 | Offspring are placed at a fixed distance by a fixed rule | **OPEN.** Dispersal is not heritable, so kin competition, which theory says drives movement in exactly this world's conditions, has nothing to act on. |
 | 3.5 | The dowry is exactly half, and not heritable | **OPEN.** |
@@ -62,8 +124,8 @@ seems most promising this week.
 | # | The simplification | Status |
 |---|---|---|
 | 4.1 | A creature absorbed everything in its cell instantly | **CORRECTED**, world 4. Feeding is rate-limited and heritable. Produced the first positive: the landscape differentiates, `ground_spread` 26-86 against 9 before. |
-| 4.2 | **Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, and partly self-inflicted.** World 1 had a cost and a decision; removing the named verb `hunt` was right, and making consumption unconditional in the same change was a separate act that was never justified. **A creature cannot be a herbivore even in principle**: if it is the biggest thing present it eats, whether that suits it or not. |
-| 4.3 | **Trophic efficiency is 100%.** A victim's entire energy transfers to whatever ate it | **OPEN.** Real food chains lose roughly nine tenths per level. As it stands, herbivory and carnivory are economically identical, so there is nothing to specialise *into*. |
+| 4.2 | **PRICES A FREE GOOD: eating. Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, and partly self-inflicted.** World 1 had a cost and a decision; removing the named verb `hunt` was right, and making consumption unconditional in the same change was a separate act that was never justified. **A creature cannot be a herbivore even in principle**: if it is the biggest thing present it eats, whether that suits it or not. |
+| 4.3 | **Trophic efficiency is 100%.** A victim's entire energy transfers to whatever ate it | **OPEN. PRICES A FREE GOOD: eating creatures rather than ground.** Real food chains lose roughly nine tenths per level. As it stands, herbivory and carnivory are economically identical, so there is nothing to specialise *into*. |
 | 4.4 | Absorption from the ground is likewise perfectly efficient | **OPEN**, and the same question. |
 
 ## 5. Where energy goes
@@ -107,3 +169,7 @@ including **no effect**, which three of the five corrections so far have had.
 **A correction that changes nothing is not a failure.** It removes a
 simplification from the list of things that could have been responsible, which is
 the only way a map of this kind ever gets built.
+
+And when a world is proposed, it should say **which free good it prices, and
+which tradeoff that leaves live**. A correction that leaves everything adjacent
+free will be overridden the way world 4's was, however physical it is.
