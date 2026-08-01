@@ -49,7 +49,38 @@ main(_Args) ->
     recovery_table(Econ),
     verdict("ground_growth_pct", fastest_enough(Econ),
             maps:get(ground_growth_pct, Econ)),
+    yield_line(Econ),
     endgame(Econ).
+
+%% THE LINE BETWEEN THE TWO LIVINGS, which world 4's pre-registration requires be
+%% measured and reported before any run. It is derived from the growth curve
+%% rather than chosen, and it is reported so that both sides are known to be
+%% REACHABLE, never to arrange which side wins.
+yield_line(Econ) ->
+    Sustainable = ground:sustainable(Econ),
+    Metabolism = maps:get(metabolism, Econ),
+    Ceiling = maps:get(ground_ceiling, Econ),
+    io:format("the most a cell yields every tick without being stripped: ~p~n",
+              [Sustainable]),
+    io:format("  a lineage feeding at or below it holds its cell for good~n"),
+    io:format("  above it the cell is stripped and income falls to ~p, the floor~n",
+              [maps:get(ground_seed, Econ)]),
+    io:format("  founding rates are drawn across 0 to ~p, so both sides exist~n",
+              [Ceiling]),
+    io:format("~s~n~n", [reachable(Sustainable > Metabolism, Sustainable,
+                                   Metabolism)]).
+
+reachable(true, Sustainable, Metabolism) ->
+    io_lib:format("BOTH LIVINGS ARE REACHABLE: a prudent lineage nets ~p a tick "
+                  "against a~ncost of ~p, and a greedy one must move or starve. "
+                  "Which wins is not~nsomething this script can say, and is the "
+                  "question being asked.",
+                  [Sustainable, Metabolism]);
+reachable(false, Sustainable, Metabolism) ->
+    io_lib:format("STAYING PUT IS NOT VIABLE AT ALL: the best a cell can sustain "
+                  "is ~p against~na cost of ~p, so the world has decided in "
+                  "advance that everything must move.",
+                  [Sustainable, Metabolism]).
 
 %%==============================================================================
 %% Whether sitting still can support a lineage

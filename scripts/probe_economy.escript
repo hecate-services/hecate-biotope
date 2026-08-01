@@ -117,6 +117,11 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% a winner. A probe that reports one number at the top is a probe that will be
 %% run until that number moves, and this project has already made that mistake.
 %%
+%% `eats' is the population's mean feeding rate, which is world 4's axis. Below
+%% what a cell sustains, a lineage holds its ground for good; above it, the cell
+%% is stripped and its income collapses to the bare floor. Nothing calls either of
+%% those prudence or greed.
+%%
 %% `still' is the plant-ness of the population and nothing in the rules calls it
 %% that: there are no plants, so a creature that stays where it is and lives off
 %% what gathers there simply is one. `gspr' is the share of ground energy in the
@@ -124,18 +129,20 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% structure that nobody installed. `move' and `bred' are how many creatures can
 %% do those things AT ALL, since an absent output is not a weak one.
 outcomes(Rows) ->
-    io:format("~n~s~n", [row(["seed", "still%", "meat%", "body", "brain",
-                              "move", "bred", "gspr", "tags", "sspr"])]),
+    io:format("~n~s~n", [row(["seed", "still%", "eats", "meat%", "body",
+                              "brain", "move", "bred", "gspr", "tags",
+                              "sspr"])]),
     lists:foreach(fun print_outcome/1, Rows).
 
 print_outcome(#{seed := S,
                 final := #{still_pct := Still, from_creatures_pct := Meat,
                            sensor_mean := Body, hidden_mean := Brain,
+                           uptake_mean := Eats,
                            movers := Movers, breeders := Breeders,
                            ground_spread := GSpread, scent_tags := Tags,
                            scent_spread := SSpread}}) ->
-    io:format("~s~n", [row([S, Still, Meat, Body, Brain, Movers, Breeders,
-                            GSpread, Tags, SSpread])]).
+    io:format("~s~n", [row([S, Still, Eats, Meat, Body, Brain, Movers,
+                            Breeders, GSpread, Tags, SSpread])]).
 
 %% WHAT THEY MEASURE, AND WHETHER ANYTHING ACTS ON IT. Carriers then attention,
 %% per field, because CARRYING A SENSOR AND USING ONE ARE DIFFERENT THINGS: a
