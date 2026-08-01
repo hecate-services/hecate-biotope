@@ -784,3 +784,51 @@ an_empty_world_has_no_largest_creature_test() ->
     #{population := Pop, energy_max := Max} = world:snapshot(W),
     ?assertEqual(0, Pop),
     ?assertEqual(0, Max).
+
+%%==============================================================================
+%% Capacity bounds MEAT too, which is world 10
+%%==============================================================================
+
+%% WORLD 8'S RULE ARRIVING AT THE SITE IT MISSED. Grazing has been bounded by
+%% `min(uptake, frame, cell)' since world 8; predation was bounded by nothing at
+%% all, so a creature that could sip its frame's worth from the ground could
+%% swallow an unlimited number of unlimited-size victims in the same tick.
+%%
+%% Radius 0 is one cell, so parent and child stand together and the parent, which
+%% keeps its whole frame since world 9, always wins. `founder_uptake' is set to a
+%% number far below what the child is worth, which is what makes the bound
+%% visible: without it the parent's own frame would be the binding term and the
+%% test would pass for the wrong reason.
+a_predator_takes_only_what_its_body_can_hold_test() ->
+    W = world:tick(hungry(200, 10), 2),
+    #{energy_max := Store, consumed := Eaten} = world:snapshot(W),
+    %% The child is worth 50 and the parent can take 10 of it.
+    ?assertEqual(1, Eaten),
+    ?assert(Store =< 60).
+
+%% AND WHAT IT CANNOT HOLD IS A CORPSE. Conservation forces this rather than
+%% anyone choosing it: the energy has to go somewhere and the only place is the
+%% ground it died on. The ground starts and stays at nothing in this fixture, so
+%% anything found there was left by the kill.
+a_kill_leaves_carrion_on_the_ground_test() ->
+    Before = world:snapshot(world:tick(hungry(200, 10), 1)),
+    After  = world:snapshot(world:tick(hungry(200, 10), 2)),
+    ?assertEqual(0, maps:get(ground_total, Before)),
+    ?assert(maps:get(ground_total, After) > 0).
+
+%% AND THE BOOKS STILL CLOSE OVER IT. A cap that dropped the remainder instead of
+%% burying it would destroy energy and read as a perfectly healthy world.
+eating_only_part_of_a_victim_conserves_the_rest_test() ->
+    W = hungry(200, 10),
+    ?assertEqual(closed_books(W), closed_books(world:tick(W, 2))).
+
+%% A parent that will breed, in a single cell, feeding at a chosen rate.
+hungry(Energy, Uptake) ->
+    quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+                       ground_growth_pct => 0, ground_ceiling => 0,
+                       metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                       max_age => 100000, brain_mutation => 0,
+                       brain_mutation_structural => 1000000,
+                       body_mutation => 1000000, uptake_mutation => 0,
+                       founder_uptake => Uptake,
+                       start_energy => Energy}, fertile())).

@@ -198,10 +198,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 9,
-      line => <<"You can only eat as fast as your body allows, so a creature "
-                "with no body starves. Having a child costs you half of what "
-                "you have saved up, but never a piece of your own body.">>}.
+    #{number => 10,
+      line => <<"You can only eat as fast as your body allows, and that is true "
+                "of meat as well: what you kill and cannot finish is left on "
+                "the ground for something else to find.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -676,22 +676,51 @@ take_them([], _Winner, W) -> W;
 %% A VICTIM YIELDS BOTH HALVES AS STORE. Structure is energy in another form, so
 %% eating something digests its body into what you are carrying, and the books
 %% close over ground plus stores plus structures.
+%% A PREDATOR TAKES WHAT ITS BODY CAN HOLD, AND NO MORE, WHICH IS WORLD 8'S RULE
+%% ARRIVING AT THE SITE IT MISSED.
+%%
+%% World 8 said a creature cannot take in more than its frame and applied it to
+%% `absorb/2', where grazing is bounded by `min(uptake, frame, what is in the
+%% cell)'. Energy enters a creature at TWO sites and the other one was left
+%% alone, so until world 10 a creature that could sip four hundred a tick from
+%% the ground could swallow an unlimited number of unlimited-size victims in a
+%% single one. beam00 was taking 41% of its energy that way.
+%%
+%% NOBODY WROTE THAT RULE. It lived in the difference between two code paths,
+%% which is exactly where the movement fare hid for five worlds (C.6). The only
+%% way to find this kind of thing is to ask whether the same law holds at every
+%% site, and the answer here was no.
+%%
+%% NO NEW CONSTANT: the bound is the expression already in `absorb/2'.
+%%
+%% WHAT THE PREDATOR CANNOT HOLD IS A CORPSE, and conservation forces that rather
+%% than anyone choosing it: the energy has to go somewhere and the only place is
+%% the ground it died on, buried exactly as every other corpse is. So a kill now
+%% leaves CARRION, and eating something you could not have killed becomes a way
+%% of living that nobody designed in.
+%%
+%% Who dies is unchanged. The contest still goes to the largest and every weaker
+%% creature in the cell still loses; only how much of them the winner can use has
+%% changed.
 take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
-    Taken = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
+    Carcass = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
+    #{energy := E, from_creatures := F, at := At,
+      uptake := Want, structure := Body} = C = maps:get(Winner, Cs),
+    Eaten = min(Carcass, min(Want, max(0, Body))),
     %% THE SAME LOSS AS EATING GROUND, and deliberately the same. Prey tissue
     %% really does convert more cheaply than raw material, but HOW MANY steps
     %% that saves is a fact about particular chemistry rather than about
     %% thermodynamics. This world prices steps and does not count them, so
     %% predation gets no discount here and world 7 is the test of whether it can
     %% pay without one.
-    Gain = delivered(Taken, maps:get(transfer_efficiency, Econ)),
-    #{energy := E, from_creatures := F} = C = maps:get(Winner, Cs),
+    Gain = delivered(Eaten, maps:get(transfer_efficiency, Econ)),
     Fed = C#{energy => E + Gain, from_creatures => F + Gain},
-    W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
-            dissipated = W#world.dissipated + (Taken - Gain),
-            consumed = W#world.consumed + length(Weaker),
-            eaten_age = W#world.eaten_age
-                + lists:sum([maps:get(age, maps:get(I, Cs)) || I <- Weaker])}.
+    Ate = W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
+                  dissipated = W#world.dissipated + (Eaten - Gain),
+                  consumed = W#world.consumed + length(Weaker),
+                  eaten_age = W#world.eaten_age
+                      + lists:sum([maps:get(age, maps:get(I, Cs)) || I <- Weaker])},
+    bury(At, Carcass - Eaten, Ate).
 
 %% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and that is the whole of world 4.
 %% World 3 took everything, so every grazed cell sat at zero, so stock-dependent

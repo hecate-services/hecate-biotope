@@ -1,127 +1,107 @@
-# Pre-registration: world 9
+# Pre-registration: world 10
 
-**Written before world 9 was built.** Corrects register entry **C.7**. World 8 is
-superseded, not edited: [PREREGISTRATION_WORLD8.md](PREREGISTRATION_WORLD8.md)
-and its [results](RESULTS_WORLD8.md) stand as the record of a different world.
+**Written before world 10 was built.** Corrects register entry **B.7**. World 9
+is superseded, not edited:
+[PREREGISTRATION_WORLD9.md](PREREGISTRATION_WORLD9.md) and its
+[results](RESULTS_WORLD9.md) stand as the record of a different world.
 
 Thermodynamics at the classical scale still governs. See world 7's file for the
 four laws applied one at a time; nothing here changes any of them.
 
-## Why there is a world 9
+## Why there is a world 10
 
-World 8 ended with a rich, frozen, sterile population. The measured cause is that
-reproduction takes half the parent's **frame**, and world 8 had just made the
-frame the cap on feeding, so breeding permanently halves the organ that pays for
-everything. The transfer is also lossy, which makes it geometric:
+**World 8's rule was applied at one of the two sites where energy enters a
+creature.**
 
-> child frame = parent frame × efficiency / 200
+Grazing has been bounded since world 8 by `min(uptake, frame, what is in the
+cell)`. Predation has never been bounded by anything. `take_them/3` sums the
+whole of every weaker creature sharing the cell and hands all of it to the
+winner in a single tick, so a creature that can sip four hundred a tick from the
+ground can swallow an unlimited number of unlimited-size victims in the same
+tick. The live fleet is currently taking 41% of its energy that way.
 
-Deepest generation ever alive came out at 7, 4 and 1 at efficiencies 100, 70 and
-30, against 5, 3 and 2 predicted from that ratio before the run. Lineages that
-breed disappear within a few generations, so selection kept the founders that do
-not breed, and after tick 35 nothing new was ever produced.
-
-**A tradeoff one end of which is "leave the game" is not a tradeoff.** That is
-what has to go.
+**Nobody wrote that rule.** It lives in the difference between two code paths,
+which is precisely where the movement fare hid for five worlds before entry
+**C.6** found it. The lesson recorded there was that a bookkeeping asymmetry can
+be a physical rule in disguise and only exact accounting finds it; the method
+that follows from it is to ask whether the same law holds at every site. Asked
+here, the answer was no.
 
 ## The single change
 
-**Reproduction is paid out of the store. A parent does not dismantle its own body
-to make a child.**
+**Capacity bounds meat too.**
 
-    dowry     = half the store, as before
-    delivered = dowry × efficiency, as before
-    the child is founded FROM the dowry: half store, half frame,
-      the odd unit to the frame
+    absorbed = min(uptake, frame, what is there)
 
-    the parent's structure is not touched
+at both feeding sites rather than one.
 
-**No new constant.** The dowry is still half the store, exactly as in world 8, and
-the child is split by the rule that already founds a founder from `start_energy`,
-which is registered as the least-informative split rather than as physics. What
-is deleted is the taking of structure.
+**No new constant.** It is the expression already in `absorb/2`.
 
-This is what a reproductive buffer is in Kooijman's Dynamic Energy Budget theory,
-which independently arrived at world 6's store and structure split: reproduction
-is fed from reserve and never from working tissue. It is also what nearly every
-organism does, and the exception, resorbing your own body to breed, is a thing
-that happens once at the end of a life rather than every tick.
+### What conservation forces
 
-### An amendment, written before the first run
+**What the predator cannot hold is a corpse.** The energy has to go somewhere,
+and the only place is the ground it died on, deposited through `bury/3` exactly
+as every other corpse is, decay and all. That is not a second change: it is the
+First Law, and refusing it would destroy energy.
 
-**A parent now outweighs its newborn at every founding energy.** Nobody wrote
-that rule and it was not in the paragraph above. It falls out of the change:
-the parent keeps its whole frame and gives from the store, so it is strictly
-larger than the child it just made.
-
-Until world 8 an even founding produced exact equals, and equals do not consume
-each other. A test asserted precisely that and now asserts the opposite, which is
-how this was found.
-
-**A newborn is therefore the lightest thing on the board and loses every contest
-it enters, including with its parent.** That is a real consequence and it could
-plausibly swallow the whole point of the world, since D.2 makes consumption
-unconditional and free. It is declared here rather than discovered in the
-results. If world 9 fails, this is the first place to look.
+So a kill now leaves **carrion**, and eating something you could not have killed
+becomes a way of making a living that nobody designed in.
 
 ### What this does not do
 
-**It does not correct C.5.** The dowry is still exactly half and still not
-heritable, the number of offspring is still one per parent per tick, and the
-size against number question that Smith and Fretwell (1974) puts at the centre of
-life history is untouched. That is deliberate: one change per world.
+**Who dies is unchanged.** The contest still goes to the largest structure and
+every weaker creature in the cell still loses. Only how much of them the winner
+can use has changed.
 
-It does not make breeding free. The dowry still leaves the parent and the
-transfer still dissipates.
+It does not price an apparatus for eating, which is how **D.2** frames the
+eventual fix. That correction costs a constant and this one does not, so it goes
+second: if predation still pays after the cap, pricing an apparatus is a real
+experiment, and if it does not, pricing an apparatus nobody uses would measure
+nothing.
 
 ## What would count as a finding
 
 Stated in advance.
 
-1. **Lineages get past the first few generations.** `depth` rises well clear of
-   world 8's 7, 4 and 1. This is the direct target and the whole reason for the
-   world.
-2. **The last birth moves late.** World 8's engine stops between ticks 5 and 35,
-   with 94 to 99 percent of every run happening after it. If reproduction is
-   recoverable, births continue.
-3. **Extinction at tick 602 stops being the ending.** That tick is `max_age`
-   arriving for the founders. A world with descendants does not end when its
-   founding does.
-4. **The uptake spread stops draining.** Standing variation currently only
-   shrinks, because differential death without births can remove types and never
-   add one.
+1. **`from_creatures_pct` falls** from its current 18 to 33. The jackpot is
+   gone: a kill is now worth what a body can hold, not what the victim was worth.
+2. **Carrion appears.** Cells above the ceiling multiply, so `ground_spread`
+   rises from its already high 86 and the rose above-ceiling colour, which never
+   fired at all before world 9, becomes common.
+3. **Lineages survive past one.** Every one of nine seeds collapses to a single
+   founding line by 20,000 ticks today. More than one way of making a living is
+   the first mechanism this world has had that could hold more than one lineage,
+   and this is the direct test of entry **G.1**.
+4. **Being large stops being purely good.** A large creature is currently both
+   unbeatable and a jackpot. After this it is unbeatable and mostly unusable, so
+   the reward for growing should flatten.
 
 ## What will NOT happen, stated in advance
 
-**Lifespan will probably FALL, back toward 2 ticks.** World 8's rise to 3.7 to
-24.6 was an artefact: a handful of frozen founders sitting in an average that
-described nobody. If breeding resumes, the churn resumes with it. **A fall here
-is the artefact being removed and must not be reported as a regression.**
+**Predation may stop paying entirely and return to zero.** That would undo world
+9's first-ever positive on **D.2**, where `from_creatures_pct` moved off zero for
+the first time since world 4. It is a real risk of this change and it is written
+down here rather than explained afterwards. **It would be a result and not a
+failure**, and it must not be reported as a regression.
 
-**Density will rise, possibly a great deal.** World 6 sat permanently above what
-the ground could feed, with the excess burning as births that starved. That may
-return, and if it does it says the halving was load-bearing for stability, which
-is worth knowing and is not a reason to undo this.
+**Perception will not move.** Nothing here changes what a sensor or a hidden
+node costs, and thinking is still unaffordable below a body of roughly 30 to 40.
 
-**Perception will not move.** Nothing here changes what a sensor or a hidden node
-costs, and G.1 says thinking is unaffordable below a body of roughly 30 to 40.
-
-**Diversity will not appear.** Entries G.3 and G.4 are untouched: the world is
-still perfectly constant and still has almost no frequency dependence, so the
-exclusion principle still predicts one strategy however well reproduction works.
-This world is about restarting the engine, not about steering it.
+**The world is still perfectly constant.** Entries **G.3** and **A.4** are
+untouched: no day, no season, no weather. Whatever coexistence this produces has
+to come from frequency dependence rather than from variation in time.
 
 ## The commitments
 
 1. Rules frozen before the first run, not changed in response to it.
 2. Reported across every seed and every efficiency, including **nothing
    happened**.
-3. A further change is world 10. This file is superseded, not edited.
-4. Worlds 1 to 8 are retired and may not be quoted alongside this.
-5. **Every world from here reports the engine**, `lineages`, `depth` and the
-   uptake spread, beside the population. World 8 could not have been read without
-   them and neither, in retrospect, could worlds 1 to 7.
+3. A further change is world 11. This file is superseded, not edited.
+4. Worlds 1 to 9 are retired and may not be quoted alongside this.
+5. **The engine is reported beside the population**, `lineages`, `depth` and the
+   uptake spread, as it has been since world 9.
 6. **The register audit still follows.** One test applied to every entry:
-   required by physics, permitted, or contrary. C.5 is now known to be permitted,
-   unregistered and outcome-determining, which is the worst of the three, and it
-   was found by looking rather than by experimenting for the third world running.
+   required by physics, permitted, or contrary. This world is the fourth in a
+   row found by looking rather than by experimenting, and the thing that found
+   it was asking whether one law held at every site rather than at the site
+   where it was introduced.

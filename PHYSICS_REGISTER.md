@@ -134,6 +134,8 @@ allowed.
 
 | B.6 | **A body was OPTIONAL.** Frame won contests and cost upkeep, and that was the whole of it: nothing a creature could do depended on having one | **CORRECTED**, world 8. Capacity became a property of structure, `absorbed = min(uptake, frame, cell)`, which is a comparison between two quantities the world already tracked rather than a new constant. **Ghosts became impossible**: largest frame alive runs 400 to 560 at every one of the eleven efficiencies, where world 7 had it at zero from 70% down. It also **ended every seed**, and not for want of energy. See [RESULTS_WORLD8.md](RESULTS_WORLD8.md) and G.1. |
 
+| B.7 | **Capacity bounds grazing and not predation.** World 8 said a creature cannot take in more than its frame and applied it at one of the two sites where energy enters a creature | **OPEN, and world 10 addresses it.** `absorb/2` bounds grazing by `min(uptake, frame, cell)`. `take_them/3` bounds predation by nothing at all: it sums the whole of every weaker creature in the cell and hands all of it over in one tick, so a creature that can sip 400 a tick from the ground can swallow unlimited victims of unlimited size in the same tick. The live fleet takes 41% of its energy that way. **Nobody wrote this rule** and it is invisible in either function alone, because it lives in the DIFFERENCE between two code paths, which is exactly where C.6 hid for five worlds. The correction costs no constant, and conservation then forces carrion: what a predator cannot hold has to go somewhere, and the only place is the ground. |
+
 ## C. What energy costs to act
 
 | # | The simplification | Status |
