@@ -21,7 +21,8 @@
 -behaviour(gen_server).
 
 -export([start_link/0, snapshot/0, pace/0]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         handle_continue/2]).
 
 -record(state, {world :: world:world(),
                 pace :: world_pace:pace(),
@@ -61,21 +62,36 @@ pace() -> gen_server:call(?SERVER, pace).
 %% gen_server
 %%==============================================================================
 
+%% SCREENING DOES NOT HAPPEN IN `init/1' AND THAT IS DELIBERATE. A blocking init
+%% blocks `supervisor:start_link', which blocks the application, which blocks the
+%% whole release boot. At world 14's survival rate the screen expects about a
+%% dozen candidates of two thousand ticks each, which is tens of seconds, and a
+%% release that takes a minute to come up is a release a container healthcheck
+%% restarts in a loop.
+%%
+%% `handle_continue' runs before any other message, so the unscreened world built
+%% here is replaced before a single tick or fact goes out. What it costs is that
+%% `snapshot' blocks for the duration, which nothing in the deployment calls: the
+%% spectator reads facts off the mesh.
 init([]) ->
     Pace = world_pace:from_env(),
     Reseeds = os:getenv("HECATE_BIOTOPE_SEED") =:= false
         orelse os:getenv("HECATE_BIOTOPE_SEED") =:= "",
+    {ok, #state{world = world:new(world_opts()), pace = Pace,
+                reseeds = Reseeds}, {continue, screen}}.
+
+handle_continue(screen, #state{pace = Pace, reseeds = Reseeds} = S) ->
     {Opts, Rejected} = screened(world_opts(), Reseeds),
     World = world:new(Opts),
-    logger:info("biotope: ~p creatures, radius ~p, ~p ticks/s, fact every ~pms",
+    logger:info("biotope: ~p creatures, radius ~p, ~p ticks/s, fact every ~pms, "
+                "~p seeds rejected",
                 [world:population(World), maps:get(radius, world:defaults()),
                  world_pace:ticks_per_second(Pace),
-                 maps:get(publish_ms, Pace)]),
+                 maps:get(publish_ms, Pace), Rejected]),
     schedule(slot, maps:get(slot_ms, Pace)),
     schedule(publish, maps:get(publish_ms, Pace)),
     schedule_chart(maps:get(chart_ms, Pace)),
-    {ok, #state{world = World, pace = Pace, reseeds = Reseeds,
-                rejected = Rejected}}.
+    {noreply, S#state{world = World, rejected = Rejected}}.
 
 handle_call(snapshot, _From, #state{world = W} = S) ->
     {reply, world:snapshot(W), S};
@@ -235,11 +251,42 @@ fresh_seed() ->
 %% remain the unbiased record; the fleet shows worlds that got past the founding
 %% phase, and every fact says how many did not.
 %% SCREENING IS REAL WORK AND IT HAPPENS IN `init/1', so it is bounded and the
-%% bound is configurable. Each candidate is a world run seven hundred ticks, so
-%% the worst case is twenty-four of those before the server answers anything.
-%% `HECATE_BIOTOPE_SCREEN_TRIES=0' turns it off, which is what a test that is not
-%% about screening wants and what a deployment that wants raw draws would set.
--define(SCREEN_TICKS, 700).
+%% bound is configurable. Each candidate is a world run to the horizon below, so
+%% the worst case is `HECATE_BIOTOPE_SCREEN_TRIES' of those before the server
+%% answers anything. Setting it to 0 turns screening off, which is what a test
+%% that is not about screening wants and what a deployment that wants raw draws
+%% would set.
+%%
+%% ==========================================================================
+%% THE HORIZON IS 2000 SINCE WORLD 14, AND IT IS DERIVED
+%% ==========================================================================
+%%
+%% It was 700, from world 9's survey finding every extinction early: 601, 630,
+%% 725, and nothing between 725 and 20,000. A fence just past the last observed
+%% death was the right fence for that world.
+%%
+%% WORLD 14 MOVED THE DEATHS. Measured over 24 seeds at the control:
+%%
+%%   alive at   700    7 of 24
+%%   alive at  2000    2 of 24
+%%   alive at  4000    2 of 24
+%%   alive at  8000    2 of 24
+%%
+%% Five of the seven that clear 700 die shortly after it, so the old fence has a
+%% seventy-one percent false pass rate and an island would show a doomed world
+%% five times in seven. Nothing dies after 2000, so that is where the fence goes:
+%% **the horizon past which the observed death rate is zero**, which is the same
+%% criterion 700 was chosen by rather than a new one.
+%%
+%% STILL VIABILITY AND NOTHING ELSE. A longer horizon rejects more worlds; it
+%% does not prefer a bigger population, a deeper descent or a better chart. And
+%% it makes the fleet a MORE biased sample of the seed space, not less, which is
+%% why every fact carries the count of what was rejected.
+screen_ticks() -> horizon(os:getenv("HECATE_BIOTOPE_SCREEN_TICKS")).
+
+horizon(false) -> 2000;
+horizon("") -> 2000;
+horizon(Str) -> list_to_integer(string:trim(Str)).
 
 screen_tries() -> tries(os:getenv("HECATE_BIOTOPE_SCREEN_TRIES")).
 
@@ -259,7 +306,7 @@ keep(false, Opts, Rejected, Limit) ->
     try_seed(Opts#{seed => fresh_seed()}, Rejected + 1, Limit).
 
 survives(Opts) ->
-    world:population(world:tick(world:new(Opts), ?SCREEN_TICKS)) > 0.
+    world:population(world:tick(world:new(Opts), screen_ticks())) > 0.
 
 econ_overrides(false) -> #{};
 econ_overrides("") -> #{};

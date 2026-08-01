@@ -218,6 +218,12 @@ a_pinned_seed_never_begins_again_test() ->
 %% screen. `population > 0' at whatever tick the poll happens to catch asserts
 %% something the mechanism never offered, and failed about one run in three.
 %%
+%% THE HORIZON IS PINNED AT 700 HERE, which is what this test was written
+%% against and no longer the deployed value: world 14 moved it to 2000 because
+%% five of every seven worlds that clear 700 die shortly after. Pinning keeps
+%% this about whether screening WORKS rather than about how far it looks, and
+%% keeps twenty-four candidates at seconds rather than minutes.
+%%
 %% A PROBABILISTIC GUARD, AND SAYING SO. Turning screening off in here goes red
 %% in two runs of six measured, not in six of six, because roughly a third of raw
 %% draws are dead by the horizon and the rest die later or not at all. It catches
@@ -228,6 +234,7 @@ a_drawn_seed_is_screened_for_viability_test_() ->
     {timeout, 120,
      fun() ->
          quietly([{"HECATE_BIOTOPE_SCREEN_TRIES", "24"},
+                  {"HECATE_BIOTOPE_SCREEN_TICKS", "700"},
                   {"HECATE_BIOTOPE_SLOT_MS", "1"},
                   {"HECATE_BIOTOPE_TICKS_PER_SLOT", "50"}],
                   fun() ->
