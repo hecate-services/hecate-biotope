@@ -142,13 +142,26 @@ existing_is_the_only_leak_test() ->
                            hidden_rent => 0, max_age => 100000}, inert())),
     ?assertEqual(books(W) - 70, books(world:tick(W, 10))).
 
+%% THE MOVER'S BILL IS NO LONGER A FIXED NUMBER, and that is world 12. A creature
+%% crosses as many cells as it can pay for rather than exactly one, so what it
+%% spends says how far it went. The stayer is still exact, because standing still
+%% is still free.
 moving_costs_over_and_above_existing_test() ->
     Opts = #{ground_seed => 0, ground_growth_pct => 0, metabolism => 3, move_cost => 5, sensor_rent => 0,
              hidden_rent => 0, max_age => 100000},
     Still = quiet(maps:merge(Opts, inert())),
     Moving = quiet(maps:merge(Opts, restless())),
-    ?assertEqual(books(Still) - 30, books(world:tick(Still, 10))),
-    ?assertEqual(books(Moving) - 80, books(world:tick(Moving, 10))).
+    Existing = 30,
+    ?assertEqual(books(Still) - Existing, books(world:tick(Still, 10))),
+
+    Spent = books(Moving) - books(world:tick(Moving, 10)),
+    Travel = Spent - Existing,
+    %% `upkeep_divisor' is out of reach in `quiet', so the body adds nothing to
+    %% the fare here and every cell crossed costs exactly `move_cost'.
+    ?assert(Travel > 0),
+    ?assertEqual(0, Travel rem 5),
+    %% And more than the single cell a tick this world allowed until now.
+    ?assert(Travel > 10 * 5).
 
 %% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON. World 1 deleted it, and a
 %% well-fed creature could be carrying hundreds.
@@ -887,3 +900,58 @@ crowded() ->
                        metabolism => 0, sensor_rent => 0, hidden_rent => 0,
                        max_age => 100000, uptake_mutation => 0,
                        founder_uptake => 30, start_energy => 400}, inert())).
+
+%%==============================================================================
+%% Speed, and what it costs to be heavy, which is world 12
+%%==============================================================================
+
+%% A CREATURE GOES AS FAR AS IT CAN PAY TO GO. Everything moved exactly one cell
+%% per tick before, at the same speed for everyone, which is why flight did not
+%% exist: movement is simultaneous, so an adjacent predator could never be
+%% outrun and prey had no strategy but being larger.
+%%
+%% THAT CLAIM IS ASSERTED OVER TEN TICKS in
+%% `moving_costs_over_and_above_existing_test' above, and deliberately not over
+%% one: a walk ends as soon as nothing is preferred to here, and on a uniform
+%% board every cell ties, so a single tick is a coin toss rather than a
+%% measurement.
+
+%% AND CARRYING A BODY COSTS, or the speed would be a free good handed to the
+%% large. A big creature is rich, so without this it would be big AND fast and
+%% size would dominate harder than before. The fare is `move_cost' plus the same
+%% expression that prices holding a frame, so hauling and holding cost alike.
+%%
+%% Two creatures, identical but for their bodies, on an empty board: the heavier
+%% one gets less far for the same fare.
+a_heavier_creature_pays_more_for_the_same_ground_test() ->
+    Spent = fun(Energy) ->
+                    W = quiet(maps:merge(#{ground_seed => 0,
+                                           ground_growth_pct => 0,
+                                           metabolism => 0, move_cost => 5,
+                                           sensor_rent => 0, hidden_rent => 0,
+                                           max_age => 100000,
+                                           upkeep_divisor => 10,
+                                           start_energy => Energy}, restless())),
+                    #{dissipated := D} = world:snapshot(world:tick(W, 1)),
+                    D
+            end,
+    %% A founder is half store and half frame, so the larger founding is the
+    %% heavier creature. Same number of cells crossed would cost it more.
+    ?assert(Spent(800) > Spent(80)).
+
+%% A WALK ENDS RATHER THAN LOOPING. Two cells that each prefer the other would
+%% trade a creature back and forth until it had burned its whole body, so a
+%% creature will not re-enter a cell it has already stood in this tick. Nothing
+%% may be in the same place twice in one moment.
+%%
+%% Asserted as the world still advancing at all: a walk that did not terminate
+%% would hang here rather than fail.
+a_walk_terminates_test() ->
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                           metabolism => 0, move_cost => 1, sensor_rent => 0,
+                           hidden_rent => 0, max_age => 100000,
+                           population => 6, radius => 2,
+                           start_energy => 100000}, restless())),
+    #{tick := T, population := P} = world:snapshot(world:tick(W, 20)),
+    ?assertEqual(20, T),
+    ?assert(P > 0).

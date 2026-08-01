@@ -217,10 +217,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 11,
-      line => <<"You can only eat as fast as your body allows, counting meat "
-                "and ground together, and everyone standing in a place gets to "
-                "eat rather than only the biggest.">>}.
+    #{number => 12,
+      line => <<"You can run as far as you can afford to, and a heavy body "
+                "costs more every step, so being small and quick is finally a "
+                "different way to live from being large and slow.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -556,12 +556,77 @@ carrying(S, Econ) ->
 %% they all move at once. Nobody sees anybody else's move before making their own,
 %% which removes turn order as a source of advantage without needing a shuffle to
 %% hide it.
+%% ==========================================================================
+%% A CREATURE GOES AS FAR AS IT CAN PAY TO GO, AND CARRYING A BODY COSTS
+%% ==========================================================================
+%%
+%% Everything moved exactly one cell per tick, at a fare that ignored what it
+%% weighed. Those are register entries `C.2' and `C.1', and together they are
+%% why this world has only ever had ONE DRIVE.
+%%
+%% Movement is simultaneous and was the same speed for everyone, so an adjacent
+%% predator could never be outrun: FLIGHT DID NOT EXIST, and prey had no
+%% strategy available except being larger, which is the predator strategy.
+%% Nothing pulled against anything, and the register's own diagnosis of ten
+%% worlds of deleted brains follows from it: they are not being deleted for
+%% being too small, they are being deleted because THERE IS NOTHING TO DECIDE.
+%%
+%% ONE RULE, TWO CLAUSES, AND THEY MUST ARRIVE TOGETHER. Unbounded steps at a
+%% flat fare would be a free good handed to the large: a big creature is rich, so
+%% it would be big AND fast, and size would dominate harder than before. The
+%% fare has to scale with what is being hauled, or the tradeoff is not a
+%% tradeoff. That is exactly the lesson world 4 taught and this register opens
+%% with: a tradeoff only motors anything if nothing adjacent is free.
+%%
+%% NO NEW CONSTANT. The fare is `move_cost' plus `carrying/2', the same
+%% expression that already prices holding a body, at the same divisor. Hauling
+%% it and holding it cost alike.
+%%
+%% A CREATURE WILL NOT RE-ENTER A CELL IT HAS ALREADY STOOD IN THIS TICK, which
+%% terminates the walk and is the only honest way to: two cells that each prefer
+%% the other would otherwise trade a creature back and forth until it had burned
+%% its whole body, and a thing cannot be in the same place twice in one moment.
 move_all(#world{creatures = Cs} = W) ->
     Herd = herd(Cs),
-    Ids = lists:sort(maps:keys(Cs)),
-    {Moves, Rng} = lists:mapfoldl(fun(Id, R) -> choose(Id, Herd, W, R) end,
-                                  W#world.rng, Ids),
-    lists:foldl(fun step/2, W#world{rng = Rng}, Moves).
+    lists:foldl(fun(Id, Acc) -> travel(Id, Herd, Acc) end, W,
+                lists:sort(maps:keys(Cs))).
+
+travel(Id, Herd, #world{creatures = Cs} = W) ->
+    #{at := At} = maps:get(Id, Cs),
+    walk(Id, Herd, [At], settled(Id, W)).
+
+%% Standing still is the default and costs nothing, so a creature that never
+%% moves is marked still before the first step is considered.
+settled(Id, #world{creatures = Cs} = W) ->
+    W#world{creatures = Cs#{Id => (maps:get(Id, Cs))#{still => true}}}.
+
+walk(Id, Herd, Been, #world{creatures = Cs, rng = Rng0} = W) ->
+    #{at := At} = C = maps:get(Id, Cs),
+    {Choice, Rng1} = where(brain:has(move, maps:get(brain, C)), Id, C, At, Herd,
+                           W, Rng0),
+    onward(Choice, Been, Id, Herd, W#world{rng = Rng1}).
+
+%% Three ways a walk ends: nothing is preferred to here, the only preferred cell
+%% has already been stood in this tick, or the fare cannot be paid.
+onward({_Id, At, At}, _Been, _Id2, _Herd, W) -> W;
+onward({_Id, _From, To}, Been, Id, Herd, W) ->
+    keep_going(lists:member(To, Been) orelse not affords(Id, W), To, Been, Id,
+               Herd, W).
+
+keep_going(true, _To, _Been, _Id, _Herd, W) -> W;
+keep_going(false, To, Been, Id, Herd, W) ->
+    walk(Id, Herd, [To | Been], step(Id, To, W)).
+
+%% WHAT IT COSTS TO CARRY YOURSELF ONE CELL. `carrying/2' is the same expression
+%% that prices holding a frame, so hauling a body and holding it cost alike and
+%% no second constant decides how heavy legs are.
+fare(#{structure := S}, Econ) -> maps:get(move_cost, Econ) + carrying(S, Econ).
+
+%% Paid from the store or from the frame, like every other cost since C.6, so a
+%% creature can run itself down to nothing. What it cannot do is run on credit.
+affords(Id, #world{creatures = Cs, econ = Econ}) ->
+    #{energy := E, structure := S} = C = maps:get(Id, Cs),
+    E + S >= fare(C, Econ).
 
 %% Creature energy indexed by cell, gathered once per tick, so a sensor reading is
 %% a lookup rather than a scan of the population.
@@ -569,10 +634,6 @@ herd(Cs) -> maps:fold(fun gather_flesh/3, #{}, Cs).
 
 gather_flesh(_Id, #{at := At, energy := E}, Acc) ->
     maps:update_with(At, fun(Total) -> Total + E end, E, Acc).
-
-choose(Id, Herd, #world{creatures = Cs} = W, Rng0) ->
-    #{at := At, brain := Brain} = C = maps:get(Id, Cs),
-    where(brain:has(move, Brain), Id, C, At, Herd, W, Rng0).
 
 %% AN ABSENT OUTPUT MEANS THE THING IS NOT DONE, and that has to be enforced here
 %% rather than left to the arithmetic. Without this a creature with no `move'
@@ -639,12 +700,9 @@ pick_best(Scored, Rng0) ->
 %% Staying still is free and leaves no trail. Moving costs and marks the ground:
 %% that asymmetry makes sitting tight a way to go unnoticed as well as a way to
 %% save energy, and it is the only counter available to something being tracked.
-step({Id, At, At}, #world{creatures = Cs} = W) ->
-    W#world{creatures = Cs#{Id => (maps:get(Id, Cs))#{still => true}}};
-step({Id, _From, To}, #world{creatures = Cs, econ = Econ} = W) ->
+step(Id, To, #world{creatures = Cs, econ = Econ} = W) ->
     C = maps:get(Id, Cs),
-    Fare = maps:get(move_cost, Econ),
-    W1 = burn(Id, C#{at => To, still => false}, Fare,
+    W1 = burn(Id, C#{at => To, still => false}, fare(C, Econ),
               W#world{creatures = Cs#{Id => C}}),
     mark(To, maps:get(scent, C), W1).
 

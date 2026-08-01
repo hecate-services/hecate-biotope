@@ -1,6 +1,8 @@
 # Pre-registration: world 11
 
-> **ARCHIVED COPY** of the criteria as frozen before world 11 ran.
+> **SUPERSEDED** by [PREREGISTRATION.md](PREREGISTRATION.md). The criteria as
+> frozen before world 11 ran, kept whole and unedited. Scored in
+> [RESULTS_WORLD11.md](RESULTS_WORLD11.md).
 
 **Written before world 11 was built.** Corrects register entry **B.8**. World 10
 is superseded, not edited:
