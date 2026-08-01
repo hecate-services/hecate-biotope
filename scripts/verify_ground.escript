@@ -50,7 +50,60 @@ main(_Args) ->
     verdict("ground_growth_pct", fastest_enough(Econ),
             maps:get(ground_growth_pct, Econ)),
     yield_line(Econ),
+    upkeep_table(Econ),
+    verdict(largest, "upkeep_divisor", gentlest_binding(Econ),
+            maps:get(upkeep_divisor, Econ)),
     endgame(Econ).
+
+%%==============================================================================
+%% What it costs to be large
+%%==============================================================================
+
+%% WORLD 5'S CONSTANT, and the free good it prices. Metabolism was flat, so a
+%% creature carrying ten thousand paid what one carrying ten paid, and energy was
+%% armour that cost nothing. That is why world 4's feeding tradeoff was
+%% overridden: large creatures win contests and 97% of deaths are being eaten.
+%%
+%% The criterion, fixed before measuring: the LARGEST divisor at which a creature
+%% feeding at the sustainable yield cannot grow beyond what one full cell holds.
+%% Largest because that is the gentlest pricing that still binds, and a cap that
+%% never bites is exactly how world 3 failed.
+%%
+%% MEASURED BY LETTING ONE ACTUALLY GROW, not by algebra. The settling point is
+%% where income meets upkeep and the arithmetic for it is easy to get subtly
+%% wrong, which is the whole reason this file exists.
+upkeep_table(Econ) ->
+    io:format("~s~n", [row(["divisor", "settles at", "one cell holds",
+                            "within it"])]),
+    lists:foreach(fun(D) -> print_upkeep(D, Econ) end,
+                  [10, 20, 30, 33, 34, 40, 60, 100]).
+
+print_upkeep(Divisor, Econ) ->
+    Ceiling = maps:get(ground_ceiling, Econ),
+    Settles = settled_size(Divisor, Econ),
+    io:format("~s~n", [row([Divisor, Settles, Ceiling,
+                            yesno(Settles =< Ceiling)])]).
+
+%% One creature, feeding at exactly the sustainable yield on ground that can
+%% supply it for ever, left alone until it stops growing.
+settled_size(Divisor, Econ) ->
+    Yield = ground:sustainable(Econ),
+    W = world:new(#{population => 1, radius => 2, seed => 1,
+                    ground_seed => Yield, ground_growth_pct => 0,
+                    ground_ceiling => Yield, upkeep_divisor => Divisor,
+                    founder_uptake => Yield, max_age => 100000000,
+                    start_energy => 1, founder_body => [],
+                    founder_brain => #{hidden => [], outputs => #{}}}),
+    #{energy_max := Size} = world:snapshot(world:tick(W, 20000)),
+    Size.
+
+gentlest_binding(Econ) ->
+    Ceiling = maps:get(ground_ceiling, Econ),
+    Fitting = [D || D <- lists:seq(1, 200), settled_size(D, Econ) =< Ceiling],
+    last_of(Fitting).
+
+last_of([]) -> none;
+last_of(L) -> lists:last(L).
 
 %% THE LINE BETWEEN THE TWO LIVINGS, which world 4's pre-registration requires be
 %% measured and reported before any run. It is derived from the growth curve
@@ -202,8 +255,13 @@ endgame(Econ) ->
 
 %%==============================================================================
 
-verdict(Name, Smallest, Configured) ->
-    io:format("~nsmallest ~s meeting its criterion: ~p~n", [Name, Smallest]),
+verdict(Name, Value, Configured) -> verdict(smallest, Name, Value, Configured).
+
+%% WHICH END OF THE RANGE IS THE LEAST GENEROUS DEPENDS ON THE CONSTANT, and
+%% saying "smallest" for one where the answer is the largest would mislead a
+%% reader into thinking the criterion had been read backwards.
+verdict(Which, Name, Value, Configured) ->
+    io:format("~n~s ~s meeting its criterion: ~p~n", [Which, Name, Value]),
     io:format("configured in world:defaults/0:   ~p~n", [Configured]),
     io:format("~s~n~n", [agreement(Smallest =:= Configured)]).
 

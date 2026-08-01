@@ -96,6 +96,7 @@
                   ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
                   uptake_mutation := non_neg_integer(),
+                  upkeep_divisor := pos_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
                   sensor_rent := non_neg_integer(),
@@ -200,6 +201,26 @@ defaults() ->
       %% same kind as brain_mutation, small and symmetric so a lineage drifts
       %% rather than resamples.
       uptake_mutation   => 8,
+      %% HOW MUCH A CREATURE MAY HOLD PER UNIT OF EXTRA UPKEEP, and the whole of
+      %% world 5. Metabolism was flat: one carrying ten thousand paid exactly
+      %% what one carrying ten paid, so SIZE WAS A FREE GOOD. That is why world
+      %% 4's feeding tradeoff was overridden. Large creatures win contests, 97%
+      %% of deaths are being eaten, and armour cost nothing, so grabbing fast
+      %% won however badly it treated the ground.
+      %%
+      %% Linear rather than the three-quarter power real organisms show, which is
+      %% SUBLINEAR and would favour large size relative to this. Adopting it means
+      %% choosing a fractional exponent, awkward in integers and a magic number;
+      %% linear is the plainest statement that holding costs something. If it
+      %% proves too punishing, sublinear is the refinement to reach BY
+      %% MEASUREMENT rather than to assume.
+      %%
+      %% Derived from the criterion fixed in PREREGISTRATION.md before measuring:
+      %% the LARGEST divisor at which a creature feeding at the sustainable yield
+      %% cannot grow beyond what one full cell holds. Largest because that is the
+      %% gentlest pricing that still binds, and a cap that never bites is how
+      %% world 3 failed. Recorded by scripts/verify_ground.escript.
+      upkeep_divisor    => 33,
       %% WHAT IT COSTS TO EXIST AND TO ACT, at ten times world 1's grain. Scaling
       %% every energy quantity by one factor changes nothing about the world and
       %% buys the resolution to set the ratio above to within a tenth, which
@@ -359,10 +380,18 @@ tick(W, N) ->
 charge(#world{creatures = Cs, econ = Econ} = W) ->
     W#world{creatures = maps:map(fun(_Id, C) -> live(C, Econ) end, Cs)}.
 
-live(#{body := Body, brain := Brain} = C, Econ) ->
+live(#{body := Body, brain := Brain, energy := E} = C, Econ) ->
     Rent = body:upkeep(Body, Econ)
         + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ),
-    spend(C, maps:get(metabolism, Econ) + Rent).
+    spend(C, maps:get(metabolism, Econ) + Rent + carrying(E, Econ)).
+
+%% WHAT IT COSTS TO BE LARGE. Nothing, before world 5, which made energy free
+%% armour and beat the only real tradeoff this project had managed to build.
+%%
+%% Floored at nothing for a creature already in debt: it is about to be reaped,
+%% and billing it for a negative balance would hand it energy.
+carrying(E, Econ) ->
+    max(0, E) div max(1, maps:get(upkeep_divisor, Econ)).
 
 spend(#{energy := E} = C, Cost) -> C#{energy => E - Cost}.
 
@@ -711,6 +740,11 @@ snapshot(#world{econ = Econ} = W) ->
       %% Binned, because a feeding rate runs to hundreds and a bar per value
       %% would be unreadable. This is the one that actually varies today.
       uptake_hist => binned(uptake_values(W), maps:get(ground_ceiling, Econ)),
+      %% THE LARGEST CREATURE ALIVE, without which "size is now bounded" cannot
+      %% be read at all, and the shape of the population's sizes, because a mean
+      %% cannot tell one optimum from two.
+      energy_max => largest(W),
+      energy_hist => binned(energies(W), largest(W)),
       movers => outputs_with(move, W),
       breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
@@ -753,6 +787,13 @@ binned(Values, Ceiling) ->
     histogram([min(?BUCKETS - 1, V div Width) || V <- Values], ?BUCKETS - 1).
 
 bump(Key, Acc) -> maps:update_with(Key, fun(N) -> N + 1 end, Acc).
+
+largest(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+largest(#world{creatures = Cs}) ->
+    lists:max([max(0, E) || #{energy := E} <- maps:values(Cs)]).
+
+energies(#world{creatures = Cs}) ->
+    [max(0, E) || #{energy := E} <- maps:values(Cs)].
 
 sensor_counts(#world{creatures = Cs}) ->
     [length(B) || #{body := B} <- maps:values(Cs)].

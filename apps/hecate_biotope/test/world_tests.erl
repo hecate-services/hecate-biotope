@@ -28,8 +28,15 @@ fertile() ->
       founder_brain => #{hidden => [],
                          outputs => #{breed => #{inputs => [1], hidden => []}}}}.
 
+%% `upkeep_divisor' is set out of reach for the same reason `sensor_rent' is
+%% zeroed: these measure the BASE economy, and world 5 made holding energy cost
+%% something, so a creature carrying eight hundred would otherwise be billed
+%% twenty-four a tick and every sum below would be off by an amount that varied
+%% with how fed it was. The cost gets its own tests rather than contaminating
+%% these.
 quiet(Opts) ->
-    world:new(maps:merge(#{population => 1, radius => 3, seed => 7}, Opts)).
+    world:new(maps:merge(#{population => 1, radius => 3, seed => 7,
+                           upkeep_divisor => 1000000}, Opts)).
 
 %% Everything in the world is either in the ground or in a creature.
 books(W) ->
@@ -528,3 +535,87 @@ an_empty_world_has_empty_bars_test() ->
     ?assertEqual(0, Pop),
     ?assertEqual(0, lists:sum(Sensors)),
     ?assert(length(Sensors) > 1).
+
+%%==============================================================================
+%% What it costs to be large
+%%==============================================================================
+
+%% THE FREE GOOD WORLD 5 PRICES. Metabolism was flat: one creature carrying ten
+%% thousand paid exactly what one carrying ten paid, so energy was armour and
+%% armour was free. That is why world 4's feeding tradeoff was overridden, since
+%% large creatures win contests and 97% of deaths are being eaten.
+holding_energy_costs_by_the_unit_test() ->
+    Cost = fun(Energy, Divisor) ->
+                   W = quiet(maps:merge(#{ground_seed => 0,
+                                          ground_growth_pct => 0,
+                                          ground_ceiling => 0, metabolism => 0,
+                                          sensor_rent => 0, hidden_rent => 0,
+                                          max_age => 100000,
+                                          start_energy => Energy,
+                                          upkeep_divisor => Divisor},
+                                        inert())),
+                   books(W) - books(world:tick(W))
+           end,
+    %% Ten a tick for eight hundred held at a divisor of eighty.
+    ?assertEqual(10, Cost(800, 80)),
+    %% Twice the size, twice the bill.
+    ?assertEqual(20, Cost(1600, 80)),
+    %% A gentler divisor costs less for the same creature.
+    ?assertEqual(5, Cost(800, 160)).
+
+%% It is charged ON TOP of everything else rather than instead of it.
+holding_is_charged_beside_the_other_costs_test() ->
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                           ground_ceiling => 0, metabolism => 7,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 400,
+                           upkeep_divisor => 100}, inert())),
+    %% Seven to exist and four to carry four hundred.
+    ?assertEqual(books(W) - 11, books(world:tick(W))).
+
+%% A creature already in debt is about to be reaped, and billing it for a
+%% negative balance would HAND IT ENERGY rather than take any.
+a_creature_in_debt_is_not_paid_to_carry_it_test() ->
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                           ground_ceiling => 0, metabolism => 500,
+                           sensor_rent => 0, hidden_rent => 0,
+                           start_energy => 100, upkeep_divisor => 10},
+                         inert())),
+    Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 4)],
+    ?assertEqual(lists:reverse(lists:sort(Totals)), Totals).
+
+%% SIZE IS BOUNDED NOW, and without this nothing else about world 5 can be read.
+%% A creature with income it cannot outgrow used to accumulate for ever; it now
+%% climbs until what it holds costs what it earns, and stops.
+size_stops_climbing_where_upkeep_meets_income_test() ->
+    %% Income is a flat eight a tick from the ground, and the divisor prices
+    %% holding at one per fifty, so it should settle near eight times fifty.
+    W = quiet(maps:merge(#{ground_seed => 8, ground_growth_pct => 0,
+                           ground_ceiling => 8, metabolism => 0,
+                           sensor_rent => 0, hidden_rent => 0,
+                           max_age => 1000000, start_energy => 1,
+                           upkeep_divisor => 50, founder_uptake => 8},
+                         inert())),
+    #{energy_max := Early} = world:snapshot(world:tick(W, 300)),
+    #{energy_max := Late} = world:snapshot(world:tick(W, 3000)),
+    ?assert(Early > 100),
+    ?assertEqual(Early, Late).
+
+%% The largest alive and the shape of the sizes, because a mean cannot tell one
+%% optimum from two and "bounded" cannot be read from an average at all.
+size_is_reported_as_a_largest_and_a_shape_test() ->
+    W = world:tick(world:new(#{population => 30, radius => 6, seed => 4}), 100),
+    #{population := Pop, energy_max := Max, energy_hist := Bars} =
+        world:snapshot(W),
+    ?assert(Max > 0),
+    ?assertEqual(Pop, lists:sum(Bars)),
+    ?assertEqual(8, length(Bars)).
+
+%% An empty world has no largest creature, rather than a crash or a stale one.
+an_empty_world_has_no_largest_creature_test() ->
+    W = world:tick(quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                                      ground_ceiling => 0, metabolism => 30,
+                                      start_energy => 20}, inert())), 5),
+    #{population := Pop, energy_max := Max} = world:snapshot(W),
+    ?assertEqual(0, Pop),
+    ?assertEqual(0, Max).

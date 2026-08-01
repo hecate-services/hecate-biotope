@@ -84,10 +84,24 @@ because there is nothing to decide.**
 
 ## The order of work
 
-**Follow the energy.** Where it enters, what it costs to hold, what it costs to
-act, how it transfers, where it goes. That ordering is structural and was fixed
-before any of it was attempted, so it cannot be quietly re-sorted toward whatever
-seems most promising this week.
+**Price the free goods first, then follow the energy.**
+
+The second half is structural and was fixed before any of it was attempted:
+where energy enters, what it costs to hold, what it costs to act, how it
+transfers, where it goes. It cannot be quietly re-sorted toward whatever seems
+promising this week.
+
+The first half is an amendment, made after world 4 and recorded rather than
+slipped in. **Free goods confound everything downstream of them.** World 4
+introduced a genuine tradeoff, the tradeoff was live, and it was overridden by
+size being free; read less carefully, that result would have said "feeding rate
+does not matter" when the truth was "feeding rate was outvoted".
+
+Any correction made while an adjacent free good remains gives an **uninterpretable
+result**: a null cannot be told from a null-that-was-neutralised. So the free
+goods marked in the tables come first, and the amendment is on grounds of
+confounding rather than of promise. That distinction is the whole reason it is
+allowed.
 
 ---
 
