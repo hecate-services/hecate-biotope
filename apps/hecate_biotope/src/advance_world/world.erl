@@ -118,7 +118,10 @@
                   upkeep_divisor := pos_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
-                  sensor_rent := non_neg_integer(),
+                  %% How much dearer a unit of neural tissue is than a unit of
+                  %% body. Since world 13 an organ is charged by weight like any
+                  %% other tissue, so the two flat rents this replaced are gone.
+                  neural_cost := non_neg_integer(),
                   max_sensors := pos_integer(),
                   max_sensor_range := non_neg_integer(),
                   scent_per_tick := non_neg_integer(),
@@ -130,7 +133,6 @@
                   brain_mutation_structural := pos_integer(),
                   founder_max_hidden := non_neg_integer(),
                   max_hidden := non_neg_integer(),
-                  hidden_rent := non_neg_integer(),
                   body_mutation := pos_integer(),
                   start_energy := pos_integer(),
                   max_age := pos_integer(),
@@ -217,10 +219,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 12,
-      line => <<"You can run as far as you can afford to, and a heavy body "
-                "costs more every step, so being small and quick is finally a "
-                "different way to live from being large and slow.">>}.
+    #{number => 13,
+      line => <<"An eye is tissue and is charged by weight like any other, so "
+                "what a brain costs is a price this world can be asked about "
+                "rather than a flat fee nobody could afford.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -1407,7 +1409,8 @@ econ_id(Econ) ->
 %% `scent' IS interleaved, at a stride of 3, because a mark is a position AND a
 %% strength and there is no list it runs parallel to. The signature is left out:
 %% it would double the payload and a spectator has nothing to compare it against.
--spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
+-spec chart(world()) -> #{ids := [integer()], creatures := [integer()],
+                          energies := [integer()],
                           structures := [integer()],
                           signatures := [integer()], uptakes := [integer()],
                           ground := [integer()],

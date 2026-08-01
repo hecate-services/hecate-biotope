@@ -234,19 +234,29 @@ fresh_seed() ->
 %% saying so is the whole difference between honest and not. The offline sweeps
 %% remain the unbiased record; the fleet shows worlds that got past the founding
 %% phase, and every fact says how many did not.
+%% SCREENING IS REAL WORK AND IT HAPPENS IN `init/1', so it is bounded and the
+%% bound is configurable. Each candidate is a world run seven hundred ticks, so
+%% the worst case is twenty-four of those before the server answers anything.
+%% `HECATE_BIOTOPE_SCREEN_TRIES=0' turns it off, which is what a test that is not
+%% about screening wants and what a deployment that wants raw draws would set.
 -define(SCREEN_TICKS, 700).
--define(SCREEN_TRIES, 24).
+
+screen_tries() -> tries(os:getenv("HECATE_BIOTOPE_SCREEN_TRIES")).
+
+tries(false) -> 24;
+tries("") -> 24;
+tries(Str) -> list_to_integer(string:trim(Str)).
 
 screened(#{seed := _Pinned} = Opts, false) -> {Opts, 0};
-screened(Opts, true) -> try_seed(Opts, 0).
+screened(Opts, true) -> try_seed(Opts, 0, screen_tries()).
 
-try_seed(Opts, ?SCREEN_TRIES) -> {Opts, ?SCREEN_TRIES};
-try_seed(Opts, Rejected) ->
-    keep(survives(Opts), Opts, Rejected).
+try_seed(Opts, Rejected, Limit) when Rejected >= Limit -> {Opts, Rejected};
+try_seed(Opts, Rejected, Limit) ->
+    keep(survives(Opts), Opts, Rejected, Limit).
 
-keep(true, Opts, Rejected) -> {Opts, Rejected};
-keep(false, Opts, Rejected) ->
-    try_seed(Opts#{seed => fresh_seed()}, Rejected + 1).
+keep(true, Opts, Rejected, _Limit) -> {Opts, Rejected};
+keep(false, Opts, Rejected, Limit) ->
+    try_seed(Opts#{seed => fresh_seed()}, Rejected + 1, Limit).
 
 survives(Opts) ->
     world:population(world:tick(world:new(Opts), ?SCREEN_TICKS)) > 0.

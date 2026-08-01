@@ -76,12 +76,23 @@ announces_nothing_callable_test() ->
 %% The tree starts and runs a world WITHOUT hecate_om, which is the property that
 %% matters: the mesh is an output, not a dependency. A biotope that could not
 %% boot without a station would be an island that needs a boat to exist.
+%%
+%% SCREENING OFF, because an unseeded island runs up to twenty-four candidate
+%% worlds through seven hundred ticks each inside `init/1'. That is seconds, it
+%% varies with how many candidates get rejected, and eunit's five second default
+%% is on the wrong side of it often enough to cancel the suite. The property here
+%% is that the tree boots dark, not which seed it boots on.
 supervisor_starts_a_running_world_test() ->
-    {ok, Pid} = hecate_biotope_sup:start_link(),
-    ?assert(is_process_alive(Pid)),
-    ?assertMatch([{world_server, _, worker, _}], supervisor:which_children(Pid)),
-    #{population := Pop, tick := Tick} = world_server:snapshot(),
-    ?assert(Pop > 0),
-    ?assert(Tick >= 0),
-    unlink(Pid),
-    exit(Pid, shutdown).
+    true = os:putenv("HECATE_BIOTOPE_SCREEN_TRIES", "0"),
+    try
+        {ok, Pid} = hecate_biotope_sup:start_link(),
+        ?assert(is_process_alive(Pid)),
+        ?assertMatch([{world_server, _, worker, _}],
+                     supervisor:which_children(Pid)),
+        #{population := Pop, tick := Tick} = world_server:snapshot(),
+        ?assert(Pop > 0),
+        ?assert(Tick >= 0),
+        unlink(Pid),
+        exit(Pid, shutdown)
+    after os:unsetenv("HECATE_BIOTOPE_SCREEN_TRIES")
+    end.

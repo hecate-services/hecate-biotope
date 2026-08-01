@@ -599,6 +599,36 @@ fingerprint_is_short_lowercase_hex_test() ->
     ?assertEqual(16, byte_size(Id)),
     ?assertMatch({match, _}, re:run(Id, "^[0-9a-f]{16}$")).
 
+%% The label on the tin has to be checked against something that is NOT the tin.
+%% World 13's physics shipped labelled world 12 and every test passed, because
+%% the only other assertion about the number reads `world:ruleset/0' and compares
+%% it to itself. WORLDS.md is written by hand in the same commit as the rules and
+%% knows nothing about this module, so it is an independent witness: if the two
+%% disagree, one of them is stale and a reader is being told the wrong world.
+the_number_agrees_with_the_register_test() ->
+    #{number := Claimed} = world:ruleset(),
+    ?assertEqual(highest_world_in_worlds_md(), Claimed).
+
+highest_world_in_worlds_md() ->
+    {ok, Text} = file:read_file(alongside("WORLDS.md")),
+    {match, Rows} = re:run(Text, "^\\|\\s*\\*\\*(\\d+)\\*\\*\\s*\\|",
+                           [global, multiline, {capture, [1], binary}]),
+    lists:max([binary_to_integer(N) || [N] <- Rows]).
+
+%% Relative to the beam rather than to the working directory, because eunit is
+%% run from wherever the developer happens to be standing.
+alongside(Name) ->
+    climb(filename:dirname(code:which(?MODULE)), Name, 8).
+
+climb(_Dir, Name, 0) -> error({not_found, Name});
+climb(Dir, Name, Left) ->
+    At = filename:join(Dir, Name),
+    exists(filelib:is_regular(At), At, Dir, Name, Left).
+
+exists(true, At, _Dir, _Name, _Left) -> At;
+exists(false, _At, Dir, Name, Left) ->
+    climb(filename:dirname(Dir), Name, Left - 1).
+
 %%==============================================================================
 %% What a spectator is given
 %%==============================================================================
