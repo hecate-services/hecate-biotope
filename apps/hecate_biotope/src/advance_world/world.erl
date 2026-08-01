@@ -394,12 +394,29 @@ founder_brain(Given, _Body, _Econ, Rng) ->
 
 add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatures = Cs,
                                                 tick = T, born = B} = W) ->
+    {Line, Gen} = descent(Parent, Id, Cs),
     C = maps:merge(#{id => Id, at => At, energy => Energy, age => 0,
                      structure => Structure,
                      born => T, parent => Parent, still => true,
+                     lineage => Line, generation => Gen,
                      from_ground => 0, from_creatures => 0},
                    Traits),
     W#world{next_id = Id + 1, creatures = Cs#{Id => C}, born = B + 1}.
+
+%% WHICH FOUNDING A CREATURE DESCENDS FROM AND HOW FAR DOWN, carried rather than
+%% reconstructed, because by the time anyone asks the parent is usually dead and
+%% the chain no longer exists to walk.
+%%
+%% AN OBSERVABLE AND NOT A RULE. Nothing reads either of these to decide anything
+%% and no creature is treated differently for its ancestry. They exist because
+%% Fisher prices adaptation in the variance available to select on, and world 8
+%% ended with a population that could not change while this world had no way to
+%% say so. A world whose deepest surviving line is zero generations deep has
+%% selected nothing: it has filtered its founding once and stopped.
+descent(none, Id, _Cs) -> {Id, 0};
+descent(Parent, _Id, Cs) ->
+    #{lineage := Line, generation := Gen} = maps:get(Parent, Cs),
+    {Line, Gen + 1}.
 
 %%==============================================================================
 %% The tick
@@ -939,6 +956,25 @@ snapshot(#world{econ = Econ} = W) ->
       %% THE NEW AXIS. Prudence against greed, as the population settled it, and
       %% nothing anywhere calls either of those.
       uptake_mean => mean_uptake(W),
+      %% ==================================================================
+      %% THE ENGINE, MEASURED RATHER THAN ASSUMED
+      %% ==================================================================
+      %%
+      %% Every world so far has reported what the population IS and none has
+      %% reported whether it can still become anything else. Those are different
+      %% questions and world 8 is the case that separates them: four to sixteen
+      %% creatures, enormously rich, and frozen.
+      %%
+      %% `lineages' is how many foundings are still represented, `depth' how far
+      %% the deepest surviving line has descended, and the uptake pair the spread
+      %% of the one heritable quantity that visibly varies. Selection has nothing
+      %% to act on when the spread is nothing, and no rule of this world can
+      %% change that, which is why it is reported beside the population rather
+      %% than derived afterwards.
+      lineages => count_lineages(W),
+      depth => deepest(W),
+      uptake_min => uptake_min(W),
+      uptake_max => uptake_max(W),
       %% WHERE THE LIVING GOT THEIR ENERGY, as a percentage that came from other
       %% creatures. Zero means nothing alive has ever eaten anything that could
       %% have eaten it back. This replaces the herbivore and carnivore buckets,
@@ -1072,6 +1108,19 @@ uptake_values(#world{creatures = Cs}) ->
 mean_uptake(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_uptake(#world{creatures = Cs}) ->
     lists:sum([U || #{uptake := U} <- maps:values(Cs)]) div map_size(Cs).
+
+count_lineages(#world{creatures = Cs}) ->
+    map_size(maps:from_keys([L || #{lineage := L} <- maps:values(Cs)], [])).
+
+deepest(#world{creatures = Cs}) ->
+    lists:max([0 | [G || #{generation := G} <- maps:values(Cs)]]).
+
+uptake_min(W) -> extreme(fun lists:min/1, uptake_values(W)).
+
+uptake_max(W) -> extreme(fun lists:max/1, uptake_values(W)).
+
+extreme(_F, []) -> 0;
+extreme(F, Rates) -> F(Rates).
 
 mean_hidden(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_hidden(#world{creatures = Cs}) ->
