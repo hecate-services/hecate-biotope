@@ -127,6 +127,11 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% is stripped and its income collapses to the bare floor. Nothing calls either of
 %% those prudence or greed.
 %%
+%% `biggest' is the largest creature alive, and without it "size is bounded"
+%% cannot be read at all. It has now been forgotten from this table twice, once
+%% for the feeding rate and once for size, each time after the observable was
+%% added to the world and before the run that needed it.
+%%
 %% `still' is the plant-ness of the population and nothing in the rules calls it
 %% that: there are no plants, so a creature that stays where it is and lives off
 %% what gathers there simply is one. `gspr' is the share of ground energy in the
@@ -134,19 +139,19 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% structure that nobody installed. `move' and `bred' are how many creatures can
 %% do those things AT ALL, since an absent output is not a weak one.
 outcomes(Rows) ->
-    io:format("~n~s~n", [row(["seed", "still%", "eats", "meat%", "body",
-                              "brain", "move", "bred", "gspr", "tags",
+    io:format("~n~s~n", [row(["seed", "still%", "eats", "biggest", "meat%",
+                              "body", "brain", "move", "bred", "gspr", "tags",
                               "sspr"])]),
     lists:foreach(fun print_outcome/1, Rows).
 
 print_outcome(#{seed := S,
                 final := #{still_pct := Still, from_creatures_pct := Meat,
                            sensor_mean := Body, hidden_mean := Brain,
-                           uptake_mean := Eats,
+                           uptake_mean := Eats, energy_max := Biggest,
                            movers := Movers, breeders := Breeders,
                            ground_spread := GSpread, scent_tags := Tags,
                            scent_spread := SSpread}}) ->
-    io:format("~s~n", [row([S, Still, Eats, Meat, Body, Brain, Movers,
+    io:format("~s~n", [row([S, Still, Eats, Biggest, Meat, Body, Brain, Movers,
                             Breeders, GSpread, Tags, SSpread])]).
 
 %% WHAT THEY MEASURE, AND WHETHER ANYTHING ACTS ON IT. Carriers then attention,

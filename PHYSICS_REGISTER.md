@@ -56,7 +56,9 @@ neutralises every tradeoff it touches.**
 
 ### The free goods currently in this world
 
-- **holding energy** (2.1) — flat metabolism regardless of mass
+- ~~**holding energy** (2.1)~~ — priced in world 5, and pricing it cost the only
+  positive the project had. A free good is not simply a defect to be removed:
+  something may be living on it.
 - **eating at all** (4.2) — no cost to subdue, and no decision either
 - **eating a creature specifically** (4.3) — perfect trophic efficiency, so
   carnivory costs no more than grazing
@@ -118,7 +120,7 @@ allowed.
 
 | # | The simplification | Status |
 |---|---|---|
-| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **OPEN. PRICES A FREE GOOD: holding energy.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
+| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **CORRECTED**, world 5. Priced the free good and size became hard-bounded, largest creature 66-99 against a founding 800. **It also UNDID world 4's positive**: the landscape flattened from a spread of 26-86 back to 9-10, and energy from creatures fell to zero in every seed. Creatures can no longer store, so they no longer differ, so contests move nothing and no place becomes different from another. **Some variance was living on that free good.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
 | 2.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
 | 2.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
 | 2.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
