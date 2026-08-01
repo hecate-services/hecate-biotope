@@ -10,12 +10,33 @@ the first run and recorded there.
 
 5 seeds, 2000 ticks, default economy, nothing overridden. 0 of 5 extinct.
 
+> ## CORRECTION, same day, after this was first written
+>
+> **The headline below claimed two settled sizes. It is age structure, and the
+> claim is withdrawn.** Mean age by frame bucket runs `1, 11, 20, 33, 175, 278,
+> 377, 372`. The large creatures are simply the old ones. Measure a village,
+> find two heights, and you have children and adults rather than two kinds of
+> person.
+>
+> Raf asked what the energetic effect of overpopulation actually is, which
+> forced the number that settled it: **mean lifespan is 2.2 ticks**, and 309
+> creatures out of 2,150,092 births reached `max_age`. What survives is set out
+> under "What does survive" below.
+
 ## The headline
 
-**The first bimodal population this project has produced.** Two sizes, in all
-five seeds, from rules that name no size and no role.
+**Mean lifespan is 2.2 ticks**, and that is the finding, though it took a
+question from Raf to see it. 2,150,092 born and 2,147,774 dead in 2,000 ticks
+against a standing population of 2,318, which is about 1,074 deaths a tick. The
+ground supplies roughly 15,100 energy a tick and metabolism alone is 10 a
+creature, so the ground can feed about 1,500 and there are 2,300. **The
+population sits permanently above what the ground can carry, and the excess is
+burned as births that immediately starve.**
 
-And **predation is now ubiquitous and worthless**: between 165,000 and 213,000
+Nothing can evolve in that. A sensor costs 10 a tick and repays over a
+lifetime, and there is no lifetime.
+
+And **predation is ubiquitous and worthless**: between 165,000 and 213,000
 creatures were eaten, and not one creature alive is living off the result.
 
 ## Against what was pre-registered
@@ -26,14 +47,14 @@ Findings were fixed in advance. Each is answered whatever the answer is.
 |---|---|---|
 | 1 | **Variance returns**, `ground_spread` above the flat baseline of ten | **Marginal.** 12, 12, 13, 11, 12 by seed. World 5 was 9-10 and world 4 reached 26-86. A lift off the floor, not a return. |
 | 2 | **Energy from creatures above zero** | **NO.** `meat%` is 0 in all five seeds, and the count of individuals taking more from creatures than from ground is **0**. |
-| 3 | **A structure distribution with shape** | **YES, strongly.** Bimodal in every seed. |
+| 3 | **A structure distribution with shape** | **Bimodal in every seed, but it is AGE STRUCTURE.** Mean age climbs from 1 in the smallest bucket to ~400 in the largest. Not two livings. |
 | 4 | **Store and structure diverging** | **YES.** They are different quantities with different totals and they do not track each other across seeds. |
 | 5 | **Perception that pays, topology that is used** | **NO.** 0 to 11 sensor carriers in a population of ~2,300. |
 
 Predicted in advance as a non-effect: `still%` would probably stay at 100. It
 did, at 99-100. That is the density relation, a separate entry, untouched here.
 
-## Finding 3, which is the real one
+## Finding 3, and what is left of it
 
 Frame sizes, eight buckets from nothing to the largest alive, smallest first:
 
@@ -46,12 +67,36 @@ Frame sizes, eight buckets from nothing to the largest alive, smallest first:
 | 5 | 120 | `[2231, 0, 5, 0, 41, 23, 28, 2]` |
 
 Around 2,200 creatures with almost no frame, around 100 with a substantial one,
-and **the middle buckets nearly empty**. That gap is the whole point: a spread
-would fill them. This is two settled sizes, not a range.
+and the middle buckets nearly empty.
 
-It is reproducible across every seed, and nothing in the rules mentions a size,
-a class or a threshold. The only thing that was added was that a frame costs
-upkeep and wins contests while a store does neither.
+**I read that as two settled sizes. It is not.** Mean age in those same buckets:
+
+| seed | mean age per bucket |
+|---|---|
+| 1 | `[1, 11, 20, 33, 175, 278, 377, 372]` |
+| 2 | `[1, 0, 29, 36, 259, 403, 416, 464]` |
+| 3 | `[1, 18, 0, 28, 29, 224, 329, 415]` |
+
+Monotonic. The large are the old, and the tiny mode is newborns about to starve.
+Two ways of living would show creatures of the SAME age at different sizes.
+
+### What does survive
+
+**A constant hazard cannot produce this.** If death struck at a uniform rate,
+ages would be exponentially distributed with a mean of 2.2, and creatures at age
+400 would be effectively impossible. There are about a hundred of them in every
+seed. So the population really does contain two survival regimes, roughly 200x
+apart in lifespan.
+
+That is an **adult and juvenile structure with massive juvenile mortality**: a
+few long-lived individuals shedding a flood of offspring that almost all die.
+Real, reproducible, and a normal high-fecundity life history rather than a novel
+one.
+
+**What is NOT established** is whether world 6 created it or merely made it
+visible by giving creatures a frame that accumulates. No earlier world measured
+age at all. The honest position is that the age structure is measured and its
+cause is not.
 
 ## Finding 2, and the metric that nearly hid it
 
@@ -134,9 +179,8 @@ exist in a world with no frame, whatever the herd fix did.
 
 ## What this leaves for the register
 
-- **B.5 is corrected**, and the correction produced the project's first
-  positive since world 4, of a different kind: population structure rather than
-  landscape structure.
+- **B.5 is corrected.** It did not produce two livings. It produced a measured
+  adult and juvenile age structure whose cause is not established.
 - **D.2, a predation apparatus, is now testable** where world 5 made it
   untestable. There is a size class that wins contests and there are 190,000
   kills a run to act on. What is missing is a reason to bother, since the

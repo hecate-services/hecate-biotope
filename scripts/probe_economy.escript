@@ -144,6 +144,11 @@ shapes(Rows) ->
     lists:foreach(fun(#{seed := S, final := #{structure_hist := H,
                                               structure_max := Max}}) ->
                           io:format("seed ~p  max ~p  ~p~n", [S, Max, H])
+                  end, Rows),
+    io:format("~nmean age in each of those buckets (rising = the large are just "
+              "the old)~n"),
+    lists:foreach(fun(#{seed := S, final := #{age_by_frame := A}}) ->
+                          io:format("seed ~p  ~p~n", [S, A])
                   end, Rows).
 
 %% VIABILITY ONLY. Whether the world works, which is the only thing a number may

@@ -877,6 +877,15 @@ snapshot(#world{econ = Econ} = W) ->
       %% the pre-registered finding: lineages that carry much and build little,
       %% or the reverse.
       structure_hist => binned(structures(W), largest_structure(W)),
+      %% HOW OLD THE CREATURES IN EACH FRAME BUCKET ARE, which is what tells a
+      %% bimodal size distribution apart from an AGE STRUCTURE. Measure a village
+      %% and find two heights, and you have either two kinds of person or else
+      %% children and adults. Same numbers, entirely different claim.
+      %%
+      %% Rising steadily with the bucket means the large are simply the old, and
+      %% "two livings" is an overclaim. Flat across the buckets means creatures of
+      %% the same age settled at different sizes, which is the real thing.
+      age_by_frame => age_by_frame(W),
       movers => outputs_with(move, W),
       breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
@@ -929,6 +938,19 @@ energies(#world{creatures = Cs}) ->
 
 structures(#world{creatures = Cs}) ->
     [max(0, S) || #{structure := S} <- maps:values(Cs)].
+
+age_by_frame(#world{creatures = Cs} = W) ->
+    Width = max(1, (largest_structure(W) + 1) div ?BUCKETS),
+    Grouped = lists:foldl(fun(C, Acc) -> by_bucket(C, Width, Acc) end, #{},
+                          maps:values(Cs)),
+    [mean_age(maps:get(B, Grouped, [])) || B <- lists:seq(0, ?BUCKETS - 1)].
+
+by_bucket(#{structure := S, age := A}, Width, Acc) ->
+    Bucket = min(?BUCKETS - 1, max(0, S) div Width),
+    maps:update_with(Bucket, fun(L) -> [A | L] end, [A], Acc).
+
+mean_age([]) -> 0;
+mean_age(Ages) -> lists:sum(Ages) div length(Ages).
 
 sensor_counts(#world{creatures = Cs}) ->
     [length(B) || #{body := B} <- maps:values(Cs)].

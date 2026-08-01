@@ -1,141 +1,191 @@
-# Pre-registration: world 6
+# Pre-registration: world 7
 
-**Written before world 6 was built.** Corrects register entry **B.5**. World 5 is
-superseded, not edited: [PREREGISTRATION_WORLD5.md](PREREGISTRATION_WORLD5.md)
-and its [results](RESULTS_WORLD5.md) stand as the record of a different world.
+**Written before world 7 was built.** Corrects register entry **D.3**. World 6 is
+superseded, not edited: [PREREGISTRATION_WORLD6.md](PREREGISTRATION_WORLD6.md)
+and its [results](RESULTS_WORLD6.md) stand as the record of a different world.
 
-## Why there is a world 6
+## The paradigm, stated once
 
-World 5 priced the free good it set out to price. Size became hard-bounded, 66 to
-99 against a founding 800. **And it undid world 4's only positive**: the landscape
-flattened from a spread of 26-86 back to 9-10, and energy taken from creatures
-fell to zero in every seed.
+**Thermodynamics at the classical scale is the governing law of this world, and
+no rule may violate one or evade one.** Raf's, and it is the right foundation:
+the laws are the only physics we have that is not contingent on Earth, on
+carbon, or on evolution having happened. Everything else we have written is a
+constant somebody chose or biology smuggled in wearing a physics coat.
 
-The reason is that **it priced the wrong thing**, and Raf named it. A creature's
-energy here is at once its **fat reserve**, its **body**, its **weapon in a
-contest** and its **reproductive capital**. Those have opposite physics:
+Two limits on that, named so nobody has to rediscover them.
 
-- an inert store costs almost nothing to hold — that is what fat is *for*
-- working tissue is expensive to run
+**The laws constrain, they do not specify.** You cannot run a simulation of the
+Second Law. That a creature exists, occupies a hex and reaches seven cells is
+not thermodynamics and never will be. So the operative rule is the weaker and
+still ruthless one: **no rule may create energy, and none may transform it for
+free.**
 
-World 5 taxed the reserve as though it were tissue. **No scaling exponent fixes
-that**, because the quantity being scaled is two things welded together. (And
-linear was harsher than nature anyway: Kleiber's exponent is empirical, contested
-and curved, but every candidate is *sublinear*, meaning cost per unit mass falls
-with size, where linear holds it constant.)
+**The laws give the sign, never the size.** The Second Law says efficiency is
+below one. It does not say what it is. Carnot bounds a heat engine by its
+temperatures and this world has none. So one free constant survives, and it is
+**swept rather than chosen**, for reasons under "What may set a constant".
+
+## The four laws against this world
+
+Applied one at a time, honestly, including where a law has nothing to say.
+
+### Zeroth: temperature is consistent and transitive
+
+**VACUOUS HERE, and deliberately left so.** This world is **isothermal**: it sits
+in contact with a heat sink at one fixed temperature, and degraded energy leaves
+freely. With one temperature everywhere the Zeroth Law is trivially satisfied and
+does no work.
+
+**Temperature is therefore NOT introduced, because it would be ornament.** It
+would be a number that changes nothing. Temperature earns its place only when the
+sink becomes finite, so heat accumulates where it is made and export is limited.
+That is a separate register entry and a later world, and it is where the Zeroth
+Law starts mattering.
+
+### First: energy is conserved
+
+**LIVE, and currently untested.** Metabolism, rent and movement fares simply
+**vanish** from the books today. The books test checks that the tracked pools
+agree with each other, which is a weaker statement than conservation, and the
+world has therefore never actually been audited.
+
+World 7 adds a **dissipation account**. Every unit that leaves a creature arrives
+somewhere, so
+
+    ground + stores + frames + dissipated
+
+is exactly constant except for what the sun adds. The First Law becomes an exact
+equality test instead of an approximate one.
+
+**This is an instrument, not ornament.** The distinction matters given the no
+ornament rule, so here it is: **ornament is a RULE that changes nothing.** An
+observable that measures something is not ornament, and a counter that turns a
+law from a claim into a test is the opposite of it.
+
+### Second: entropy never decreases
+
+**LIVE, and completely absent today.** Every transformation in this world is
+perfectly efficient, which is a perpetual motion machine of the second kind. The
+round trip from store to frame and back returns exactly what it cost.
+
+At fixed temperature, in units where `T = 1`, entropy production **is** the heat
+produced. So the dissipation account above is the entropy account, and the Second
+Law becomes the testable statement that it never decreases. No separate entropy
+number is invented, because at one temperature it would be the same number twice.
+
+### Third: entropy approaches a constant as temperature approaches zero
+
+**VACUOUS HERE.** Nothing approaches zero temperature in an isothermal world.
+Stated rather than quietly skipped, so the claim to comply with all four is not
+doing work it has not earned.
 
 ## The single change
 
-**A creature has a store and a structure, and only structure costs upkeep.**
+**Every energy transformation pays a degradation cost, and the cost is counted
+in STEPS.**
 
-    upkeep    = base + rent + structure / upkeep_divisor
-    contest   is decided by STRUCTURE, not by what a creature is carrying
-    growing   moves store into structure, and is an output
+One constant `E`, the efficiency of one degradation step. A transformation that
+takes two steps pays `E` twice. That is the whole rule, and the six sites fall
+out of it rather than being assigned:
 
-Everything else is unchanged.
+| # | transformation | steps | efficiency |
+|---|---|---|---|
+| 1 | ground into a store | absorb | `E` |
+| 2 | creature into a store | assimilate | `E` |
+| 3 | **store into frame** | mobilise, then synthesise | **`E²`** |
+| 4 | frame into store | catabolise | `E` |
+| 5 | parent into child | divide | `E` |
+| 6 | corpse into ground | decay | `E` |
 
-### Why growing has to be a decision
+**Why building is the expensive one, and why that is not a preference.** Turning
+a store into a frame creates a low-entropy structure, and the Second Law says
+local order has to be paid for with a larger disorder elsewhere. It is two
+transformations, not one: the store is mobilised and then synthesised into
+structure. Every organism pays this, which is why anabolism is expensive and
+catabolism releases energy.
 
-Splitting the two forces a rule for how one becomes the other, and *"a creature
-grows when it has a surplus"* would be biology written into the physics — the
-exact shape of `breed_at`, deleted in world 2. Making it an **output** is the
-same treatment reproduction already gets, needs no new machinery beyond a third
-purpose, and is more general: a lineage can evolve to grow when safe and hoard
-when not.
+**One constant, and the ordering derives from counting steps rather than from
+being asserted.** Six separate efficiencies would be six undefended numbers, and
+real efficiencies do differ by process, but nothing in thermodynamics tells us by
+how much. That one constant fits every site is a simplification and is logged as
+register entry **D.5**.
 
-**The output's value is the amount**, clamped to what the creature is carrying.
-No new constant, and outputs are already integers.
+### What is deliberately NOT done
 
-### Both halves still conserve
-
-Structure is energy in another form, so the world's books become
-`ground + stores + structures`, and every transfer moves between those terms
-without changing the total:
-
-- **breeding** splits store and structure alike, so matter and energy both halve
-- **consumption** turns the victim's store *and* structure into the winner's store
-- **death** returns both to the cell
-
-The books test carries forward unchanged, which is the check that this was done
-properly.
-
-### What it prices, and what it leaves live
-
-- **Free good NOT re-created:** structure still costs, so size is not free again.
-- **Variance restored:** stores may differ freely, so creatures can once more be
-  unlike one another, which is what world 5 destroyed.
-- **Tradeoff left live:** structure wins contests and costs upkeep; store is
-  cheap and useless in a fight. **A fat small creature loses to a lean large
-  one.**
-
-## An amendment, written before the first run
-
-**2026-08-01, after the rules were frozen and before any result existed.**
-Recorded rather than folded in silently.
-
-`breed/1` and the new `build/1` rebuilt the herd index **once per creature**
-inside their folds, so a creature evaluated later saw the children its
-neighbours had just had and the conversions they had just made. That is a
-turn-order advantage, and this module's header says in as many words that it
-removed turn order:
-
-> EVERY CREATURE VALUES THE SAME WORLD, the one at the start of the tick, and
-> they all move at once. Nobody sees anybody else's move before making their own.
-
-`move_all` obeys it. Those two phases did not. Both now gather the herd once,
-as `herd/1`'s own comment always said it was for.
-
-**Why this is not tuning.** No world 6 result existed when it was found, so it
-cannot have been a change made in response to one. It was found by asking why a
-single seed was taking over an hour: the per-creature rebuild is quadratic in
-the population, and at 2,263 creatures 250 ticks took 532 seconds. It now takes
-2. The bug and the delay are the same bug.
-
-**What it costs, stated plainly.** `breed/1` has carried this since breeding
-became an output, so **worlds 2 to 5 all ran with it**. World 6 therefore
-differs from world 5 in two ways rather than one: the pre-registered store and
-structure split, and this. Any comparison drawn against world 5 has to carry
-that caveat, and a difference cannot be attributed to the split alone without a
-control.
-
-**The control this needs**, if the finding turns on the comparison: world 5's
-rules re-run with the herd hoisted, which separates the two changes. Not run
-yet, and named here so that deciding later to skip it is a visible decision.
+- **No temperature.** Ornament at one temperature. See Zeroth above.
+- **No separate entropy quantity.** It would be the dissipation account renamed.
+- **No different efficiency for eating creatures than for eating ground.** Real
+  carnivores assimilate better than herbivores, but that is a **biological** fact
+  about tissue similarity, not a thermodynamic law, and this world may not write
+  it. See the prediction below, which follows from refusing it.
+- **No finite heat sink.** It is the interesting entry and it is a second change.
 
 ## What may set a constant
 
-Unchanged. No new constant is introduced: `upkeep_divisor` carries over and is
-simply applied to structure instead of to everything. Its criterion and its
-derivation stand, and it will be re-derived against the new rule and the
-derivation recorded.
+`E` is **swept, not chosen.** The run reports every value from 95% down to the
+point where the world dies, and the extinction boundary is part of the result.
+
+This is the strongest available defence against steering: a value cannot be
+picked for the result it gives if all of them are published. Thermodynamics fixes
+the sign and has nothing to say about the size, and inventing a criterion to
+manufacture a single number would be exactly the tuning-for-outcome this project
+forbids.
 
 ## What will be reported
 
-Everything that varies, with none of it privileged, plus **structure separately
-from store**, since a mean of the two added together is exactly the conflation
-this world exists to undo.
+Everything that varies, at every value of `E`, with none of it privileged. Plus
+the dissipation account, which is new, and `ground_spread`, which for the first
+time is a prediction rather than a curiosity.
 
 ## What would count as a finding
 
 Stated in advance.
 
-1. **Variance returns.** `ground_spread` above the flat baseline of ten again.
-   World 4 reached 26-86, world 5 fell back to 9-10.
-2. **Energy from creatures above zero.** World 5 drove it to zero, which is what
-   currently makes register entry `D.2` untestable.
-3. **A structure distribution with shape**, rather than everything at one size.
-4. **Store and structure diverging** — lineages that carry much and build little,
-   or the reverse. That is the fat-versus-muscle axis and neither is named.
-5. **Perception that pays**, and **topology that is used**.
+1. **Lifespan rises above 2.2 ticks.** The direct target. World 6 showed a mean
+   lifespan of 2.2 ticks against a `max_age` of 600, with 309 creatures out of
+   2,150,092 births ever reaching it, and **no apparatus can amortise over two
+   ticks**. Pricing building and reproduction should make breeding every tick
+   stop being the dominant move.
+2. **Density falls below world 6's ~2,300**, and the population stops sitting
+   permanently above what the ground can feed.
+3. **`ground_spread` rises above 11 to 13.** This is Prigogine's prediction and
+   the sharpest one available: a system far from equilibrium should organise
+   *because* structure dissipates a gradient faster than disorder does. World 6
+   has genuine throughflow and produces almost no local order, and one candidate
+   reason is that its dissipation has no structure at all, happening entirely as
+   a flat per-tick tax. World 7 distributes it across every transformation.
+4. **Something amortises.** Sensor carriers above the 0 to 11 they have been
+   stuck at in every world, or hidden nodes above ~0.
+5. **Age and size decouple.** Creatures of the same age at different sizes, which
+   is what world 6 looked like and turned out not to be.
 
-## What this will NOT do, stated in advance
+## What will NOT happen, stated in advance
 
-It does not make movement pay, and **`still%` may well stay at 100**. That is the
-density relation, a separate entry, untouched here.
+**Predation will get worse, not better, and that is correct physics.** A uniform
+`E` does not make eating creatures more profitable than eating ground, since both
+lose the same fraction in one step. But the energy in a creature has already been
+through one transformation to get there, so eating it is **cumulatively** lossier
+than eating the ground it came from. That is precisely why real food chains are
+short and top predators rare.
+
+So `from_creatures_pct` should **fall**. If it rises, something is wrong with the
+implementation rather than interesting about the world.
+
+This is worth stating plainly because it cuts against what we have been hoping
+for since world 1. Thermodynamics says carnivory is a worse living unless it buys
+something back, and this world refuses to write the thing that buys it back.
+
+**`still%` may well stay at 100.** That is the density relation and it is
+untouched here.
 
 ## The commitments
 
 1. Rules frozen before the first run, not changed in response to it.
-2. Reported across many seeds, including **nothing happened**.
-3. A further change is world 7. This file is superseded, not edited.
-4. Worlds 1 to 5 are retired and may not be quoted alongside this.
+2. Reported across many seeds and every value of `E`, including **nothing
+   happened**.
+3. A further change is world 8. This file is superseded, not edited.
+4. Worlds 1 to 6 are retired and may not be quoted alongside this.
+5. **The full thermodynamic audit of the register follows this world**, applying
+   one test to every entry: required by physics, permitted by it, or contrary to
+   it. `max_age` as a counter, contests decided by size, and a movement fare
+   independent of mass are already known to fail it.

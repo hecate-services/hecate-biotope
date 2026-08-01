@@ -13,7 +13,7 @@ still gets wrong about energy, and which entry each world corrects.
 | **3** | ground recovery depends on its standing stock (`A.1`) | **Nothing.** A stayer holds its cell at zero, so a stock-dependent rule never fires in a populated world. [results](RESULTS_WORLD3.md) |
 | **4** | feeding is rate-limited, and the rate is heritable (`D.1`) | **First positive.** The landscape differentiated, `ground_spread` 26–86 against 9 before, and the feeding rate became **the first trait ever selected rather than drifting**. It moved toward greed, because size was free. [results](RESULTS_WORLD4.md) |
 | **5** | metabolism scales with what a creature holds (`B.1`) | Size became bounded, 66–99 against a founding 800. **It also undid world 4's positive**: landscape flat again, energy from creatures zero in every seed. [results](RESULTS_WORLD5.md) |
-| **6** | separate the **store** from the **structure** (`B.5`) | **The first bimodal population.** Two settled sizes in every seed, ~2,200 with almost no frame and ~100 with a large one, from rules naming no size. Did **not** restore world 4's landscape variance, and predation is now ubiquitous and worthless: 165k-213k kills a run, nobody living off them. [results](RESULTS_WORLD6.md) |
+| **6** | separate the **store** from the **structure** (`B.5`) | **Mean lifespan is 2.2 ticks.** Frames came out bimodal, which I first read as two livings and withdrew: mean age climbs 1 to 400 across the buckets, so it is age structure. What survives is an adult and juvenile split ~200x apart in lifespan, which a constant hazard cannot produce. Landscape stayed flat; predation is ubiquitous and worthless. [results](RESULTS_WORLD6.md) |
 
 ## The through-line
 
@@ -22,10 +22,14 @@ and one made something worse. **All six are useful**: a correction that changes
 nothing removes a simplification from the list of things that could have been
 responsible, which is the only way this kind of map gets built.
 
-The two positives are different in kind, and the difference is the finding.
-World 4 structured the **landscape**; world 6 structured the **population**.
-Neither structured the other: world 6's board stayed nearly flat and world 4's
-creatures stayed one size.
+The two positives are different in kind. World 4 structured the **landscape**;
+world 6 revealed structure in the **population**. Neither produced the other.
+
+**And world 6 is a lesson in reading a distribution too quickly.** A bimodal
+histogram in all five seeds looked like two ways of living. One extra
+measurement, mean age per bucket, showed the large are simply the old. The shape
+was real and the story was wrong, and only a question from Raf about what
+overpopulation does energetically produced the number that settled it.
 
 Two rules came out of the run and now govern what gets built next:
 
@@ -38,3 +42,9 @@ Two rules came out of the run and now govern what gets built next:
 - **A thing can happen constantly and still not be a living.** World 6 kills
   190,000 creatures a run and no lineage eats for a living, because what gets
   eaten is empty. Counting events is not measuring a strategy.
+- **A shape is not a story.** Two modes in a size histogram can be two
+  strategies or it can be children and adults, and the histogram cannot tell you
+  which. Ask what else differs between the modes before naming them.
+- **Nothing evolves in a world with no lifetimes.** Mean lifespan is 2.2 ticks
+  and every apparatus is priced per tick, so no investment can ever repay. This
+  is the constraint underneath every null in the register.
