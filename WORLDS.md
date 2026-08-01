@@ -23,6 +23,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **10** | **capacity bounds meat too**: a predator takes `min(uptake, frame, what is there)` and what it cannot hold is buried as carrion (`B.7`) | **The jackpot is gone and almost nothing else moved.** World 8 bounded intake by the body at ONE of the two sites energy enters a creature; predation was bounded by nothing, so a kill was worth the whole victim. Energy from creatures 31% to **21%**, largest store 23,446 to **12,555**. **The landscape got SMOOTHER, not lumpier** (`ground_spread` 86 to 60), against the prediction: the jackpot was what made it rough, so life was differentiating the ground by HOARDING rather than by dying. Predation survived being priced, which is the strongest thing here. **Lineages still collapse to 1 of 40** — two ways of feeding are not two niches (`G.1`). [results](RESULTS_WORLD10.md) |
 
+| **11** | **feeding belongs to a creature, not to a contest, and is bounded once**: every survivor in a cell feeds from what is left, up to `min(uptake, frame)` counting meat and ground TOGETHER (`B.8`) | **Every positive prediction failed and the one risk landed.** Only the winner had been eating, and it had been eating twice. Removing the second helping did not change how much predation happens (21%, unmoved) but changed what it is WORTH: seeds surviving 20,000 ticks fell from **9 of 12 to 5**. Density fell rather than rose (918 to 797), and frame and store ROSE rather than falling. Fewer, larger creatures on a lumpier board (`ground_spread` 60 to 66). **Predators were living on the bug.** Lineages still 1 of 40, as pre-registered. [results](RESULTS_WORLD11.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a
@@ -79,6 +81,13 @@ Two rules came out of the run and now govern what gets built next:
   (`C.6`), and world 8's capacity bound applied to grazing and not to predation
   (`B.7`). Neither function was wrong on its own. This is the most productive
   question in the register.
+- **A correction can be right and cost something, and both get reported.** World
+  11 made the feeding books honest and a third of the surviving seeds died. That
+  is the price of the books, not a fault, and it is the second world running
+  where stricter physics made a poorer world.
+- **"Every extinction is early" is now only "almost always".** Worlds 9 and 10
+  saw nothing die between tick 725 and 20,000, and the fleet configs quote that.
+  World 11 killed seed 101 at tick 1,174.
 - **A prediction can fail informatively.** World 10 predicted carrion would make
   the landscape lumpier and it made it smoother, because the jackpot was what had
   been making it rough. Removing a mechanism is sometimes the only way to see what
