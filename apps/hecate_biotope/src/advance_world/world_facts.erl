@@ -176,7 +176,8 @@ extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
 -spec world_charted(map(), world_pace:pace()) -> map().
 world_charted(Chart, Pace) ->
     #{creatures := Creatures, energies := Energies, signatures := Signatures,
-      ground := Ground, scent := Scent, radius := Radius, tick := Tick} = Chart,
+      uptakes := Uptakes, ground := Ground, scent := Scent, radius := Radius,
+      tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -204,6 +205,11 @@ world_charted(Chart, Pace) ->
       %% comparing creatures against each other is the only way to see whether a
       %% population has become one family or several.
       signatures => Signatures,
+      %% HOW FAST EACH ONE FEEDS, same order again. A quantity a viewer can put
+      %% on a scale, unlike a signature: below what the ground sustains is a
+      %% creature that can hold its cell indefinitely, above it one that strips
+      %% the cell and must move or starve.
+      uptakes => Uptakes,
       %% Position AND strength, interleaved at a stride of three, because a mark
       %% has no list to run parallel to. The signature is deliberately left out:
       %% it would double the payload and a spectator has nothing to compare it

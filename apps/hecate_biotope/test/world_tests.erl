@@ -96,13 +96,83 @@ the_ground_fills_to_its_ceiling_and_no_further_test() ->
 %% Absorbing, contesting, and one rule for both
 %%==============================================================================
 
-absorbing_takes_the_whole_cell_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 300, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
-                           max_age => 100000, start_energy => 100}, inert())),
+%% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and what it does not take stays.
+%% World 3 took everything, so every grazed cell sat at zero and stock-dependent
+%% recovery collapsed to its floor everywhere.
+absorbing_is_limited_by_the_creature_test() ->
+    W = grazer(70, #{ground_ceiling => 300}),
     #{energy_total := E1, ground_total := G1} = world:snapshot(world:tick(W)),
-    ?assertEqual(400, E1),
-    ?assertEqual((hex:cells(3) - 1) * 300, G1).
+    ?assertEqual(100 + 70, E1),
+    %% Its own cell keeps the 230 it could not take; every other cell is full.
+    ?assertEqual((hex:cells(3) - 1) * 300 + 230, G1).
+
+%% A creature cannot take more than is there, however fast it feeds.
+absorbing_cannot_exceed_what_is_in_the_cell_test() ->
+    W = grazer(1000, #{ground_ceiling => 250}),
+    #{energy_total := E1} = world:snapshot(world:tick(W)),
+    ?assertEqual(100 + 250, E1).
+
+%% FEED GENTLY AND THE CELL SUSTAINS YOU INDEFINITELY. Below what the ground can
+%% put back, the standing stock holds and the income never falls.
+a_gentle_feeder_does_not_exhaust_its_cell_test() ->
+    W = grazer(5, #{ground_seed => 5, ground_growth_pct => 0,
+                    ground_ceiling => 300}),
+    Ground = fun(N) ->
+                     #{ground_total := G} = world:snapshot(world:tick(W, N)),
+                     G - (hex:cells(3) - 1) * 300
+             end,
+    ?assertEqual(Ground(20), Ground(60)).
+
+%% FEED HARDER THAN THE GROUND COMES BACK AND YOU STRIP IT. Overgrazing is
+%% possible now, and what it costs is that your income collapses to the bare
+%% floor: exactly the seed rate, whatever your body could have handled.
+a_greedy_feeder_strips_its_cell_and_lives_on_the_floor_test() ->
+    W = grazer(1000, #{ground_seed => 7, ground_growth_pct => 0,
+                       ground_ceiling => 300}),
+    Settled = world:tick(W, 5),
+    #{energy_total := Before} = world:snapshot(Settled),
+    #{energy_total := After} = world:snapshot(world:tick(Settled, 10)),
+    ?assertEqual(70, After - Before).
+
+%% A sensorless, brainless creature that cannot move or breed, feeding at a
+%% pinned rate, so every unit of energy is attributable to absorption.
+grazer(Rate, Opts) ->
+    quiet(maps:merge(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                                  metabolism => 0, sensor_rent => 0,
+                                  hidden_rent => 0, max_age => 100000,
+                                  start_energy => 100,
+                                  founder_uptake => Rate}, inert()), Opts)).
+
+%% THE LINE BETWEEN THE TWO LIVINGS, derived from the growth curve rather than
+%% chosen. Below it a lineage can hold a cell for good; above it the cell is
+%% stripped and staying becomes fatal.
+the_sustainable_yield_is_derived_from_the_curve_test() ->
+    Flat = maps:merge(world:defaults(), #{ground_seed => 9,
+                                          ground_growth_pct => 0,
+                                          ground_ceiling => 400}),
+    %% With no compounding the best a cell can do is its floor.
+    ?assertEqual(9, ground:sustainable(Flat)),
+    Compounding = maps:merge(world:defaults(), #{ground_seed => 12,
+                                                 ground_growth_pct => 6,
+                                                 ground_ceiling => 400}),
+    ?assert(ground:sustainable(Compounding) > 12).
+
+%% A child feeds nearly as its parent did, so a lineage DRIFTS through feeding
+%% rates rather than resampling them.
+a_child_feeds_nearly_as_its_parent_did_test() ->
+    %% A real ceiling, because the trait is bounded by one: a creature takes at
+    %% most a full cell's worth per tick, so a world with no ground at all would
+    %% clamp every feeding rate to nothing and measure the clamp.
+    W = quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+                           ground_growth_pct => 0, ground_ceiling => 400,
+                           metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 400,
+                           uptake_mutation => 3,
+                           founder_uptake => 200}, fertile())),
+    #{uptake_mean := Mean, population := Pop} =
+        world:snapshot(world:tick(W, 1)),
+    ?assertEqual(2, Pop),
+    ?assert(Mean >= 198 andalso Mean =< 202).
 
 %% AND THE SAME RULE TAKES A CREATURE. Something holding more takes something
 %% holding less, exactly as it takes what is in the ground, and there is no

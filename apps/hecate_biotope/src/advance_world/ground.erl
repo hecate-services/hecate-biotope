@@ -34,7 +34,7 @@
 %% creatures are.
 -module(ground).
 
--export([new/2, grow/2, take/2, at/2, deposit/3]).
+-export([new/2, grow/2, draw/3, at/2, deposit/3, sustainable/1]).
 -export([total/1, within/4, spread/1]).
 
 -type ground() :: #{hex:hex() => non_neg_integer()}.
@@ -103,9 +103,37 @@ recover(E, _Seed, _Pct, Ceiling) when E >= Ceiling -> E;
 recover(E, Seed, Pct, Ceiling) ->
     min(Ceiling, E + max(Seed, E * Pct div 100)).
 
-%% @doc Absorb everything in a cell, and say how much that was.
--spec take(hex:hex(), ground()) -> {non_neg_integer(), ground()}.
-take(H, G) -> {maps:get(H, G, 0), G#{H => 0}}.
+%% @doc Draw up to `Rate' from a cell, and say how much that was.
+%%
+%% WHAT IS NOT TAKEN STAYS, which is world 4's whole change. World 3 took
+%% everything, so every grazed cell sat at zero and stock-dependent recovery
+%% collapsed to its floor everywhere: the mechanism never fired in a populated
+%% world at all.
+-spec draw(hex:hex(), non_neg_integer(), ground()) ->
+          {non_neg_integer(), ground()}.
+draw(H, Rate, G) ->
+    Stock = maps:get(H, G, 0),
+    Taken = min(Rate, Stock),
+    {Taken, G#{H => Stock - Taken}}.
+
+%% @doc The most that can be taken from a cell every tick without driving its
+%% standing stock to nothing.
+%%
+%% THE LINE BETWEEN THE TWO LIVINGS, and it is derived from the growth curve
+%% rather than chosen. A lineage feeding below it holds its cell indefinitely and
+%% can stay; one feeding above it strips the cell, watches its income collapse to
+%% the bare floor, and must move or starve. Reported so that both sides of the
+%% line are known to be reachable, never to arrange which side wins.
+-spec sustainable(map()) -> non_neg_integer().
+sustainable(Econ) ->
+    Ceiling = maps:get(ground_ceiling, Econ),
+    lists:max([yield(Stock, Econ) || Stock <- lists:seq(0, Ceiling)]).
+
+yield(Stock, Econ) ->
+    Ceiling = maps:get(ground_ceiling, Econ),
+    min(Ceiling - Stock,
+        max(maps:get(ground_seed, Econ),
+            Stock * maps:get(ground_growth_pct, Econ) div 100)).
 
 %% @doc Return energy to a cell. What a corpse does.
 -spec deposit(hex:hex(), non_neg_integer(), ground()) -> ground().

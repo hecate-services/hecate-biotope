@@ -66,6 +66,17 @@
                       %% wrote with a parameter bolted on. It is an OUTPUT now.
                       body := body:body(),
                       brain := brain:brain(),
+                      %% HOW FAST IT CAN FEED, per tick. A bodily capacity and
+                      %% not a rule: nothing reads it but the arithmetic of
+                      %% absorption, and it says nothing about when or whether
+                      %% to do anything.
+                      %%
+                      %% Feed slower than the ground recovers and a cell holds a
+                      %% standing stock you can draw on for good. Feed faster and
+                      %% you strip it, your income collapses to the bare floor,
+                      %% and you move or starve. OVERGRAZING IS POSSIBLE NOW, and
+                      %% fatal to whatever does it.
+                      uptake := non_neg_integer(),
                       scent := scent:tag(),
                       %% WHAT THIS CREATURE HAS ACTUALLY EATEN, by where the
                       %% energy came from. An observer's record, not a rule:
@@ -80,6 +91,7 @@
 -type econ() :: #{ground_seed := pos_integer(),
                   ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
+                  uptake_mutation := non_neg_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
                   sensor_rent := non_neg_integer(),
@@ -176,6 +188,14 @@ defaults() ->
       ground_seed       => 12,
       ground_growth_pct => 6,
       ground_ceiling    => 400,
+      %% HOW FAR A CHILD'S FEEDING RATE MAY DRIFT FROM ITS PARENT'S. The rate
+      %% itself is a heritable trait rather than a constant, because a fixed one
+      %% would decide globally and by my hand whether staying put works: above
+      %% what a cell can sustainably yield, everything must move; below it,
+      %% nothing need. See PREREGISTRATION.md. This is a scale constant of the
+      %% same kind as brain_mutation, small and symmetric so a lineage drifts
+      %% rather than resamples.
+      uptake_mutation   => 8,
       %% WHAT IT COSTS TO EXIST AND TO ACT, at ten times world 1's grain. Scaling
       %% every energy quantity by one factor changes nothing about the world and
       %% buys the resolution to set the ratio above to within a tenth, which
@@ -255,7 +275,15 @@ founder_traits(Econ, Opts, Rng0) ->
     {Brain, Rng2} = founder_brain(maps:get(founder_brain, Opts, draw),
                                   Body, Econ, Rng1),
     {Tag, Rng3} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng2),
-    {#{body => Body, brain => Brain, scent => Tag}, Rng3}.
+    {Rate, Rng4} = given(founder_uptake, Opts, fun founder_rate/2, Econ, Rng3),
+    {#{body => Body, brain => Brain, scent => Tag, uptake => Rate}, Rng4}.
+
+%% Uniform across the physically meaningful range. The ceiling is DERIVED rather
+%% than chosen: no more than a full cell holds can be taken from it, so nothing
+%% narrower was picked and the draw favours neither prudence nor greed.
+founder_rate(Econ, Rng0) ->
+    {N, Rng1} = rand:uniform_s(maps:get(ground_ceiling, Econ) + 1, Rng0),
+    {N - 1, Rng1}.
 
 given(Key, Opts, Draw, Econ, Rng) ->
     specified(maps:get(Key, Opts, draw), Draw, Econ, Rng).
@@ -462,9 +490,19 @@ take_them(Weaker, Winner, #world{creatures = Cs} = W) ->
     W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
             consumed = W#world.consumed + length(Weaker)}.
 
+%% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and that is the whole of world 4.
+%% World 3 took everything, so every grazed cell sat at zero, so stock-dependent
+%% recovery collapsed to its floor everywhere and the mechanism never once fired
+%% in a populated world.
+%%
+%% Now a cell keeps whatever was not taken, and what a creature earns depends on
+%% how hard it feeds against how fast the ground comes back. Feed gently and the
+%% cell holds a standing stock indefinitely; feed hard and it is stripped, income
+%% falls to the bare floor, and staying becomes fatal.
 absorb(Id, #world{creatures = Cs, ground = G} = W) ->
-    #{at := At, energy := E, from_ground := P} = C = maps:get(Id, Cs),
-    {Gain, G1} = ground:take(At, G),
+    #{at := At, energy := E, from_ground := P, uptake := Rate} =
+        C = maps:get(Id, Cs),
+    {Gain, G1} = ground:draw(At, Rate, G),
     W#world{creatures = Cs#{Id => C#{energy => E + Gain,
                                      from_ground => P + Gain}},
             ground = G1,
@@ -519,11 +557,28 @@ note_change(none, W) ->
 %% that does not crash, because every weight past the change point quietly starts
 %% valuing a different measurement.
 inherit_traits(Parent, Econ, Rng0) ->
-    #{body := Body, brain := Brain, scent := Tag} = Parent,
+    #{body := Body, brain := Brain, scent := Tag, uptake := Rate} = Parent,
     {ChildBody, Change, Rng1} = body:inherit(Body, Econ, Rng0),
     {ChildBrain, Rng2} = brain:inherit(Brain, Change, Econ, Rng1),
     {ChildTag, Rng3} = scent:inherit(Tag, Econ, Rng2),
-    {#{body => ChildBody, brain => ChildBrain, scent => ChildTag}, Change, Rng3}.
+    {ChildRate, Rng4} = inherit_rate(Rate, Econ, Rng3),
+    {#{body => ChildBody, brain => ChildBrain, scent => ChildTag,
+       uptake => ChildRate}, Change, Rng4}.
+
+%% A small symmetric nudge so a lineage drifts through feeding rates rather than
+%% resampling them.
+%%
+%% BOUNDED BY WHAT A CELL CAN HOLD, which is a gut and not a rule: a creature
+%% takes at most one full cell's worth in a tick, so a corpse-enriched cell,
+%% which sits above the ceiling and can hold far more, takes several ticks to
+%% drain. Above that bound the trait would be neutral anyway, since `draw/3'
+%% already refuses to hand over more than is there, and an unbounded trait drifts
+%% into numbers that mean nothing and make the population average meaningless.
+inherit_rate(Rate, Econ, Rng0) ->
+    Mut = maps:get(uptake_mutation, Econ),
+    {Step, Rng1} = rand:uniform_s(2 * Mut + 1, Rng0),
+    Moved = Rate + Step - Mut - 1,
+    {max(0, min(maps:get(ground_ceiling, Econ), Moved)), Rng1}.
 
 %% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON, and world 1 simply deleted it.
 %% Not rounded away: a well-fed creature could be carrying hundreds and reaping it
@@ -606,6 +661,9 @@ snapshot(#world{} = W) ->
       %% calls it one.
       still_pct => still_share(W),
       hidden_mean => mean_hidden(W),
+      %% THE NEW AXIS. Prudence against greed, as the population settled it, and
+      %% nothing anywhere calls either of those.
+      uptake_mean => mean_uptake(W),
       %% WHERE THE LIVING GOT THEIR ENERGY, as a percentage that came from other
       %% creatures. Zero means nothing alive has ever eaten anything that could
       %% have eaten it back. This replaces the herbivore and carnivore buckets,
@@ -641,6 +699,10 @@ outputs_with(Purpose, #world{creatures = Cs}) ->
 still_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 still_share(#world{creatures = Cs}) ->
     length([x || #{still := true} <- maps:values(Cs)]) * 100 div map_size(Cs).
+
+mean_uptake(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_uptake(#world{creatures = Cs}) ->
+    lists:sum([U || #{uptake := U} <- maps:values(Cs)]) div map_size(Cs).
 
 mean_hidden(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_hidden(#world{creatures = Cs}) ->
@@ -701,7 +763,8 @@ econ_id(Econ) ->
 %% strength and there is no list it runs parallel to. The signature is left out:
 %% it would double the payload and a spectator has nothing to compare it against.
 -spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
-                          signatures := [integer()], ground := [integer()],
+                          signatures := [integer()], uptakes := [integer()],
+                          ground := [integer()],
                           scent := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
 chart(#world{creatures = Cs, ground = G, scent = Scent,
@@ -719,6 +782,11 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
       %% against EACH OTHER, which is the only way to see whether a population is
       %% one family or several without reading a number off a table.
       signatures => [maps:get(scent, maps:get(Id, Cs)) || Id <- Ids],
+      %% HOW FAST EACH ONE FEEDS, same order again. The axis world 4 is about,
+      %% and unlike a signature it is a quantity with a meaning a viewer can put
+      %% on a scale: below what the ground sustains is a creature that can hold
+      %% its cell for good, above it one that strips the cell and must move.
+      uptakes => [maps:get(uptake, maps:get(Id, Cs)) || Id <- Ids],
       %% The ground as position and amount, at a stride of three. Only cells
       %% holding something are sent: an empty cell is one a spectator draws bare,
       %% and on a grazed board most of them are.
