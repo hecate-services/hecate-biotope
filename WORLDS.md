@@ -25,6 +25,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **11** | **feeding belongs to a creature, not to a contest, and is bounded once**: every survivor in a cell feeds from what is left, up to `min(uptake, frame)` counting meat and ground TOGETHER (`B.8`) | **Every positive prediction failed and the one risk landed.** Only the winner had been eating, and it had been eating twice. Removing the second helping did not change how much predation happens (21%, unmoved) but changed what it is WORTH: seeds surviving 20,000 ticks fell from **9 of 12 to 5**. Density fell rather than rose (918 to 797), and frame and store ROSE rather than falling. Fewer, larger creatures on a lumpier board (`ground_spread` 60 to 66). **Predators were living on the bug.** Lineages still 1 of 40, as pre-registered. [results](RESULTS_WORLD11.md) |
 
+| **12** | **speed**: a creature goes as far as it can pay to go, and the fare per cell is `move_cost + carrying(structure)` (`C.2`, `C.1`) | **THE GIANTS ARE GONE.** Largest frame 3,831 to **450**, largest store 14,249 to **677**, creatures 797 to **1,285**, generations deep at 20,000 ticks ~250 to **~2,480**. Pricing the HAUL did in one change what five worlds of pricing the HOLD could not. The landscape flattened to 22 as a consequence, because concentration in the ground tracks concentration in individuals and there are no hoarders left. **Perception still did not move** (0.10): flight now exists and a creature still cannot afford the eyes to use it. A size axis appeared BETWEEN seeds, not within one — three survivors near 470, one at **11,452**. [results](RESULTS_WORLD12.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a
@@ -81,6 +83,16 @@ Two rules came out of the run and now govern what gets built next:
   (`C.6`), and world 8's capacity bound applied to grazing and not to predation
   (`B.7`). Neither function was wrong on its own. This is the most productive
   question in the register.
+- **Pricing the haul is a different instrument from pricing the hold.** Worlds 5
+  and 6 charged for holding a body and size still ran away. World 12 charged for
+  MOVING it and bodies capped at a tenth of what they had reached. A cost that
+  applies only when you act bites where a standing charge does not.
+- **A tradeoff can be real between runs and absent within one.** World 12's seeds
+  split into worlds of many small creatures and a world of few enormous ones,
+  from identical rules. Alternative stable states, which is not coexistence.
+- **Adding a capability is not adding a reason.** Flight became possible and
+  perception still did not move, because the same change made the eyes needed to
+  use it less affordable. A capability can arrive with a bill that cancels it.
 - **A correction can be right and cost something, and both get reported.** World
   11 made the feeding books honest and a third of the surviving seeds died. That
   is the price of the books, not a fault, and it is the second world running
