@@ -189,9 +189,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 6,
-      line => <<"A creature has a lunchbox and a body. Only the body costs "
-                "anything to carry, and only the body wins a fight.">>}.
+    #{number => 7,
+      line => <<"Nothing here is free. Every time energy moves or changes "
+                "form, some of it is lost as heat, and building a body costs "
+                "the most of all.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
