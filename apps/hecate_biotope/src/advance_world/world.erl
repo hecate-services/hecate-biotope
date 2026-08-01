@@ -189,10 +189,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 7,
-      line => <<"Nothing here is free. Every time energy moves or changes "
-                "form, some of it is lost as heat, and building a body costs "
-                "the most of all.">>}.
+    #{number => 8,
+      line => <<"You can only eat as fast as your body allows, so a creature "
+                "with no body starves. Nothing is free either: moving energy "
+                "about always loses some as heat.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -676,9 +676,27 @@ take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
 %% falls to the bare floor, and staying becomes fatal.
 whole(#{energy := E, structure := S}) -> max(0, E) + max(0, S).
 
+%% A CREATURE WITHOUT A BODY IS A GHOST, and world 7 was full of them: below
+%% 70% efficiency every frame was zero, and those creatures ate, sensed, thought
+%% and bred exactly as well as any other. Raf looked at a picture of it and said
+%% it makes no sense, which it does not.
+%%
+%% The cause was that a body was OPTIONAL. It won contests and cost upkeep and
+%% that was the whole of it; nothing a creature could do depended on having one.
+%% So CAPACITY IS A PROPERTY OF STRUCTURE: you cannot take in more than your
+%% body can hold, because there is nothing to take it in through.
+%%
+%% NO NEW CONSTANT. This is a comparison between two quantities the world already
+%% tracks, not a threshold anybody chose, which is what makes it a deletion of a
+%% free good rather than an added rule.
+%%
+%% Death from having no body is then a CONSEQUENCE rather than a decree: a
+%% creature with no frame cannot feed, so it starves like anything else that
+%% cannot feed. No rule anywhere says a frame of zero is fatal.
 absorb(Id, #world{creatures = Cs, ground = G} = W) ->
-    #{at := At, energy := E, from_ground := P, uptake := Rate} =
-        C = maps:get(Id, Cs),
+    #{at := At, energy := E, from_ground := P, uptake := Want,
+      structure := Body} = C = maps:get(Id, Cs),
+    Rate = min(Want, max(0, Body)),
     {Drawn, G1} = ground:draw(At, Rate, G),
     %% ASSIMILATION IS A TRANSFORMATION AND LOSES ITS SHARE. What leaves the
     %% ground is not what arrives in the creature, and the difference is heat.

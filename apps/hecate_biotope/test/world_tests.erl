@@ -173,17 +173,58 @@ the_ground_fills_to_its_ceiling_and_no_further_test() ->
 absorbing_is_limited_by_the_creature_test() ->
     W = grazer(70, #{ground_ceiling => 300}),
     #{energy_total := E1, ground_total := G1} = world:snapshot(world:tick(W)),
-    %% A FOUNDER IS HALF STORE AND HALF STRUCTURE since world 6, so of the
-    %% hundred it starts with only fifty is carried, and absorption adds to that.
-    ?assertEqual(50 + 70, E1),
+    %% ASSERTED AS A GAIN rather than as a total. A founder is half store and
+    %% half structure since world 6, so what it starts with carried depends on
+    %% `start_energy', and world 8 had to raise that so the BODY would not be
+    %% what capped the rate. A total couples this test to a number it is not
+    %% about, and did in fact break on it.
+    ?assertEqual(70, E1 - 2000),
     %% Its own cell keeps the 230 it could not take; every other cell is full.
     ?assertEqual((hex:cells(3) - 1) * 300 + 230, G1).
+
+%% A CREATURE WITHOUT A BODY IS A GHOST, and world 7 was full of them: below 70%
+%% efficiency every frame was zero and those creatures went on eating, sensing,
+%% thinking and breeding exactly as well as any other.
+%%
+%% Nothing anywhere says a frame of zero is fatal. Such a creature cannot feed,
+%% so it starves like anything else that cannot feed, and death from having no
+%% body is a CONSEQUENCE rather than a decree.
+%%
+%% A FOUNDER CANNOT BE BORN BODILESS, which is worth knowing and is asserted
+%% here: the split hands the odd unit to the frame, so the smallest founder the
+%% rules allow still has one. A ghost can therefore only arise by catabolising
+%% itself down to nothing, and then it is already dead.
+a_founder_always_has_at_least_some_body_test() ->
+    W = quiet(maps:merge(#{start_energy => 1}, inert())),
+    #{structure_total := Frame, energy_total := Store} = world:snapshot(W),
+    ?assertEqual(1, Frame),
+    ?assertEqual(0, Store).
+
+%% AND HAVING ONE IS WHAT LIFTS THE CAP, which is the other half of the rule: the
+%% same creature on the same ground, differing only in whether it has a body,
+%% eats or does not.
+what_a_creature_can_take_in_is_bounded_by_its_frame_test() ->
+    Fed = fun(Start) ->
+                  W = quiet(maps:merge(#{ground_seed => 400,
+                                         ground_growth_pct => 0,
+                                         ground_ceiling => 400, metabolism => 0,
+                                         sensor_rent => 0, hidden_rent => 0,
+                                         max_age => 100000,
+                                         start_energy => Start,
+                                         founder_uptake => 400}, inert())),
+                  #{absorbed := A} = world:snapshot(world:tick(W)),
+                  A
+          end,
+    %% Frames of 5, 50 and 200 against an appetite of 400 and a full cell.
+    ?assertEqual(5, Fed(10)),
+    ?assertEqual(50, Fed(100)),
+    ?assertEqual(200, Fed(400)).
 
 %% A creature cannot take more than is there, however fast it feeds.
 absorbing_cannot_exceed_what_is_in_the_cell_test() ->
     W = grazer(1000, #{ground_ceiling => 250}),
     #{energy_total := E1} = world:snapshot(world:tick(W)),
-    ?assertEqual(50 + 250, E1).
+    ?assertEqual(250, E1 - 2000).
 
 %% FEED GENTLY AND THE CELL SUSTAINS YOU INDEFINITELY. Below what the ground can
 %% put back, the standing stock holds and the income never falls.
@@ -213,7 +254,15 @@ grazer(Rate, Opts) ->
     quiet(maps:merge(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
                                   metabolism => 0, sensor_rent => 0,
                                   hidden_rent => 0, max_age => 100000,
-                                  start_energy => 100,
+                                  %% FOUNDED LARGE SO THE BODY IS NOT WHAT BINDS.
+                                  %% Since world 8 a creature cannot take in more
+                                  %% than its frame, and a founder gets half its
+                                  %% starting energy as one, so 4000 leaves a
+                                  %% frame of 2000 against rates in the hundreds.
+                                  %% These tests are about the RATE, and a body
+                                  %% quietly capping it would make them pass or
+                                  %% fail for the wrong reason.
+                                  start_energy => 4000,
                                   founder_uptake => Rate}, inert()), Opts)).
 
 %% THE LINE BETWEEN THE TWO LIVINGS, derived from the growth curve rather than
