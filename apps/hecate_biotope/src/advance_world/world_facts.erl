@@ -35,7 +35,7 @@
 -export([world_advanced/2, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 5).
+-define(FACT_VERSION, 6).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -77,7 +77,7 @@ world_advanced(Snapshot, Pace) ->
     #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
       absorbed := Absorbed, births_refused := Refused,
-      energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId,
+      energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId, seed := Seed,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       sensors := Sensors, sensor_mean := SensorMean,
       sensor_hist := SensorHist, hidden_hist := HiddenHist,
@@ -106,6 +106,14 @@ world_advanced(Snapshot, Pace) ->
       %% distinguish, and ten small integers a second is not a cost.
       econ_id => EconId,
       econ => Econ,
+      %% WHICH NUMBER THIS WORLD UNFOLDED FROM. A world is a pure function of its
+      %% seed, so publishing it makes any island anyone happens to be watching
+      %% exactly reproducible offline, at whatever horizon they like.
+      %%
+      %% It is also what lets a live island draw a FRESH seed at boot instead of
+      %% replaying the identical life after every restart. Reproducible science
+      %% and an unrepeatable exhibit only ever conflicted while this was secret.
+      seed => Seed,
       %% WHICH WORLD, and one sentence describing it. The econ id above says
       %% whether two islands are comparable and cannot say WHAT either of them
       %% is: two islands can share every constant and still be running different

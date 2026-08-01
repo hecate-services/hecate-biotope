@@ -174,7 +174,17 @@
                 %% alone cannot tell those apart.
                 sensors_gained = 0 :: non_neg_integer(),
                 sensors_lost = 0 :: non_neg_integer(),
-                extinct_at = undefined :: non_neg_integer() | undefined}).
+                extinct_at = undefined :: non_neg_integer() | undefined,
+                %% THE NUMBER THIS WHOLE WORLD UNFOLDED FROM, carried so it can be
+                %% published. A world is a pure function of it, proven by
+                %% scripts/same_seed_same_world.escript, so an island that says
+                %% which seed it is running is an island anyone can replay exactly.
+                %%
+                %% That is what makes it safe for a live island to choose a FRESH
+                %% one at boot rather than replaying the same life after every
+                %% restart. Reproducible science, unrepeatable exhibit: the two
+                %% only conflict while the seed is a secret.
+                seed = 42 :: integer()}).
 
 -opaque world() :: #world{}.
 -export_type([world/0, creature/0, econ/0]).
@@ -333,7 +343,8 @@ new(Opts) ->
     Rng = rand:seed_s(exsss, {Seed, Seed, Seed}),
     Radius = maps:get(radius, Econ),
     populate(maps:get(population, Opts, 40), Opts,
-             #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng}).
+             #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng,
+                    seed = Seed}).
 
 populate(0, _Opts, W) -> W;
 populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
@@ -1005,6 +1016,7 @@ snapshot(#world{econ = Econ} = W) ->
       radius => maps:get(radius, W#world.econ),
       econ => W#world.econ,
       econ_id => econ_id(W#world.econ),
+      seed => W#world.seed,
       extinct_at => W#world.extinct_at,
       %% THE PLANT-NESS OF THE POPULATION, observed and never declared: the
       %% percentage that did not move this tick. A creature that stays where it

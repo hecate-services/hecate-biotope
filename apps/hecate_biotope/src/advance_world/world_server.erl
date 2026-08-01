@@ -112,9 +112,32 @@ world_opts() ->
     Econ = econ_overrides(os:getenv("HECATE_BIOTOPE_ECON")),
     maps:merge(Econ, seed(os:getenv("HECATE_BIOTOPE_SEED"))).
 
-seed(false) -> #{};
-seed("") -> #{};
+%% ==========================================================================
+%% AN UNSET SEED MEANS A FRESH WORLD, NOT THE SAME ONE AGAIN
+%% ==========================================================================
+%%
+%% A world is a pure function of its seed, which is what makes a pre-registered
+%% criterion mean anything and is asserted by
+%% scripts/same_seed_same_world.escript. It also meant that a live island
+%% REPLAYED THE IDENTICAL LIFE after every restart: beam03 died at the same tick
+%% every time it came back, because it was the same world each time. A public
+%% exhibit that is really a recording is not a living world.
+%%
+%% So an island with no seed configured draws one at boot and PUBLISHES it. The
+%% two goals only ever conflicted while the seed was a secret: an island that
+%% says which number it unfolded from is one anybody can replay exactly, offline,
+%% at whatever horizon they like.
+%%
+%% THE CLOCK IS READ HERE AND NOT IN `world'. The physics stays a pure function
+%% of its seed and contains no clock and no unthreaded randomness; choosing the
+%% seed is the runtime's job. That separation is the whole reason the purity
+%% survives this change.
+seed(false) -> #{seed => fresh_seed()};
+seed("") -> #{seed => fresh_seed()};
 seed(Str) -> #{seed => list_to_integer(string:trim(Str))}.
+
+fresh_seed() ->
+    erlang:phash2({erlang:system_time(microsecond), erlang:unique_integer()}).
 
 econ_overrides(false) -> #{};
 econ_overrides("") -> #{};

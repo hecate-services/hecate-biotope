@@ -54,7 +54,11 @@ carries_totals_rather_than_rates_test() ->
                           ?assert(lists:all(fun is_integer/1, Bars))
                   end, [sensor_hist, hidden_hist, uptake_hist]).
 
-%% VERSION 5 PUBLISHES THE TWO THINGS A SPECTATOR COULD NOT SEE.
+%% VERSION 6 PUBLISHES THE SEED, which makes any island anyone is watching
+%% exactly reproducible offline, and is what lets a live island draw a fresh one
+%% at boot rather than replaying the same life after every restart.
+%%
+%% VERSION 5 PUBLISHED THE TWO THINGS A SPECTATOR COULD NOT SEE.
 %%
 %% `dissipated' is the entropy account, the one quantity in this world that
 %% cannot fall, and the third term that closes the books: ground plus creatures
@@ -72,7 +76,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(5, V).
+    ?assertEqual(6, V).
 
 %% THE BOOKS CLOSE, AND NOW THEY CLOSE ON THE WIRE. A spectator holding one fact
 %% has every term of the First Law and can check the arithmetic itself rather
@@ -183,3 +187,10 @@ island_defaults_to_the_hostname_test() ->
     os:unsetenv("HECATE_BIOTOPE_ISLAND"),
     {ok, Host} = inet:gethostname(),
     ?assertEqual(list_to_binary(Host), world_facts:island()).
+
+%% THE SEED TRAVELS, so a world anybody is watching is a world anybody can run.
+%% Without it a live island choosing a fresh seed at boot would be unrepeatable
+%% by everyone including us, which trades one problem for a worse one.
+carries_the_seed_it_unfolded_from_test() ->
+    #{seed := Seed} = fact(),
+    ?assert(is_integer(Seed)).
