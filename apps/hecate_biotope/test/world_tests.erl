@@ -54,6 +54,59 @@ books(W) ->
       ground_total := Ground} = world:snapshot(W),
     Stores + Structures + Ground.
 
+%% THE FIRST LAW, whole. `books/1' above only ever compared the pools against
+%% each other, which is a weaker statement than conservation: before world 7
+%% metabolism simply vanished, and a creature could pay costs it did not have.
+%% Adding what left the pools closes it.
+closed_books(W) ->
+    #{dissipated := Gone} = world:snapshot(W),
+    books(W) + Gone.
+
+%% A world with the sun switched off, so nothing enters and the total can only
+%% be conserved or leak. With ground entering there is nothing to test against.
+sealed(Opts) ->
+    quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+                       population => 12, radius => 3, seed => 5,
+                       max_age => 60, start_energy => 400}, Opts)).
+
+%% THE FIRST LAW HOLDS EXACTLY, at every efficiency, which is the whole point of
+%% the dissipation account. Energy is not destroyed by a lossy transformation, it
+%% leaves the pools as heat, and the account is where it goes.
+%%
+%% Run across the sweep rather than at one value, because a rounding error in one
+%% of the six sites would show at some efficiencies and not others.
+nothing_is_created_or_destroyed_at_any_efficiency_test() ->
+    lists:foreach(fun(Eff) ->
+                          W = sealed(#{transfer_efficiency => Eff}),
+                          ?assertEqual({Eff, closed_books(W)},
+                                       {Eff, closed_books(world:tick(W, 200))})
+                  end, [100, 95, 80, 60, 40, 20, 1]).
+
+%% AND IT NEVER CLIMBS, which is the Second Law. In units where T is 1 the
+%% dissipation account IS the entropy account, so this is that law stated as a
+%% test rather than as an intention.
+entropy_never_falls_test() ->
+    W = sealed(#{transfer_efficiency => 60}),
+    Series = [begin
+                  #{dissipated := D} = world:snapshot(world:tick(W, N)),
+                  D
+              end || N <- lists:seq(0, 40, 4)],
+    ?assertEqual(lists:sort(Series), Series),
+    ?assert(lists:last(Series) > 0).
+
+%% A LOSSY WORLD REALLY IS LOSSIER, which sounds obvious and is the check that
+%% the efficiency is wired to anything at all. Three of the six sites were once
+%% added to a snapshot and left out of the report, so wiring is worth testing.
+a_lower_efficiency_burns_more_of_the_same_world_test() ->
+    Gone = fun(Eff) ->
+                   #{dissipated := D} =
+                       world:snapshot(world:tick(
+                                        sealed(#{transfer_efficiency => Eff}),
+                                        60)),
+                   D
+           end,
+    ?assert(Gone(40) > Gone(90)).
+
 %%==============================================================================
 %% The books
 %%==============================================================================

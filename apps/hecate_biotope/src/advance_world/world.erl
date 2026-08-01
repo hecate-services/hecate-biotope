@@ -101,7 +101,8 @@
                       %% creature, observed rather than declared.
                       still := boolean()}.
 
--type econ() :: #{ground_seed := pos_integer(),
+-type econ() :: #{transfer_efficiency := pos_integer(),
+                  ground_seed := pos_integer(),
                   ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
                   uptake_mutation := non_neg_integer(),
@@ -139,6 +140,16 @@
                 %% Totals since the world began, never reset. A rate is
                 %% recoverable from two totals and the reverse is not true.
                 born = 0 :: non_neg_integer(),
+                %% EVERY UNIT THAT LEFT THE POOLS, and the reason the First Law
+                %% is a test here rather than a claim. Before world 7 metabolism
+                %% simply vanished, so the books could only be checked against
+                %% themselves. Now ground + stores + frames + dissipated is
+                %% exactly constant apart from what the sun adds.
+                %%
+                %% At one temperature this is also the entropy account, in units
+                %% where T = 1, so the Second Law is the statement that it never
+                %% falls.
+                dissipated = 0 :: non_neg_integer(),
                 starved = 0 :: non_neg_integer(),
                 aged_out = 0 :: non_neg_integer(),
                 %% Deaths by being eaten, kept apart from the other two because
@@ -283,6 +294,13 @@ defaults() ->
       body_mutation     => 20,
       start_energy      => 800,
       max_age           => 600,
+      %% HOW MUCH OF A TRANSFORMATION ARRIVES, as a percentage. The Second Law
+      %% fixes the sign and says nothing about the size, so this is SWEPT rather
+      %% than derived and the run reports every value.
+      %%
+      %% 100 is world 6 exactly, which makes it the control rather than a
+      %% separate world to compare against.
+      transfer_efficiency => 100,
       radius            => 20,
       %% WELL ABOVE THE CELL COUNT, because if sitting still pays then the board
       %% fills, and a covered board is a FOREST rather than a mistuning. A field
@@ -409,42 +427,79 @@ tick(W, N) ->
 %% to think. THIS IS WHERE CAPABILITY IS PAID FOR: a sensor nothing acts on, or a
 %% hidden node nothing listens to, makes its owner strictly poorer than a
 %% neighbour without one.
-charge(#world{creatures = Cs, econ = Econ} = W) ->
-    W#world{creatures = maps:map(fun(_Id, C) -> catabolise(live(C, Econ)) end,
-                                 Cs)}.
+charge(#world{creatures = Cs} = W) ->
+    lists:foldl(fun charge_one/2, W, lists:sort(maps:keys(Cs))).
 
-%% STARVATION EATS THE BODY. A creature whose store runs out is not dead while it
-%% still has a frame: it consumes its own structure to keep going, which is what
-%% a starving organism does, and shrinks in the process.
-%%
-%% WITHOUT THIS THE SPLIT IS INCOHERENT AND BUILDING IS SUICIDAL. A creature that
-%% converted its whole store into structure would be reaped on the same tick for
-%% having nothing left to spend, however large a body it had just built. The test
-%% for bounded structure found it, which is what that test is for.
-%%
-%% Structure is energy in another form, so this moves between two terms of the
-%% same books and conserves.
-catabolise(#{energy := E, structure := S} = C) when E < 0, S > 0 ->
-    Taken = min(S, -E),
-    C#{energy => E + Taken, structure => S - Taken};
-catabolise(C) ->
-    C.
+charge_one(Id, #world{creatures = Cs, econ = Econ} = W) ->
+    C = maps:get(Id, Cs),
+    burn(Id, C, upkeep(C, Econ), W).
 
-live(#{body := Body, brain := Brain, structure := S} = C, Econ) ->
-    Rent = body:upkeep(Body, Econ)
-        + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ),
-    spend(C, maps:get(metabolism, Econ) + Rent + carrying(S, Econ)).
+%% @doc Charge a creature and record where the energy went.
+%%
+%% NOTHING IS SPENT THAT WAS NEVER HELD, which is what the First Law costs us.
+%% Before world 7 a creature paid metabolism it did not have, went to minus
+%% thirty and died, and the floor at zero meant those thirty units had never
+%% existed. Charging against nothing. No dissipation account can be laid over
+%% that, because the books will not close.
+%%
+%% So it pays from the store, then by eating its own frame, and stops when there
+%% is nothing left. A creature left holding nothing at all is dead, which is a
+%% tick earlier than before and honest.
+burn(Id, C, Cost, #world{creatures = Cs, econ = Econ} = W) ->
+    {Paid, C1} = settle(C, Cost, maps:get(transfer_efficiency, Econ)),
+    W#world{creatures = Cs#{Id => C1},
+            dissipated = W#world.dissipated + Paid}.
+
+settle(#{energy := E} = C, Cost, Eff) ->
+    FromStore = min(Cost, max(0, E)),
+    eat_own_frame(C#{energy => E - FromStore}, Cost - FromStore, FromStore, Eff).
+
+%% STARVATION EATS THE BODY, and eating it is a transformation like any other, so
+%% it loses its share. A starving creature therefore has to break down MORE frame
+%% than the debt it is covering, which is why starving is expensive and why the
+%% round trip out to a frame and back is not free.
+eat_own_frame(C, 0, Paid, _Eff) ->
+    {Paid, C};
+eat_own_frame(#{structure := S} = C, _Short, Paid, _Eff) when S =< 0 ->
+    {Paid, C};
+eat_own_frame(#{energy := E, structure := S} = C, Short, Paid, Eff) ->
+    Taken = min(S, needed_frame(Short, Eff)),
+    Delivered = Taken * Eff div 100,
+    Covered = min(Short, Delivered),
+    {Paid + Covered + (Taken - Delivered),
+     C#{energy => E + Delivered - Covered, structure => S - Taken}}.
+
+%% To deliver N usable units at efficiency Eff you must break down more than N,
+%% rounded up, because a fraction of a unit cannot be broken down twice.
+needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
+
+upkeep(#{body := Body, brain := Brain, structure := S}, Econ) ->
+    maps:get(metabolism, Econ)
+        + body:upkeep(Body, Econ)
+        + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ)
+        + carrying(S, Econ).
+
+%% @doc What a transformation delivers, and what it costs to have delivered it.
+%%
+%% ONE CONSTANT, APPLIED AT EVERY SITE. The Second Law says no transformation is
+%% free; it does not say by how much, so the size is swept rather than chosen and
+%% only the sign is claimed.
+delivered(Amount, Eff) -> Amount * Eff div 100.
+
+%% BUILDING ORDER COSTS MORE, because creating a low-entropy structure has to be
+%% paid for with a larger disorder elsewhere. That direction is the Second Law.
+%% The SHAPE is chosen: squaring makes building strictly harsher than everything
+%% else using one constant rather than two, and any monotone penalty would obey
+%% the law equally well. Logged as register entry D.5.
+built(Amount, Eff) -> Amount * Eff * Eff div 10000.
 
 %% WHAT IT COSTS TO BE LARGE, charged on STRUCTURE alone. World 5 charged it on
 %% everything a creature held, so a reserve was taxed as though it were working
-%% tissue, and creatures could no longer differ in what they carried. That
-%% flattened the landscape and drove the energy moving between creatures to zero.
+%% tissue, and creatures could no longer differ in what they carried.
 %%
 %% A store is nearly free to hold. That is what fat is for.
 carrying(S, Econ) ->
     max(0, S) div max(1, maps:get(upkeep_divisor, Econ)).
-
-spend(#{energy := E} = C, Cost) -> C#{energy => E - Cost}.
 
 %%------------------------------------------------------------------------------
 %% Moving: the only decision about WHERE
@@ -541,8 +596,10 @@ step({Id, At, At}, #world{creatures = Cs} = W) ->
     W#world{creatures = Cs#{Id => (maps:get(Id, Cs))#{still => true}}};
 step({Id, _From, To}, #world{creatures = Cs, econ = Econ} = W) ->
     C = maps:get(Id, Cs),
-    Moved = spend(C#{at => To, still => false}, maps:get(move_cost, Econ)),
-    mark(To, maps:get(scent, C), W#world{creatures = Cs#{Id => Moved}}).
+    Fare = maps:get(move_cost, Econ),
+    W1 = burn(Id, C#{at => To, still => false}, Fare,
+              W#world{creatures = Cs#{Id => C}}),
+    mark(To, maps:get(scent, C), W1).
 
 mark(At, Tag, #world{scent = Scent, econ = Econ} = W) ->
     Fresh = strength(maps:get(At, Scent, none)) + maps:get(scent_per_tick, Econ),
@@ -592,11 +649,19 @@ take_them([], _Winner, W) -> W;
 %% A VICTIM YIELDS BOTH HALVES AS STORE. Structure is energy in another form, so
 %% eating something digests its body into what you are carrying, and the books
 %% close over ground plus stores plus structures.
-take_them(Weaker, Winner, #world{creatures = Cs} = W) ->
-    Gain = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
+take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
+    Taken = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
+    %% THE SAME LOSS AS EATING GROUND, and deliberately the same. Prey tissue
+    %% really does convert more cheaply than raw material, but HOW MANY steps
+    %% that saves is a fact about particular chemistry rather than about
+    %% thermodynamics. This world prices steps and does not count them, so
+    %% predation gets no discount here and world 7 is the test of whether it can
+    %% pay without one.
+    Gain = delivered(Taken, maps:get(transfer_efficiency, Econ)),
     #{energy := E, from_creatures := F} = C = maps:get(Winner, Cs),
     Fed = C#{energy => E + Gain, from_creatures => F + Gain},
     W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
+            dissipated = W#world.dissipated + (Taken - Gain),
             consumed = W#world.consumed + length(Weaker)}.
 
 %% A CREATURE TAKES AT MOST WHAT ITS BODY CAN, and that is the whole of world 4.
@@ -613,10 +678,14 @@ whole(#{energy := E, structure := S}) -> max(0, E) + max(0, S).
 absorb(Id, #world{creatures = Cs, ground = G} = W) ->
     #{at := At, energy := E, from_ground := P, uptake := Rate} =
         C = maps:get(Id, Cs),
-    {Gain, G1} = ground:draw(At, Rate, G),
+    {Drawn, G1} = ground:draw(At, Rate, G),
+    %% ASSIMILATION IS A TRANSFORMATION AND LOSES ITS SHARE. What leaves the
+    %% ground is not what arrives in the creature, and the difference is heat.
+    Gain = delivered(Drawn, maps:get(transfer_efficiency, W#world.econ)),
     W#world{creatures = Cs#{Id => C#{energy => E + Gain,
                                      from_ground => P + Gain}},
             ground = G1,
+            dissipated = W#world.dissipated + (Drawn - Gain),
             absorbed = W#world.absorbed + Gain}.
 
 %%------------------------------------------------------------------------------
@@ -656,10 +725,12 @@ build_one(Id, Herd, #world{creatures = Cs, econ = Econ} = W) ->
 affordable(Wanted, Store) -> min(max(0, Wanted), max(0, Store)).
 
 invest(0, _Id, W) -> W;
-invest(Amount, Id, #world{creatures = Cs} = W) ->
+invest(Amount, Id, #world{creatures = Cs, econ = Econ} = W) ->
     #{energy := E, structure := S} = C = maps:get(Id, Cs),
+    Made = built(Amount, maps:get(transfer_efficiency, Econ)),
     W#world{creatures = Cs#{Id => C#{energy => E - Amount,
-                                     structure => S + Amount}}}.
+                                     structure => S + Made}},
+            dissipated = W#world.dissipated + (Amount - Made)}.
 
 %% A CHILD IS A DECISION NOW, not a threshold. The brain is asked, on its own
 %% cell, and above zero it spends HALF its current energy on a child placed
@@ -697,13 +768,20 @@ room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
     %% would lose every contest it ever entered.
     Dowry = E div 2,
     Frame = S div 2,
+    Eff = maps:get(transfer_efficiency, Econ),
+    Given = delivered(Dowry, Eff),
+    Built = delivered(Frame, Eff),
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
+    %% WHAT THE PARENT GIVES UP IS NOT WHAT THE CHILD RECEIVES. Assembling a
+    %% second creature is a transformation and pays like every other one.
     W1 = note_change(Change,
                      W#world{creatures = Cs#{Id => C#{energy => E - Dowry,
                                                       structure => S - Frame}},
+                             dissipated = W#world.dissipated
+                                 + (Dowry - Given) + (Frame - Built),
                              rng = Rng2}),
-    add_creature(Where, Dowry, Frame, Id, Traits, W1).
+    add_creature(Where, Given, Built, Id, Traits, W1).
 
 note_change({added, _Pos}, #world{sensors_gained = G} = W) ->
     W#world{sensors_gained = G + 1};
@@ -763,8 +841,9 @@ note_extinction(_Alive, W) ->
 %% IN DEBT WITH NOTHING LEFT TO CONVERT. Exactly nothing in store is spent rather
 %% than dead: a creature that has just built its whole reserve into a frame still
 %% has the frame, and eats it next tick if it must.
-reap_one(_Id, #{energy := E, at := At} = C, _MaxAge, #world{starved = S} = W)
-  when E < 0 ->
+reap_one(_Id, #{energy := E, structure := St, at := At} = C, _MaxAge,
+         #world{starved = S} = W)
+  when E =< 0, St =< 0 ->
     bury(At, whole(C), W#world{starved = S + 1});
 reap_one(_Id, #{age := A, at := At} = C, MaxAge,
          #world{aged_out = O} = W) when A > MaxAge ->
@@ -772,8 +851,12 @@ reap_one(_Id, #{age := A, at := At} = C, MaxAge,
 reap_one(Id, #{age := A} = C, _MaxAge, #world{creatures = Cs} = W) ->
     W#world{creatures = Cs#{Id => C#{age => A + 1}}}.
 
-bury(At, Amount, #world{ground = G} = W) ->
-    W#world{ground = ground:deposit(At, max(0, Amount), G)}.
+%% A CORPSE DECAYS, and decay is a transformation. What reaches the ground is
+%% less than what the creature was carrying, and the rest is heat.
+bury(At, Amount, #world{ground = G, econ = Econ} = W) ->
+    Left = delivered(max(0, Amount), maps:get(transfer_efficiency, Econ)),
+    W#world{ground = ground:deposit(At, Left, G),
+            dissipated = W#world.dissipated + (max(0, Amount) - Left)}.
 
 %% Every mark weakens and one that has weakened to nothing is dropped, so the map
 %% holds only ground that still smells. Without the fade a busy cell becomes a
@@ -816,6 +899,12 @@ snapshot(#world{econ = Econ} = W) ->
       energy_total => total_energy(W),
       %% STRUCTURE REPORTED APART FROM STORE, because a mean of the two added
       %% together is exactly the conflation world 6 exists to undo.
+      %% THE FIRST LAW AS A TEST RATHER THAN A CLAIM. Every unit that left the
+      %% pools is here, so ground + stores + frames + dissipated is exactly
+      %% constant apart from what the sun adds. At one temperature this is also
+      %% the entropy account, so the Second Law is the statement that it never
+      %% falls.
+      dissipated => W#world.dissipated,
       structure_total => total_structure(W),
       structure_max => largest_structure(W),
       radius => maps:get(radius, W#world.econ),

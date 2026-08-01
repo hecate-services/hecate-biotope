@@ -99,10 +99,112 @@ out of it rather than being assigned:
 
 **Why building is the expensive one, and why that is not a preference.** Turning
 a store into a frame creates a low-entropy structure, and the Second Law says
-local order has to be paid for with a larger disorder elsewhere. It is two
-transformations, not one: the store is mobilised and then synthesised into
-structure. Every organism pays this, which is why anabolism is expensive and
-catabolism releases energy.
+local order must be paid for with a larger disorder elsewhere. Every organism
+pays it, which is why anabolism is expensive and catabolism releases energy.
+
+**The DIRECTION is required. The SHAPE is chosen, and I say so rather than let
+it read as derived.** Squaring gets building strictly harsher than everything
+else using one constant instead of two. Any monotone penalty would satisfy the
+law equally well. Logged with `D.5`.
+
+**Where the line falls, since this is the third time it has come up.**
+*Thermodynamics prices the steps. Chemistry counts them.* Building costs more
+because it creates order, which is the Second Law speaking. Meat converts more
+cheaply than ground because prey tissue resembles the consumer's, and how many
+steps that saves is a fact about particular chemistry. The first is in this
+world. The second is not, and is its own entry.
+
+## Three things that would go wrong quietly
+
+### The First Law does not currently hold, and cannot be added on top
+
+A creature today pays metabolism it does not have, goes to minus thirty, dies,
+and `whole()` floors at zero so **those thirty units never existed**. Charging
+against nothing. A dissipation account laid over that will never close.
+
+So spending is capped at what a creature actually holds across store and frame,
+and it dies if that is not enough. The outcome is identical and the accounting
+becomes true. **This is a rule change forced by the First Law**, not an extra.
+
+### Integer truncation writes a rule nobody chose
+
+At 60% efficiency, building fewer than three units yields zero frame and still
+costs the store. That is a **minimum transaction size** appearing from nowhere.
+It is left in, because the alternative is floating point and losing bit-exact
+replay, but it is an artefact and not physics, and any threshold effect near the
+low end of the sweep should be suspected of being this before anything else.
+
+### The control does NOT reproduce world 6, and this was found the hard way
+
+**This subsection originally claimed `E = 100` is world 6 exactly. It is not,
+and the claim is withdrawn.** See the amendment below, which is the more
+important part of this file.
+
+## AMENDMENT: world 7 contains TWO changes, not one
+
+**Written after the first sweep ran and before any results were written.**
+Declared rather than absorbed quietly, because absorbing it quietly is how the
+last comparison got muddied and I would be doing it twice.
+
+### What the second change is
+
+The First Law requires every cost to arrive in the dissipation account,
+**including the movement fare**. In world 6 the fare used a raw subtraction that
+pushed a creature's store negative, and a negative store was death. Every other
+cost could be covered by catabolising your own frame. **The fare alone could
+not.** Move when you could not afford it and you died, however much body you had
+left to burn.
+
+All costs are now payable alike. I believe that is correct, since nothing
+justifies a fare being uniquely un-payable from your own tissue when metabolism
+is not, and the First Law makes the old behaviour unrecoverable in any case. But
+it is a **second change**, it was not pre-registered, and this document said the
+opposite.
+
+### What it did, measured before this was written
+
+At `E = 100`, where **nothing is lossy and the Second Law can do nothing**:
+
+| | `still%` | sensors per creature | hidden nodes per creature |
+|---|---|---|---|
+| world 6 | 99-100 | 0.00-0.01 | 0.00-0.01 |
+| world 7 at `E = 100` | 97-98 | **2.52** | **1.80** |
+
+Perception has been pinned at zero in every world since world 2. **It moved when
+the accounting became honest, not when the physics did.**
+
+### What the experiment therefore is
+
+Not a two-way comparison that is now spoiled, but a three-way one that is
+cleaner than what was originally planned, because the sweep already separates
+the two changes:
+
+| condition | what it isolates |
+|---|---|
+| world 6, published | the true control |
+| world 7 at `E = 100` | the **First Law** fix alone |
+| world 7 below `E = 100` | the **Second Law** on top of it |
+
+Every finding below must therefore say **which of the two** it is attributed to,
+and a result that appears at `E = 100` may not be credited to the Second Law
+whatever else is true about it.
+
+### Why this is in the file rather than fixed away
+
+Reverting is not available: conservation requires the fare to be accounted. The
+alternative was to leave the claim standing and let a reader assume the control
+was world 6. That would have attributed this project's first perception to the
+wrong law.
+
+## The likely outcome, stated in advance
+
+**The world may die across most of the range.** It already lives hand to mouth:
+mean lifespan 2.2 ticks and a population permanently above what the ground can
+feed. Take a real fraction off every transfer and it may not survive at all.
+
+If it dies at 95% that says little about the Second Law and a great deal about
+the other constants, namely **that they were only viable because transfers were
+free**. That is a result and will be reported as one.
 
 **One constant, and the ordering derives from counting steps rather than from
 being asserted.** Six separate efficiencies would be six undefended numbers, and
