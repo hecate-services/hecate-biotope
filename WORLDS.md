@@ -15,10 +15,12 @@ still gets wrong about energy, and which entry each world corrects.
 | **5** | metabolism scales with what a creature holds (`B.1`) | Size became bounded, 66–99 against a founding 800. **It also undid world 4's positive**: landscape flat again, energy from creatures zero in every seed. [results](RESULTS_WORLD5.md) |
 | **6** | separate the **store** from the **structure** (`B.5`) | **Mean lifespan is 2.2 ticks.** Frames came out bimodal, which I first read as two livings and withdrew: mean age climbs 1 to 400 across the buckets, so it is age structure. What survives is an adult and juvenile split ~200x apart in lifespan, which a constant hazard cannot produce. Landscape stayed flat; predation is ubiquitous and worthless. [results](RESULTS_WORLD6.md) |
 
+| **7** | **the Second Law**: every transformation loses a share, swept from 100% to 10% (`D.3`) | **Perception moved for the first time since world 2**, sensors 0.01 to 2.52 per creature, and it was the FIRST law that did it, not the second: it appears at 100% where nothing is lossy. The Second Law differentiated the landscape (`ground_spread` 13 to 30) and destroyed structure entirely. Lifespan fell instead of rising. [results](RESULTS_WORLD7.md) |
+
 ## The through-line
 
-Three of six corrections changed nothing measurable, **two produced a positive**,
-and one made something worse. **All six are useful**: a correction that changes
+Of seven corrections, three changed nothing measurable, **three produced a
+positive**, and one made something worse. **All six are useful**: a correction that changes
 nothing removes a simplification from the list of things that could have been
 responsible, which is the only way this kind of map gets built.
 
@@ -45,6 +47,14 @@ Two rules came out of the run and now govern what gets built next:
 - **A shape is not a story.** Two modes in a size histogram can be two
   strategies or it can be children and adults, and the histogram cannot tell you
   which. Ask what else differs between the modes before naming them.
+- **A bookkeeping error can be a physical rule in disguise.** World 6 charged the
+  movement fare in a way that made it, alone among costs, unpayable from your own
+  body. Nobody wrote that rule and nobody could see it, and it held perception at
+  zero for five worlds. It surfaced only because conservation was made exact.
+- **The fire is set by the sun, not by the efficiency.** World 7 burns the same
+  total across a tenfold change in efficiency, because in a steady state
+  everything that enters must leave as heat. Efficiency changes how much living
+  happens per unit burned, never how much burns.
 - **Nothing evolves in a world with no lifetimes.** Mean lifespan is 2.2 ticks
   and every apparatus is priced per tick, so no investment can ever repay. This
   is the constraint underneath every null in the register.
