@@ -32,10 +32,10 @@
 -module(world_facts).
 
 -export([topic/1, namespace/0, island/0]).
--export([world_advanced/2, world_charted/2]).
+-export([world_advanced/2, world_advanced/4, world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 6).
+-define(FACT_VERSION, 7).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -73,7 +73,17 @@ hostname() ->
 
 %% @doc Counts and totals. Small enough to keep forever.
 -spec world_advanced(map(), world_pace:pace()) -> map().
-world_advanced(Snapshot, Pace) ->
+world_advanced(Snapshot, Pace) -> world_advanced(Snapshot, Pace, 1, undefined).
+
+%% @doc As above, saying which RUN this is on this island.
+%%
+%% A world that ended stays ended; an island that has finished one begins
+%% another, and a spectator watching the tick drop back to nothing deserves to be
+%% told that rather than left to read it as a glitch. `previous_end' is the tick
+%% the last world died on, so the ending survives the world that owned it.
+-spec world_advanced(map(), world_pace:pace(), pos_integer(),
+                     non_neg_integer() | undefined) -> map().
+world_advanced(Snapshot, Pace, Run, PreviousEnd) ->
     #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
       absorbed := Absorbed, births_refused := Refused,
@@ -114,6 +124,7 @@ world_advanced(Snapshot, Pace) ->
       %% replaying the identical life after every restart. Reproducible science
       %% and an unrepeatable exhibit only ever conflicted while this was secret.
       seed => Seed,
+      run => Run,
       %% WHICH WORLD, and one sentence describing it. The econ id above says
       %% whether two islands are comparable and cannot say WHAT either of them
       %% is: two islands can share every constant and still be running different
@@ -229,7 +240,7 @@ world_advanced(Snapshot, Pace) ->
       %% natural ceiling. Published so that never has to be guessed from shape.
       births_refused => Refused,
       ticks_per_second => world_pace:ticks_per_second(Pace)},
-    extinction(Fact, ExtinctAt).
+    previously(extinction(Fact, ExtinctAt), PreviousEnd).
 
 %% PRESENT ONLY WHEN IT HAPPENED, rather than a sentinel value meaning "not
 %% yet". A tick of -1 or 0 for a living world is the kind of number that gets
@@ -244,6 +255,12 @@ world_advanced(Snapshot, Pace) ->
 %% carries.
 extinction(Fact, undefined) -> Fact;
 extinction(Fact, Tick) -> Fact#{extinct_at => Tick}.
+
+%% OMITTED RATHER THAN NULL on a first run, for the same reason `extinct_at' is:
+%% a key that is absent says "this has not happened", and a zero would say "it
+%% ended at tick nought", which is a different and alarming claim.
+previously(Fact, undefined) -> Fact;
+previously(Fact, Tick) -> Fact#{previous_end => Tick}.
 
 %% @doc Where everything is. Ephemeral by nature: nobody wants last Tuesday's
 %% frame, so a reader is expected to hold the latest and drop the rest.

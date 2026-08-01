@@ -66,6 +66,15 @@
                       age := non_neg_integer(),
                       born := non_neg_integer(),
                       parent := id() | none,
+                      %% WHICH FOUNDING IT DESCENDS FROM AND HOW FAR DOWN.
+                      %% Observables, read by no rule and used to treat no
+                      %% creature differently. Declared here because dialyzer
+                      %% noticed they were not: `descent/3' matches on both, and
+                      %% against a type that did not have them that match could
+                      %% never succeed, which is a lie the type was telling about
+                      %% code that works.
+                      lineage := id(),
+                      generation := non_neg_integer(),
                       %% Everything heritable. `breed_at' is gone: deciding
                       %% reproduction by a hand-written rule with a heritable
                       %% threshold was exactly the shape `hunt' had, a verb we

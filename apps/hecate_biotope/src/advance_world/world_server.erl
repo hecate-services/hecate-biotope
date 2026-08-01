@@ -26,7 +26,20 @@
 -record(state, {world :: world:world(),
                 pace :: world_pace:pace(),
                 published = 0 :: non_neg_integer(),
-                publish_errors = 0 :: non_neg_integer()}).
+                publish_errors = 0 :: non_neg_integer(),
+                %% WHETHER THIS ISLAND MAY BEGIN AGAIN. True only when no seed
+                %% was configured. Pinning a seed means "run exactly this world",
+                %% and silently starting a different one would be the opposite of
+                %% what pinning it asks for.
+                reseeds = false :: boolean(),
+                run = 1 :: pos_integer(),
+                %% Wall clock at which the current world was noticed to be over,
+                %% so the corpse can be shown for a while before the next begins.
+                ended_at :: integer() | undefined,
+                %% The tick the PREVIOUS world ended on. Published, because a
+                %% spectator watching the tick reset to nothing deserves to be
+                %% told it is a new world and not a glitch.
+                previous_end :: non_neg_integer() | undefined}).
 
 -define(SERVER, ?MODULE).
 
@@ -48,6 +61,8 @@ init([]) ->
     Pace = world_pace:from_env(),
     Opts = world_opts(),
     World = world:new(Opts),
+    Reseeds = os:getenv("HECATE_BIOTOPE_SEED") =:= false
+        orelse os:getenv("HECATE_BIOTOPE_SEED") =:= "",
     logger:info("biotope: ~p creatures, radius ~p, ~p ticks/s, fact every ~pms",
                 [world:population(World), maps:get(radius, world:defaults()),
                  world_pace:ticks_per_second(Pace),
@@ -55,7 +70,7 @@ init([]) ->
     schedule(slot, maps:get(slot_ms, Pace)),
     schedule(publish, maps:get(publish_ms, Pace)),
     schedule_chart(maps:get(chart_ms, Pace)),
-    {ok, #state{world = World, pace = Pace}}.
+    {ok, #state{world = World, pace = Pace, reseeds = Reseeds}}.
 
 handle_call(snapshot, _From, #state{world = W} = S) ->
     {reply, world:snapshot(W), S};
@@ -72,10 +87,11 @@ handle_cast(_Msg, S) -> {noreply, S}.
 handle_info(slot, #state{world = W, pace = P} = S) ->
     W1 = world:tick(W, maps:get(ticks_per_slot, P)),
     schedule(slot, maps:get(slot_ms, P)),
-    {noreply, S#state{world = W1}};
+    {noreply, still_going(world:population(W1), S#state{world = W1})};
 
-handle_info(publish, #state{world = W, pace = P} = S) ->
-    Fact = world_facts:world_advanced(world:snapshot(W), P),
+handle_info(publish, #state{world = W, pace = P, run = Run,
+                            previous_end = Was} = S) ->
+    Fact = world_facts:world_advanced(world:snapshot(W), P, Run, Was),
     S1 = record(biotope_mesh:publish(world_facts:topic(world), Fact), S),
     schedule(publish, maps:get(publish_ms, P)),
     {noreply, S1};
@@ -93,6 +109,54 @@ handle_info(_Msg, S) -> {noreply, S}.
 %%==============================================================================
 
 schedule(Msg, Ms) -> erlang:send_after(Ms, self(), Msg).
+
+%% ==========================================================================
+%% NOTHING RESEEDS A WORLD. THE ISLAND BEGINS ANOTHER ONE.
+%% ==========================================================================
+%%
+%% The distinction is the whole of it and it is not a word game. A world that
+%% ended stays ended: no creature comes back, its `extinct_at' stands, and its
+%% history is not continued. What happens here is that the SERVICE, having
+%% finished one experiment, starts a fresh one. The alternative was a public
+%% island sitting dead forever, or a fixed seed replaying the identical life
+%% after every restart, and both are worse than saying plainly that this is run
+%% number three.
+%%
+%% IT LINGERS FIRST, and that is not politeness. Extinction is a RESULT: three
+%% seeds in twelve end, always in the founding phase, and world 8 ended every
+%% seed it had. An island that restarted the instant it died would make that
+%% result invisible, which is the one thing a spectator page must not do to a
+%% finding. So the corpse is published for a while, with its ending tick, before
+%% anything new begins.
+%%
+%% ONLY WHEN NO SEED WAS CONFIGURED. Pinning a seed means "run exactly this
+%% world"; quietly starting a different one is the opposite of what pinning asks
+%% for, and a pinned seed would in any case replay the same death.
+still_going(0, #state{ended_at = undefined} = S) ->
+    S#state{ended_at = erlang:monotonic_time(millisecond)};
+still_going(0, #state{reseeds = true, ended_at = At} = S) ->
+    begin_again(erlang:monotonic_time(millisecond) - At >= linger_ms(), S);
+still_going(_Alive, S) ->
+    S.
+
+begin_again(false, S) ->
+    S;
+begin_again(true, #state{world = Old, run = Run} = S) ->
+    #{extinct_at := Ended} = world:snapshot(Old),
+    Fresh = world:new(world_opts()),
+    logger:info("biotope: world ~p ended at tick ~p, beginning run ~p on seed ~p",
+                [Run, Ended, Run + 1, maps:get(seed, world:snapshot(Fresh))]),
+    S#state{world = Fresh, run = Run + 1, ended_at = undefined,
+            previous_end = Ended}.
+
+%% How long a finished world is left on show. A SERVICE setting and not a
+%% physical constant: it changes nothing inside any world and belongs with the
+%% publishing rates, not with the economy.
+linger_ms() -> ms(os:getenv("HECATE_BIOTOPE_LINGER_MS"), 120000).
+
+ms(false, Default) -> Default;
+ms("", Default) -> Default;
+ms(Str, _Default) -> list_to_integer(string:trim(Str)).
 
 %% Zero means the picture is off: no timer at all rather than one that fires and
 %% decides not to publish, so a headless run pays nothing for a feature it is not

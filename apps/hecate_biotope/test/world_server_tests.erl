@@ -122,3 +122,64 @@ the_pace_is_reported_as_configured_test() ->
                  stop(Pid),
                  ?assertEqual(500000, world_pace:ticks_per_second(Pace))
              end).
+
+%%==============================================================================
+%% A world that ended stays ended. The island begins another one.
+%%==============================================================================
+
+%% THE DISTINCTION MATTERS AND IS NOT A WORD GAME. No creature comes back, the
+%% dead world's `extinct_at' stands, and its history is not continued. What
+%% happens is that the SERVICE, having finished one experiment, starts a fresh
+%% one, because the alternative is a public island sitting dead forever or a
+%% pinned seed replaying the identical life after every restart.
+%%
+%% `metabolism' far above anything a creature can earn kills the founding in the
+%% first tick, which is the cheapest extinction available and does not need six
+%% hundred ticks of ageing to arrive at.
+an_island_begins_a_new_world_after_the_old_one_ends_test() ->
+    with_env([{"HECATE_BIOTOPE_SLOT_MS", "1"},
+              {"HECATE_BIOTOPE_LINGER_MS", "0"},
+              {"HECATE_BIOTOPE_ECON", "metabolism=100000"}],
+             fun() ->
+                 Pid = start(),
+                 #{seed := First} = world_server:snapshot(),
+                 timer:sleep(120),
+                 #{seed := Later, tick := Tick} = world_server:snapshot(),
+                 stop(Pid),
+                 ?assertNotEqual(First, Later),
+                 ?assert(Tick < 50)
+             end).
+
+%% AND IT WAITS FIRST, which is not politeness. Extinction is a RESULT: three
+%% seeds in twelve end and world 8 ended every seed it had. An island that began
+%% again the instant it died would make that finding invisible, which is the one
+%% thing a spectator page must never do to a result.
+a_finished_world_is_left_on_show_before_the_next_begins_test() ->
+    with_env([{"HECATE_BIOTOPE_SLOT_MS", "1"},
+              {"HECATE_BIOTOPE_LINGER_MS", "60000"},
+              {"HECATE_BIOTOPE_ECON", "metabolism=100000"}],
+             fun() ->
+                 Pid = start(),
+                 #{seed := First} = world_server:snapshot(),
+                 timer:sleep(120),
+                 #{seed := Later, population := Pop} = world_server:snapshot(),
+                 stop(Pid),
+                 ?assertEqual(First, Later),
+                 ?assertEqual(0, Pop)
+             end).
+
+%% A PINNED SEED MEANS RUN EXACTLY THIS WORLD, so the island does not quietly
+%% start a different one. It would in any case replay the same death.
+a_pinned_seed_never_begins_again_test() ->
+    with_env([{"HECATE_BIOTOPE_SLOT_MS", "1"},
+              {"HECATE_BIOTOPE_LINGER_MS", "0"},
+              {"HECATE_BIOTOPE_SEED", "4242"},
+              {"HECATE_BIOTOPE_ECON", "metabolism=100000"}],
+             fun() ->
+                 Pid = start(),
+                 timer:sleep(120),
+                 #{seed := Seed, population := Pop} = world_server:snapshot(),
+                 stop(Pid),
+                 ?assertEqual(4242, Seed),
+                 ?assertEqual(0, Pop)
+             end).
