@@ -313,16 +313,23 @@ the_stronger_takes_the_weaker_test() ->
     %% takes the child back and immediately has the surplus to breed again.
     ?assertEqual({2, 1, 201}, look(W, 2)).
 
-%% AND A PARENT CANNOT EAT AN EVENLY SPLIT CHILD, which falls out of the new
-%% rule rather than being written anywhere. The dowry is half, so for an even
-%% energy the two come out exactly equal, and equals do not consume each other.
-%% World 1 could not express this: its dowry was half a THRESHOLD rather than
-%% half of what the parent was carrying, so a parent was almost always richer
-%% than its newborn.
-an_evenly_split_parent_and_child_are_equals_test() ->
+%% AND SINCE WORLD 9 AN EVEN SPLIT NO LONGER MAKES THEM EQUALS.
+%%
+%% Until world 8 this test asserted the opposite, and it was right to: the dowry
+%% took half the store AND half the frame, so for an even founding the two came
+%% out exactly equal, and equals do not consume each other. It read
+%% `{4, 0, 200}' on the second tick, two equals both breeding again.
+%%
+%% World 9 pays the dowry out of the store alone and the parent keeps its whole
+%% frame, so **a parent now outweighs its newborn at every founding energy, even
+%% and odd alike**. Nobody wrote that rule; it falls out of the change, which is
+%% why it is declared in PREREGISTRATION.md before the run rather than explained
+%% afterwards. What it means in the world is that a newborn is the lightest thing
+%% on the board and loses every contest it enters, including with its parent.
+a_parent_outweighs_its_newborn_at_any_split_test() ->
     W = family(200),
     ?assertEqual({2, 0, 200}, look(W, 1)),
-    ?assertEqual({4, 0, 200}, look(W, 2)).
+    ?assertEqual({2, 1, 200}, look(W, 2)).
 
 %% MUTATION OFF, and finding out why cost a debugging round. With it on, the
 %% child's breed weight is nudged from 1 to 0 or 2, and a 0 means it declines to

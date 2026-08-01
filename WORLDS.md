@@ -17,6 +17,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **7** | **the Second Law**: every transformation loses a share, swept from 100% to 10% (`D.3`) | **Perception moved for the first time since world 2**, sensors 0.01 to 2.52 per creature, and it was the FIRST law that did it, not the second: it appears at 100% where nothing is lossy. The Second Law differentiated the landscape (`ground_spread` 13 to 30) and destroyed structure entirely. Lifespan fell instead of rising. [results](RESULTS_WORLD7.md) |
 
+| **8** | **capacity is a property of structure**: `absorbed = min(uptake, frame, cell)` (`B.6`) | **Ghosts became impossible**, largest frame 400-560 at every efficiency against zero from 70% down in world 7. And **every seed ended**, 42 of 45 at exactly tick 602, which is `max_age` arriving: the survivors are the FOUNDERS, they stopped breeding before tick 35, and they died of old age on the same day. Not for want of energy. They carry stores of 11,643 to **183,500** against the 400 they were born with. **The world ran out of variation, not energy** (`G.1`). [results](RESULTS_WORLD8.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a
@@ -58,3 +60,15 @@ Two rules came out of the run and now govern what gets built next:
 - **Nothing evolves in a world with no lifetimes.** Mean lifespan is 2.2 ticks
   and every apparatus is priced per tick, so no investment can ever repay. This
   is the constraint underneath every null in the register.
+- **A world can be rich and finished at the same time.** World 8 ends with
+  creatures carrying four hundred times what they were founded with, and it ends
+  because nothing has been born since tick 15. Eight worlds of exact energy
+  accounting could not have found that, because none of them measured whether the
+  population could still change. Measure the engine, not only the vehicle.
+- **A tradeoff with an exit is not a tradeoff.** World 8 offered "breed and halve
+  yourself" against "do not breed". The second is not a point on the surface, it
+  is stepping off it. An axis one end of which leaves the game produces one
+  strategy and a terminus, never diversity.
+- **A constant that looks like a symmetry is still a constant.** The dowry is
+  `div 2` and nobody has ever asked why, because halving reads as a law rather
+  than a choice. Written `div 7` it would have been challenged two worlds ago.

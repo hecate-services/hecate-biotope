@@ -21,15 +21,58 @@
 
 -define(SEEDS, 5).
 -define(STEPS, [100, 70, 30]).
+-define(SWEEP, [100, 95, 90, 80, 70, 60, 50, 40, 30, 20, 10]).
 -define(CENSUS, 595).
 -define(EARLY, 200).
+-define(YOUNG, 20).
 
 main(_) ->
-    io:format("~ncensus at t=~p, just before `max_age' of 600 arrives~n~n",
+    ghosts(),
+    plateau().
+
+%%==============================================================================
+%% The pre-registered question, asked while the world is still populated
+%%==============================================================================
+
+%% WORLD 8 WAS PRE-REGISTERED ON `structure_max' ACROSS THE SWEEP, and the sweep
+%% reports at tick 2000 where every seed is dead and every column reads "-". A
+%% measurement taken after the last death answers nothing, so it is taken here at
+%% tick ~p instead, which is before the earliest extinction in any seed at any
+%% efficiency.
+ghosts() ->
+    io:format("~nLARGEST FRAME ALIVE at t=~p, across the whole sweep. World 7 had "
+              "this at ZERO~nfrom 70% down, which is the measurement world 8 "
+              "exists to repeat.~n~n", [?YOUNG]),
+    io:format("~s~n", [row(["eff%", "frame", "pop", "born", "still%"])]),
+    lists:foreach(fun young/1, ?SWEEP),
+    io:format("~nMedian of ~p seeds. still% was pre-registered as the one that "
+              "would NOT move.~n", [?SEEDS]).
+
+young(Eff) ->
+    Rows = in_parallel(fun(Seed) -> at_young(Seed, Eff) end,
+                       lists:seq(1, ?SEEDS)),
+    io:format("~s~n", [row([Eff,
+                            median([F || #{frame := F} <- Rows]),
+                            median([P || #{pop := P} <- Rows]),
+                            median([B || #{born := B} <- Rows]),
+                            median([S || #{still := S} <- Rows])])]).
+
+at_young(Seed, Eff) ->
+    #{structure_max := F, population := P, born := B, still_pct := St} =
+        world:snapshot(world:tick(founded(Seed, Eff), ?YOUNG)),
+    #{frame => F, pop => P, born => B, still => St}.
+
+founded(Seed, Eff) ->
+    world:new(#{seed => Seed, population => 40, transfer_efficiency => Eff}).
+
+%%==============================================================================
+
+plateau() ->
+    io:format("~n~ncensus at t=~p, just before `max_age' of 600 arrives~n~n",
               [?CENSUS]),
     io:format("~s~n", [row(["eff%", "seed", "pop", "founders", "born",
                             "born>~p", "starved", "frame", "store",
-                            "refused"])]),
+                            "refused", "life"])]),
     lists:foreach(fun census/1, ?STEPS),
     io:format("~nfounders = alive of the first 40 ids, which are the founding.~n"
               "born>~p = births after tick ~p, so after the bloom has burnt "
@@ -45,11 +88,22 @@ census(Eff) ->
 
 cells(#{pop := P, founders := F, born := B, late := L, starved := S,
         frame := Fr, store := St, refused := R}) ->
-    [P, F, B, L, S, Fr, St, R].
+    [P, F, B, L, S, Fr, St, R, life(P, B)].
+
+%% MEAN LIFESPAN BY LITTLE'S LAW, in hundredths, with the deaths counted by
+%% conservation of individuals rather than by summing the world's three death
+%% counters: everything ever born or founded is either alive now or dead.
+%%
+%% World 6 and world 7 both came out at 2.2 ticks and this is the number world 8
+%% was pre-registered to move. It moves, and the results file argues that the
+%% movement means the opposite of what was wanted.
+life(Pop, Born) -> scaled(Pop * ?CENSUS * 100, Born + 40 - Pop).
+
+scaled(_Num, 0) -> 0;
+scaled(Num, Deaths) -> Num div Deaths.
 
 run(Seed, Eff) ->
-    W0 = world:new(#{seed => Seed, population => 40, transfer_efficiency => Eff}),
-    Early = world:tick(W0, ?EARLY),
+    Early = world:tick(founded(Seed, Eff), ?EARLY),
     #{born := BornEarly} = world:snapshot(Early),
     W = world:tick(Early, ?CENSUS - ?EARLY),
     #{population := Pop, born := Born, starved := Starved, energy_max := Store,
@@ -75,6 +129,9 @@ spawn_one(Parent, F, Item) ->
     Ref = make_ref(),
     spawn_link(fun() -> Parent ! {Ref, F(Item)} end),
     Ref.
+
+median([]) -> 0;
+median(L) -> lists:nth(length(L) div 2 + 1, lists:sort(L)).
 
 row(Cells) -> lists:flatten([pad(C) || C <- Cells]).
 

@@ -189,10 +189,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 8,
+    #{number => 9,
       line => <<"You can only eat as fast as your body allows, so a creature "
-                "with no body starves. Nothing is free either: moving energy "
-                "about always loses some as heat.">>}.
+                "with no body starves. Having a child costs you half of what "
+                "you have saved up, but never a piece of your own body.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -797,27 +797,46 @@ willing(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
 
 room(false, _Id, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
+%% A PARENT DOES NOT DISMANTLE ITS OWN BODY TO MAKE A CHILD, and until world 9 it
+%% did: half the frame went with half the store.
+%%
+%% World 8 is what made that fatal. Once capacity became a property of structure,
+%% handing over half your frame permanently halved the rate at which you can feed,
+%% and the transfer is lossy, so it compounds:
+%%
+%%     child frame = parent frame * efficiency / 200
+%%
+%% Deepest generation ever alive came out at 7, 4 and 1 at efficiencies 100, 70
+%% and 30. Lineages that bred vanished within a few generations, selection kept
+%% the founders that refuse to breed, and after tick 35 nothing new was ever born
+%% in a world whose survivors were carrying four hundred times what they were
+%% founded with. A TRADEOFF ONE END OF WHICH IS LEAVING THE GAME IS NOT A
+%% TRADEOFF.
+%%
+%% So reproduction is paid out of the reserve, which is what a reserve is for and
+%% what a reproductive buffer is in Kooijman's Dynamic Energy Budget theory. NO
+%% NEW CONSTANT: the dowry is still half the store, and the child is founded from
+%% it by the same split that founds a founder from `start_energy'.
 room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
-    #{at := At, energy := E, structure := S} = C = maps:get(Id, Cs),
-    %% BOTH HALVES SPLIT ALIKE, because reproduction transfers matter as well as
-    %% energy and structure is energy in another form. A child built of nothing
-    %% would lose every contest it ever entered.
+    #{at := At, energy := E} = C = maps:get(Id, Cs),
     Dowry = E div 2,
-    Frame = S div 2,
     Eff = maps:get(transfer_efficiency, Econ),
     Given = delivered(Dowry, Eff),
-    Built = delivered(Frame, Eff),
+    %% HALF STORE AND HALF FRAME, the odd unit to the frame, exactly as a founder
+    %% is made. Even is the least-informative split: it favours neither carrying
+    %% nor building and leaves the ratio to mutation and to what the child earns.
+    %% A child of nothing could not feed, which since world 8 is fatal.
+    Store = Given div 2,
+    Built = Given - Store,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
     %% WHAT THE PARENT GIVES UP IS NOT WHAT THE CHILD RECEIVES. Assembling a
     %% second creature is a transformation and pays like every other one.
     W1 = note_change(Change,
-                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry,
-                                                      structure => S - Frame}},
-                             dissipated = W#world.dissipated
-                                 + (Dowry - Given) + (Frame - Built),
+                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
+                             dissipated = W#world.dissipated + (Dowry - Given),
                              rng = Rng2}),
-    add_creature(Where, Given, Built, Id, Traits, W1).
+    add_creature(Where, Store, Built, Id, Traits, W1).
 
 note_change({added, _Pos}, #world{sensors_gained = G} = W) ->
     W#world{sensors_gained = G + 1};
