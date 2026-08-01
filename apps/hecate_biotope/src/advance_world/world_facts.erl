@@ -80,6 +80,8 @@ world_advanced(Snapshot, Pace) ->
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       sensors := Sensors, sensor_mean := SensorMean,
+      sensor_hist := SensorHist, hidden_hist := HiddenHist,
+      uptake_hist := UptakeHist,
       sensors_gained := Gained, sensors_lost := Lost,
       ground_total := GroundTotal, ground_spread := GroundSpread,
       still_pct := Still, hidden_mean := HiddenMean,
@@ -132,6 +134,15 @@ world_advanced(Snapshot, Pace) ->
       %% because everything on this wire is an integer.
       sensors => Sensors,
       sensor_mean => SensorMean,
+      %% THE SHAPE OF THE POPULATION AND NOT ITS AVERAGE. How many creatures
+      %% carry none, one, two and so on. A mean of 0.01 reads as "nearly none"
+      %% without saying whether that is one creature in a hundred or something
+      %% else; a distribution pinned wholly at zero cannot be skimmed past.
+      %% Short fixed-length lists, a handful of integers a second.
+      sensor_hist => SensorHist,
+      hidden_hist => HiddenHist,
+      %% Binned across the feeding range, which is the one that varies today.
+      uptake_hist => UptakeHist,
       %% WHETHER THE BODY PLAN IS STILL MOVING. A census says what the population
       %% is built from now; these say whether that is settled or still churning,
       %% which a census alone cannot distinguish.

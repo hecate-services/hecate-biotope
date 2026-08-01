@@ -54,6 +54,10 @@
 %% behaviour, a statement about how far a thing can travel in one tick.
 -define(REACH, 1).
 
+%% How many buckets a continuous trait is drawn in. Enough to see a shape, few
+%% enough to fit on a card.
+-define(BUCKETS, 8).
+
 -type creature() :: #{id := id(),
                       at := hex(),
                       energy := integer(),
@@ -652,7 +656,7 @@ linger(S, Who, H, Acc) -> Acc#{H => {S, Who}}.
 %% is what makes it legitimate to count diet at all: it is a description applied
 %% afterwards, not a category the world enforces.
 -spec snapshot(world()) -> map().
-snapshot(#world{} = W) ->
+snapshot(#world{econ = Econ} = W) ->
     #{tick => W#world.tick,
       population => map_size(W#world.creatures),
       %% One half of the world's books. The other is the creatures, and together
@@ -693,6 +697,20 @@ snapshot(#world{} = W) ->
       %% for it and how much total reach is devoted to it. A census, not a
       %% verdict: it says what survived, not what was useful.
       sensors => sensor_census(W),
+      %% THE SHAPE OF THE POPULATION, not its average. A mean of 0.01 sensors per
+      %% creature is easy to read as "nearly none" without saying what that
+      %% means: one creature in a hundred carrying one, or something else
+      %% entirely. A count at each value cannot be skimmed past, and a
+      %% distribution pinned wholly at zero states plainly that the apparatus has
+      %% been selected away rather than merely worn thin.
+      %%
+      %% Bounded by the safety valves, so these are short fixed-length lists and
+      %% cost a handful of integers a second.
+      sensor_hist => histogram(sensor_counts(W), maps:get(max_sensors, Econ)),
+      hidden_hist => histogram(hidden_counts(W), maps:get(max_hidden, Econ)),
+      %% Binned, because a feeding rate runs to hundreds and a bar per value
+      %% would be unreadable. This is the one that actually varies today.
+      uptake_hist => binned(uptake_values(W), maps:get(ground_ceiling, Econ)),
       movers => outputs_with(move, W),
       breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
@@ -718,6 +736,32 @@ outputs_with(Purpose, #world{creatures = Cs}) ->
 still_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 still_share(#world{creatures = Cs}) ->
     length([x || #{still := true} <- maps:values(Cs)]) * 100 div map_size(Cs).
+
+%% How many creatures sit at each value, from none up to the cap. A cap is a
+%% safety valve rather than a model parameter, so anything at it is counted there
+%% rather than dropped.
+histogram(Values, Max) ->
+    Empty = maps:from_keys(lists:seq(0, Max), 0),
+    Tally = lists:foldl(fun(V, Acc) -> bump(min(Max, V), Acc) end, Empty, Values),
+    [maps:get(I, Tally) || I <- lists:seq(0, Max)].
+
+%% THE SAME, IN BUCKETS, for a quantity that runs to hundreds. Eight is enough to
+%% see a shape and few enough to draw on a card, and the top bucket catches
+%% anything at the ceiling rather than losing it.
+binned(Values, Ceiling) ->
+    Width = max(1, (Ceiling + 1) div ?BUCKETS),
+    histogram([min(?BUCKETS - 1, V div Width) || V <- Values], ?BUCKETS - 1).
+
+bump(Key, Acc) -> maps:update_with(Key, fun(N) -> N + 1 end, Acc).
+
+sensor_counts(#world{creatures = Cs}) ->
+    [length(B) || #{body := B} <- maps:values(Cs)].
+
+hidden_counts(#world{creatures = Cs}) ->
+    [brain:hidden_count(Br) || #{brain := Br} <- maps:values(Cs)].
+
+uptake_values(#world{creatures = Cs}) ->
+    [U || #{uptake := U} <- maps:values(Cs)].
 
 mean_uptake(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_uptake(#world{creatures = Cs}) ->

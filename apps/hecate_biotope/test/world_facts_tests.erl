@@ -45,7 +45,14 @@ carries_totals_rather_than_rates_test() ->
                   [born, starved, aged_out, consumed, absorbed,
                    births_refused, population, energy_total, ground_total,
                    ground_spread, still_pct, hidden_mean, movers, breeders,
-                   from_creatures_pct, sensor_mean, scent_tags, scent_spread]).
+                   from_creatures_pct, sensor_mean, scent_tags, scent_spread]),
+    %% The shape of the population rather than its average, as short
+    %% fixed-length lists of counts.
+    lists:foreach(fun(K) ->
+                          Bars = maps:get(K, F),
+                          ?assert(is_list(Bars)),
+                          ?assert(lists:all(fun is_integer/1, Bars))
+                  end, [sensor_hist, hidden_hist, uptake_hist]).
 
 %% VERSION 3, BECAUSE THERE ARE NO PLANTS ANY MORE. A plant was never a kind of
 %% thing: it is a way of living, and world 2 deleted the entity, the list of

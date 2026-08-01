@@ -464,3 +464,67 @@ an_emptied_cell_is_left_out_of_the_chart_test() ->
 the_chart_is_stable_test() ->
     W = world:tick(world:new(#{population => 8, radius => 4, seed => 6}), 20),
     ?assertEqual(world:chart(W), world:chart(W)).
+
+%%==============================================================================
+%% The shape of the population
+%%==============================================================================
+
+%% A MEAN CANNOT BE SKIMMED PAST WHEN IT IS A DISTRIBUTION. "0.01 sensors per
+%% creature" reads as nearly none without saying whether that is one creature in
+%% a hundred carrying one or something else entirely, and the difference matters:
+%% one is an apparatus being selected away, the other is one being maintained
+%% rarely.
+a_population_that_carries_nothing_is_one_bar_at_zero_test() ->
+    W = quiet(maps:merge(#{population => 12, radius => 3}, inert())),
+    #{sensor_hist := Sensors, hidden_hist := Hidden} = world:snapshot(W),
+    ?assertEqual(12, hd(Sensors)),
+    ?assertEqual(0, lists:sum(tl(Sensors))),
+    ?assertEqual(12, hd(Hidden)),
+    ?assertEqual(0, lists:sum(tl(Hidden))).
+
+%% Every creature is counted exactly once, so the bars are a partition of the
+%% population rather than overlapping tallies.
+the_bars_partition_the_population_test() ->
+    W = world:tick(world:new(#{population => 30, radius => 6, seed => 5,
+                               body_mutation => 1,
+                               brain_mutation_structural => 1}), 200),
+    #{population := Pop, sensor_hist := Sensors, hidden_hist := Hidden,
+      uptake_hist := Rates} = world:snapshot(W),
+    ?assertEqual(Pop, lists:sum(Sensors)),
+    ?assertEqual(Pop, lists:sum(Hidden)),
+    ?assertEqual(Pop, lists:sum(Rates)).
+
+%% Bounded by the safety valves, so the lists are short and fixed-length however
+%% elaborate anything gets, and cost a handful of integers a second.
+the_bars_are_bounded_by_the_safety_valves_test() ->
+    W = world:new(#{population => 5, radius => 3, max_sensors => 4,
+                    max_hidden => 3}),
+    #{sensor_hist := Sensors, hidden_hist := Hidden} = world:snapshot(W),
+    ?assertEqual(5, length(Sensors)),
+    ?assertEqual(4, length(Hidden)).
+
+%% A FEEDING RATE RUNS TO HUNDREDS, so a bar per value would be unreadable. Eight
+%% buckets is enough to see a shape and few enough to draw on a card, and the top
+%% one catches anything at the ceiling rather than losing it.
+feeding_rates_are_drawn_in_buckets_test() ->
+    Gentle = world:new(#{population => 8, radius => 3, ground_ceiling => 400,
+                         founder_uptake => 10}),
+    #{uptake_hist := Low} = world:snapshot(Gentle),
+    ?assertEqual(8, length(Low)),
+    ?assertEqual(8, hd(Low)),
+    Voracious = world:new(#{population => 8, radius => 3,
+                            ground_ceiling => 400, founder_uptake => 400}),
+    #{uptake_hist := High} = world:snapshot(Voracious),
+    ?assertEqual(8, lists:last(High)).
+
+%% Zeroes rather than a short list for an empty world, so a reader plotting bars
+%% gets a flat chart instead of a gap it has to interpret.
+an_empty_world_has_empty_bars_test() ->
+    W = world:tick(quiet(maps:merge(#{population => 1, ground_seed => 0,
+                                      ground_growth_pct => 0,
+                                      ground_ceiling => 0, metabolism => 30,
+                                      start_energy => 20}, inert())), 5),
+    #{population := Pop, sensor_hist := Sensors} = world:snapshot(W),
+    ?assertEqual(0, Pop),
+    ?assertEqual(0, lists:sum(Sensors)),
+    ?assert(length(Sensors) > 1).
