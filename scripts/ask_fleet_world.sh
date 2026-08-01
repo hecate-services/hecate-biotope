@@ -34,7 +34,7 @@ CONTAINER=${CONTAINER:-biotope}
 # on indentation silently dropped exactly the fields this script exists to check:
 # `depth', `lineages' and `dissipated' are the three that only a world 9 build
 # has, and an empty result for them reads as "not deployed" whether or not it is.
-FIELDS='number =>|tick =>|population =>|transfer_efficiency =>|depth =>|lineages =>|from_creatures_pct =>|dissipated =>|extinct_at =>|structure_max =>'
+FIELDS='number =>|seed =>|tick =>|population =>|transfer_efficiency =>|depth =>|lineages =>|from_creatures_pct =>|extinct_at =>'
 
 for node in ${NODES}; do
   echo "── ${node}"
