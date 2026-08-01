@@ -83,22 +83,25 @@ a_reading_is_capped_and_floored_test() ->
 %% Paying for it
 %%==============================================================================
 
-%% THE ONLY FORCE THAT CAN REMOVE A SENSOR. If measuring were free every lineage
-%% would accumulate every measurement and the fully equipped generalist would
-%% never be at a disadvantage.
-rent_is_charged_per_sensor_and_rises_with_reach_test() ->
-    E = with(#{sensor_rent => 2}),
-    ?assertEqual(0, body:upkeep([], E)),
-    ?assertEqual(2, body:upkeep([{ground, 0}], E)),
-    ?assertEqual(6, body:upkeep([{ground, 2}], E)),
-    ?assertEqual(4, body:upkeep([{ground, 0}, {scent, 0}], E)).
+%% AN ORGAN IS TISSUE, so a body reports MASS and the world charges it at the
+%% rate it charges every other gram. This used to be a flat rent per sensor,
+%% which is why the shape survives unchanged even though the price does not:
+%% a sensor is its reach plus itself.
+%%
+%% THE ONLY FORCE THAT CAN REMOVE A SENSOR is still that it weighs something. If
+%% measuring were free every lineage would accumulate every measurement and the
+%% fully equipped generalist would never be at a disadvantage.
+mass_is_counted_per_sensor_and_rises_with_reach_test() ->
+    ?assertEqual(0, body:mass([])),
+    ?assertEqual(1, body:mass([{ground, 0}])),
+    ?assertEqual(3, body:mass([{ground, 2}])),
+    ?assertEqual(2, body:mass([{ground, 0}, {scent, 0}])).
 
-%% Two of the same field at different reaches are two sensors and are billed
-%% twice. A body is a list, not a set: nothing in the physics says a creature may
-%% only measure a thing once.
+%% Two of the same field at different reaches are two sensors and weigh twice. A
+%% body is a list, not a set: nothing in the physics says a creature may only
+%% measure a thing once.
 duplicate_fields_are_separate_sensors_test() ->
-    E = with(#{sensor_rent => 1}),
-    ?assertEqual(4, body:upkeep([{ground, 0}, {ground, 2}], E)),
+    ?assertEqual(4, body:mass([{ground, 0}, {ground, 2}])),
     ?assertEqual(2, body:sensor_count([{ground, 0}, {ground, 2}])).
 
 %%==============================================================================

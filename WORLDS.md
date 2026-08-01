@@ -27,6 +27,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **12** | **speed**: a creature goes as far as it can pay to go, and the fare per cell is `move_cost + carrying(structure)` (`C.2`, `C.1`) | **THE GIANTS ARE GONE.** Largest frame 3,831 to **450**, largest store 14,249 to **677**, creatures 797 to **1,285**, generations deep at 20,000 ticks ~250 to **~2,480**. Pricing the HAUL did in one change what five worlds of pricing the HOLD could not. The landscape flattened to 22 as a consequence, because concentration in the ground tracks concentration in individuals and there are no hoarders left. **Perception still did not move** (0.10): flight now exists and a creature still cannot afford the eyes to use it. A size axis appeared BETWEEN seeds, not within one — three survivors near 470, one at **11,452**. [results](RESULTS_WORLD12.md) |
 
+| **13** | **an organ is tissue**: `sensor_rent` and `hidden_rent` deleted, apparatus carried by the same `carrying/2` that prices a body, at a swept `neural_cost` (`B.2`, `B.3`) | **PERCEPTION WAS NEVER USELESS, IT WAS UNAFFORDABLE.** A cell yields ~22 a tick and one sensor cost 10 of it, so one eye plus one thought plus staying alive cost more than the ground gives. Priced as tissue and swept: sensors **0.00 to 3.27** per creature, hidden nodes **0.01 to 2.68**, total reach **12 to 2,506**, extinctions 3 seeds in 5 down to **none**. A step change between 110 and 66, and worlds 2-12 sat far above it by accident. **Settles the twelve-world null, not the usefulness** — a nearly free organ drifts. Lineages still 1 of 40 at every price. **Run without a pre-registration, so exploratory.** [results](RESULTS_WORLD13.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a
@@ -83,6 +85,11 @@ Two rules came out of the run and now govern what gets built next:
   (`C.6`), and world 8's capacity bound applied to grazing and not to predation
   (`B.7`). Neither function was wrong on its own. This is the most productive
   question in the register.
+- **Twelve nulls can share one cause, and the cause can be a pricing error.**
+  Every results file since world 2 recorded perception at the floor and reasoned
+  about why nothing needed to see. The answer was arithmetic, and it sat in the
+  register the whole time as B.2 and B.3, both marked *no physics settles it*. A
+  flat fee among rates is the same defect as a law applied at one site.
 - **Pricing the haul is a different instrument from pricing the hold.** Worlds 5
   and 6 charged for holding a body and size still ran away. World 12 charged for
   MOVING it and bodies capped at a tenth of what they had reached. A cost that

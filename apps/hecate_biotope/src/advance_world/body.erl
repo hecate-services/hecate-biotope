@@ -40,7 +40,7 @@
 %% apart and something together, which is why world 2 has both or neither.
 -module(body).
 
--export([founder/2, inherit/3, upkeep/2, fields/0, unit/2, reading/3]).
+-export([founder/2, inherit/3, mass/1, fields/0, unit/2, reading/3]).
 -export([census/1, sensor_count/1, reading_ceiling/0, spatial/1]).
 
 -type field() :: creatures | ground | scent | self.
@@ -93,20 +93,13 @@ unit(_Energy, Econ) -> maps:get(ground_ceiling, Econ).
 reading(Field, Raw, Econ) ->
     max(0, min(?READING_CEILING, Raw div unit(Field, Econ))).
 
-%% @doc What a body costs to run, per tick, on top of base metabolism.
-%%
-%% CHARGED WHETHER USED OR NOT, which is the only force in this world that can
-%% remove a sensor. Without it every lineage accumulates every measurement, the
-%% fully equipped generalist is never at a disadvantage, and nothing can ever
-%% specialise in anything.
-%%
-%% Rising with reach because reach costs, which is physical. Whether it should
-%% rise with the radius or with the AREA covered is settled by nothing in this
-%% world and is named in PREREGISTRATION.md rather than defended here.
--spec upkeep(body(), map()) -> non_neg_integer().
-upkeep(Body, Econ) ->
-    Rent = maps:get(sensor_rent, Econ),
-    lists:sum([Rent * (Range + 1) || {_Field, Range} <- Body]).
+%% @doc HOW MUCH APPARATUS THIS BODY IS, in units. Not a price: what it costs is the
+%% world's business and is charged at the same rate as any other tissue since
+%% world 13. A sensor is its reach plus itself, which is the shape the flat rent
+%% already used and the only one this world has ever had a reason for.
+-spec mass(body()) -> non_neg_integer().
+mass(Body) ->
+    lists:sum([Range + 1 || {_Field, Range} <- Body]).
 
 %% @doc A founding body: a random number of random sensors, possibly none.
 %%

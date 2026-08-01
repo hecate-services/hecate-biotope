@@ -390,39 +390,47 @@ equals_do_not_consume_each_other_test() ->
 %% What it costs to be equipped
 %%==============================================================================
 
-%% THE ONLY FORCE THAT CAN REMOVE A SENSOR. If measuring were free every lineage
-%% would accumulate every measurement and the fully equipped generalist would
-%% never be at a disadvantage.
-a_sensor_costs_its_rent_every_tick_test() ->
-    Cost = fun(Sensors) ->
-                   W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 2,
-                               hidden_rent => 0, max_age => 100000,
-                               start_energy => 900, founder_body => Sensors,
-                               founder_brain => #{hidden => [],
-                                                  outputs => #{}}}),
-                   books(W) - books(world:tick(W, 10))
-           end,
-    ?assertEqual(0, Cost([])),
-    %% Rent rises with reach: range 0 is one unit, range 2 is three.
-    ?assertEqual(20, Cost([{ground, 0}])),
-    ?assertEqual(60, Cost([{ground, 2}])),
-    %% And is charged per sensor, so a generalist pays for each.
-    ?assertEqual(40, Cost([{ground, 0}, {creatures, 0}])).
+%% AN ORGAN IS TISSUE AND IS CHARGED AT THE RATE TISSUE IS CHARGED AT, which is
+%% world 13. Sensors and hidden nodes used to pay a FLAT RENT while a body paid a
+%% RATE, and that inconsistency is why one eye plus one thought plus staying
+%% alive cost more than a cell yields.
+%%
+%% 330 IS THE CONTROL AND THIS TEST IS WHAT MAKES IT ONE: at the default divisor
+%% of 33 it reproduces the flat rent of 10 a tick that worlds 2 to 12 charged,
+%% exactly. Those worlds are a point on this sweep rather than a different game,
+%% and if that stops being true the sweep stops being comparable to anything.
+equipment_at_the_control_costs_what_the_old_rent_did_test() ->
+    Extra = fun(Sensors, Hidden) ->
+                    Bare = equipped([], []),
+                    equipped(Sensors, Hidden) - Bare
+            end,
+    %% Reach 0 is one unit, and one unit was ten a tick.
+    ?assertEqual(100, Extra([{ground, 0}], [])),
+    %% Rising with reach: range 2 is three units.
+    ?assertEqual(300, Extra([{ground, 2}], [])),
+    %% Charged per sensor, so a generalist pays for each.
+    ?assertEqual(200, Extra([{ground, 0}, {creatures, 0}], [])),
+    %% And a hidden node is one unit, like the smallest sensor.
+    ?assertEqual(100, Extra([], [[0]])),
+    ?assertEqual(200, Extra([], [[0], [0]])).
 
-%% A BRAIN IS A THING THAT MUST BE RUN. Without rent on hidden nodes a lineage
-%% accumulates capacity it never uses, exactly as it would accumulate senses.
-a_hidden_node_costs_its_rent_every_tick_test() ->
-    Cost = fun(Hidden) ->
-                   W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
-                               hidden_rent => 3, max_age => 100000,
-                               start_energy => 900, founder_body => [],
-                               founder_brain => #{hidden => Hidden,
-                                                  outputs => #{}}}),
-                   books(W) - books(world:tick(W, 10))
-           end,
-    ?assertEqual(0, Cost([])),
-    ?assertEqual(30, Cost([[0]])),
-    ?assertEqual(60, Cost([[0], [0]])).
+%% AND THE SWEEP IS MEANINGFUL, which is the whole point of making it one. A
+%% cheaper gram of neural tissue is a cheaper creature, monotonically, so there
+%% is a curve to walk rather than two settings to argue about.
+cheaper_neural_tissue_is_cheaper_to_carry_test() ->
+    Spent = [equipped([{ground, 2}], [], N) || N <- [330, 165, 33, 1]],
+    ?assertEqual(lists:reverse(lists:sort(Spent)), Spent),
+    ?assert(hd(Spent) > lists:last(Spent)).
+
+equipped(Sensors, Hidden) -> equipped(Sensors, Hidden, 330).
+
+equipped(Sensors, Hidden, Neural) ->
+    W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0,
+                upkeep_divisor => 33, neural_cost => Neural,
+                max_age => 100000, start_energy => 900,
+                founder_body => Sensors,
+                founder_brain => #{hidden => Hidden, outputs => #{}}}),
+    books(W) - books(world:tick(W, 10)).
 
 %%==============================================================================
 %% Deciding

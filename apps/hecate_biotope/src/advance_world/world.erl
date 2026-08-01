@@ -293,12 +293,18 @@ defaults() ->
       %% integers at the old grain could not express.
       metabolism        => 10,
       move_cost         => 10,
-      %% What it costs to measure, per sensor per tick, used or not, rising with
-      %% reach. The only force that can remove a sensor from a lineage.
-      sensor_rent       => 10,
-      %% What it costs to think. A brain is a thing that must be run, and unlike
-      %% reach there is no geometry to derive a shape from, so it is flat.
-      hidden_rent       => 10,
+      %% WHAT A GRAM OF APPARATUS WEIGHS AGAINST A GRAM OF BODY.
+      %%
+      %% An organ is tissue and is charged by `carrying/2' like any other tissue
+      %% since world 13. What physics does not settle is how much DEARER neural
+      %% tissue is, and biology says it genuinely is: a human brain is about 2%
+      %% of the mass and 20% of the energy.
+      %%
+      %% So this is SWEPT and every value published, exactly as `transfer_efficiency'
+      %% is. 330 IS THE CONTROL: at an `upkeep_divisor' of 33 it reproduces the
+      %% flat rent of 10 a tick that worlds 2 to 12 charged, so those worlds are a
+      %% point on this sweep rather than a different game.
+      neural_cost       => 330,
       %% Safety valves against a runaway genome making one tick cost as much as
       %% the whole disc. Not model parameters: rent is what should bound a
       %% creature, and when one of these binds it is counted and reported.
@@ -520,11 +526,38 @@ eat_own_frame(#{energy := E, structure := S} = C, Short, Paid, Eff) ->
 %% rounded up, because a fraction of a unit cannot be broken down twice.
 needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
 
+%% ==========================================================================
+%% AN ORGAN IS TISSUE, AND TISSUE IS CHARGED BY THE RATE TISSUE IS CHARGED AT
+%% ==========================================================================
+%%
+%% Sensors and hidden nodes used to pay a FLAT RENT while a body paid a RATE.
+%% That is the same inconsistency as C.6, B.7 and B.8: a law applied at one site
+%% and not another, and it is the one this register has been walking past for
+%% eleven worlds while recording its consequence in every results file.
+%%
+%% THE CONSEQUENCE, IN ARITHMETIC. A cell yields about 22 a tick. Metabolism is
+%% 10, one sensor was 10, one hidden node was 10. **One eye plus one thought plus
+%% staying alive cost more than the ground a creature stands on can give.**
+%% Perception has measured 0.10 sensors and 0.01 hidden nodes per creature for
+%% twelve worlds, and it was never being selected away for being useless. It was
+%% unaffordable at any usefulness.
+%%
+%% So the apparatus is mass, and mass is charged by `carrying/2' like every other
+%% gram. `body:mass/1' is the sensor's reach plus itself, the same shape the flat
+%% rent used; a hidden node is one unit.
+%%
+%% ONE CONSTANT, AND NOBODY CHOOSES IT. Physics says a brain is tissue and tissue
+%% costs by mass. It does not say how much dearer neural tissue is than
+%% structural tissue, and biology says it genuinely is dearer: a human brain is
+%% about 2% of the mass and 20% of the budget. So `neural_cost' is SWEPT and
+%% every value published, exactly as world 7 swept the efficiency, and 330 is the
+%% control because at the divisor of 33 it reproduces the old flat rent of 10 a
+%% tick exactly. World 12 is therefore a point on this sweep rather than a
+%% different world.
 upkeep(#{body := Body, brain := Brain, structure := S}, Econ) ->
-    maps:get(metabolism, Econ)
-        + body:upkeep(Body, Econ)
-        + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ)
-        + carrying(S, Econ).
+    Apparatus = (body:mass(Body) + brain:hidden_count(Brain))
+        * maps:get(neural_cost, Econ),
+    maps:get(metabolism, Econ) + carrying(S + Apparatus, Econ).
 
 %% @doc What a transformation delivers, and what it costs to have delivered it.
 %%
