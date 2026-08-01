@@ -28,7 +28,8 @@ main(_) ->
     io:format("~ncensus at t=~p, just before `max_age' of 600 arrives~n~n",
               [?CENSUS]),
     io:format("~s~n", [row(["eff%", "seed", "pop", "founders", "born",
-                            "born>~p", "aged", "starved", "frame"])]),
+                            "born>~p", "starved", "frame", "store",
+                            "refused"])]),
     lists:foreach(fun census/1, ?STEPS),
     io:format("~nfounders = alive of the first 40 ids, which are the founding.~n"
               "born>~p = births after tick ~p, so after the bloom has burnt "
@@ -42,20 +43,20 @@ census(Eff) ->
                   end,
                   lists:zip(lists:seq(1, ?SEEDS), Rows)).
 
-cells(#{pop := P, founders := F, born := B, late := L, aged := A, starved := S,
-        frame := Fr}) ->
-    [P, F, B, L, A, S, Fr].
+cells(#{pop := P, founders := F, born := B, late := L, starved := S,
+        frame := Fr, store := St, refused := R}) ->
+    [P, F, B, L, S, Fr, St, R].
 
 run(Seed, Eff) ->
     W0 = world:new(#{seed => Seed, population => 40, transfer_efficiency => Eff}),
     Early = world:tick(W0, ?EARLY),
     #{born := BornEarly} = world:snapshot(Early),
     W = world:tick(Early, ?CENSUS - ?EARLY),
-    #{population := Pop, born := Born, aged_out := Aged, starved := Starved,
-      structure_max := Frame} = world:snapshot(W),
+    #{population := Pop, born := Born, starved := Starved, energy_max := Store,
+      births_refused := Refused, structure_max := Frame} = world:snapshot(W),
     #{pop => Pop, founders => founders_alive(W), born => Born,
-      late => Born - BornEarly, aged => Aged, starved => Starved,
-      frame => Frame}.
+      late => Born - BornEarly, starved => Starved, frame => Frame,
+      store => Store, refused => Refused}.
 
 %% THE FOUNDING TAKES THE FIRST IDS because `populate' runs before any birth can,
 %% and `next_id' only ever counts up. So membership of the founding is decidable
