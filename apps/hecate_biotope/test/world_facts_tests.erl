@@ -208,3 +208,21 @@ carries_which_run_this_is_test() ->
     Later = world_facts:world_advanced(world:snapshot(world:new(#{population => 7})),
                                        world_pace:from_map(#{}), 3, 630),
     ?assertMatch(#{run := 3, previous_end := 630}, Later).
+
+%% EVERYTHING THE PICTURE NEEDS, ON THE WIRE. `chart/1' computes more than this
+%% function used to forward, and the one it dropped was `structures': a
+%% spectator asking for a creature's BODY got nothing and silently fell back to
+%% its store. World 10 sized creatures by the body precisely because every
+%% contest is decided on structure alone, and that correction was never once in
+%% effect on a live island.
+%%
+%% Asserted as a set rather than one key, because the failure was a field going
+%% missing between two functions that were each correct.
+the_chart_carries_everything_the_picture_needs_test() ->
+    F = chart(),
+    Creatures = length(maps:get(creatures, F)) div 2,
+    lists:foreach(fun(K) ->
+                          ?assert(maps:is_key(K, F)),
+                          ?assertEqual({K, Creatures}, {K, length(maps:get(K, F))})
+                  end,
+                  [ids, energies, structures, signatures, uptakes]).

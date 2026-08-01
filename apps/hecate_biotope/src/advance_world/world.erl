@@ -1281,6 +1281,15 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
              econ = Econ, tick = Tick}) ->
     Ids = lists:sort(maps:keys(Cs)),
     #{creatures => flatten_hexes([maps:get(at, maps:get(Id, Cs)) || Id <- Ids]),
+      %% WHO EACH MARK IS, in the same order as everything else.
+      %%
+      %% A spectator drawing one frame does not need this. A spectator ANIMATING
+      %% between two frames cannot do without it: creature number three in this
+      %% frame is a different creature from number three in the next as soon as
+      %% anything is born or eaten, and at a mean lifespan of about two ticks
+      %% that is every frame. Matching by position in the list would slide marks
+      %% across the board that never moved.
+      ids => Ids,
       %% Floored at zero: a creature awaiting the reaper carries a negative
       %% balance, and a viewer sizing a dot by it would be asked to draw a
       %% negative radius.

@@ -270,7 +270,8 @@ previously(Fact, Tick) -> Fact#{previous_end => Tick}.
 %% from the fact alone rather than being configured to agree with the world.
 -spec world_charted(map(), world_pace:pace()) -> map().
 world_charted(Chart, Pace) ->
-    #{creatures := Creatures, energies := Energies, signatures := Signatures,
+    #{creatures := Creatures, ids := Ids, energies := Energies,
+      structures := Structures, signatures := Signatures,
       uptakes := Uptakes, ground := Ground, scent := Scent, radius := Radius,
       tick := Tick} = Chart,
     #{type => world_charted,
@@ -280,6 +281,11 @@ world_charted(Chart, Pace) ->
       radius => Radius,
       stride => 2,
       creatures => Creatures,
+      %% WHO EACH MARK IS, parallel to `creatures'. A frame can be drawn without
+      %% it; two frames cannot be animated between without it, because a mean
+      %% lifespan of about two ticks means the list is reshuffled by births and
+      %% deaths between every pair of frames.
+      ids => Ids,
       %% THE GROUND AS POSITION AND AMOUNT, at a stride of three. Only cells
       %% holding something are sent: an empty one is drawn bare, and on a grazed
       %% board most of them are. This replaces the plant list, because a plant
@@ -295,6 +301,19 @@ world_charted(Chart, Pace) ->
       %% the weaker, so the size of a dot is the single most informative thing
       %% about it, and without this every creature is drawn identical.
       energies => Energies,
+      %% WHAT EACH ONE IS BUILT OF, parallel to `creatures'.
+      %%
+      %% `chart/1' has computed this since world 6 and this function DROPPED IT,
+      %% so a spectator asking for the body got nothing and fell back to the
+      %% store. World 10 changed the renderer to size a creature by its body,
+      %% because every contest is decided on structure alone, and that change has
+      %% never once been in effect on a live island: the number it needs was
+      %% never on the wire.
+      %%
+      %% The same shape as B.7 and C.6 in the register. Each function was right
+      %% and the gap between them was not, and the test that should have caught
+      %% it fed the renderer a chart by hand instead of the fact an island sends.
+      structures => Structures,
       %% ONE SIGNATURE PER CREATURE, same order again. A creature reads a trail
       %% by how unlike itself it smells, so this is what kinship IS here, and
       %% comparing creatures against each other is the only way to see whether a
