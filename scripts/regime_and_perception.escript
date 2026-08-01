@@ -38,7 +38,8 @@ main(_) ->
               [?TICKS, ?SEEDS, ?NEURAL]),
     Rows = in_parallel(fun run/1, lists:seq(1, ?SEEDS)),
     io:format("~s~n", [row(["seed", "pop", "body", "biggest", "store", "sens",
-                            "attn", "brain", "still%", "meat%", "depth"])]),
+                            "attn", "brain", "still%", "meat%", "depth",
+                            "ground"])]),
     Alive = [R || #{population := P} = R <- Rows, P > 0],
     lists:foreach(fun print/1, lists:sort(fun by_body/2, Alive)),
     io:format("~n~p of ~p seeds dead by tick ~p, left out above.~n",
@@ -55,7 +56,15 @@ print(#{seed := Seed, population := Pop} = S) ->
                             mean(energy_total, S), maps:get(sensor_mean, S),
                             attention(S), maps:get(hidden_mean, S),
                             maps:get(still_pct, S), maps:get(from_creatures_pct, S),
-                            maps:get(depth, S)])]).
+                            maps:get(depth, S), per_cell(S)])]).
+
+%% MEAN STANDING STOCK PER CELL, which is where the two regimes are supposed to
+%% sit either side of a line. Bare ground gains `max(ground_seed, stock * pct)',
+%% so below `ground_seed * 100 / pct' a cell is living on the floor and above it
+%% on its own compounding. At the configured 12 and 6 that crossover is 200.
+per_cell(#{ground_total := G, radius := R}) -> G div cells(R).
+
+cells(R) -> 1 + 3 * R * (R + 1).
 
 %% THE ONE NUMBER THIS IS FOR. Split the seeds at the median body size and report
 %% perception either side. If the mechanism holds, the two halves are different
