@@ -111,7 +111,7 @@
                       still := boolean()}.
 
 -type econ() :: #{transfer_efficiency := pos_integer(),
-                  ground_seed := pos_integer(),
+                  recolonise_pct := non_neg_integer(),
                   ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
                   uptake_mutation := non_neg_integer(),
@@ -219,10 +219,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 13,
-      line => <<"An eye is tissue and is charged by weight like any other, so "
-                "what a brain costs is a price this world can be asked about "
-                "rather than a flat fee nobody could afford.">>}.
+    #{number => 14,
+      line => <<"Bare ground comes back from what is around it, so a patch "
+                "beside living ground recovers and one in the middle of a "
+                "desert does not, and grazing everything flat now costs you.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -237,11 +237,23 @@ defaults() ->
       %% BOTH NUMBERS ARE DERIVED FROM CRITERIA FIXED BEFORE MEASURING, in
       %% PREREGISTRATION.md, and neither refers to what evolves:
       %%
-      %%   ground_seed        the smallest at which a sensorless creature that
-      %%                      never moves can raise one child within max_age.
-      %%                      World 2's criterion kept verbatim, so the worlds
-      %%                      differ in one mechanism and not in how their
-      %%                      constants were chosen.
+      %%   recolonise_pct     REPLACED ground_seed IN WORLD 14, and is not
+      %%                      derived from a criterion at all: it is SWEPT, and
+      %%                      3 is the control because on a full board every
+      %%                      neighbour sits at the ceiling of 400 and
+      %%                      400 * 3 / 100 is the 12 that worlds 2 to 13 used.
+      %%
+      %%                      The criterion it replaces was "the smallest at
+      %%                      which a sensorless creature that never moves can
+      %%                      raise one child within max_age", world 2's, kept
+      %%                      verbatim for eleven worlds. It presupposed the
+      %%                      answer to the question this project keeps asking,
+      %%                      and RESULTS_GROUND_FLOOR.md shows the magnitude
+      %%                      never mattered: swept 0 to 48, the sessile lineage
+      %%                      simply re-sizes and the population grazes the stock
+      %%                      to wherever the marginal grazer breaks even.
+      %%                      What mattered was that the floor was
+      %%                      UNCONDITIONAL.
       %%
       %%   ground_growth_pct  the smallest at which recovery is mostly
       %%                      COMPOUNDING rather than mostly linear, meaning the
@@ -257,8 +269,9 @@ defaults() ->
       %%                      says recovery is meaningful on the timescale life
       %%                      runs at. AMENDED before any run: see below.
       %%
-      %% Derived by scripts/verify_ground.escript and recorded there.
-      ground_seed       => 12,
+      %% `ground_growth_pct' is derived by scripts/verify_ground.escript and
+      %% recorded there. `recolonise_pct' is derived by nothing and swept.
+      recolonise_pct    => 3,
       ground_growth_pct => 6,
       ground_ceiling    => 400,
       %% HOW FAR A CHILD'S FEEDING RATE MAY DRIFT FROM ITS PARENT'S. The rate
@@ -348,13 +361,34 @@ defaults() ->
 %% Making a world
 %%==============================================================================
 
+%% What a world takes that is not an economy constant: where it starts rather
+%% than what it costs to live there.
+-define(WORLD_OPTS, [seed, population, founder_body, founder_brain,
+                     founder_scent, founder_uptake, founder_uptake_max]).
+
 -spec new() -> world().
 new() -> new(#{}).
 
-%% Opts override the economy, plus `seed', `population', `initial_plants' and the
-%% `founder_*' overrides.
+reject_unknown([]) -> ok;
+reject_unknown(Unknown) ->
+    error({unknown_world_opts, lists:sort(Unknown),
+           lists:sort(maps:keys(defaults()) ++ ?WORLD_OPTS)}).
+
+%% Opts override the economy, plus `seed', `population' and the `founder_*'
+%% overrides.
+%%
+%% AN UNKNOWN KEY IS AN ERROR AND WAS SILENTLY DROPPED UNTIL WORLD 14.
+%% `maps:with/2' kept the keys the economy has and threw the rest away, so a
+%% caller asking for a constant that no longer exists got the default and no
+%% complaint. World 13 deleted `sensor_rent' and `hidden_rent' and nineteen test
+%% sites went on setting them to zero for another world, each one reading like a
+%% configured experiment and doing nothing at all.
+%%
+%% `world_server' has refused unknown keys from the environment since world 9 for
+%% exactly this reason. It was refusing them at one of the two doors.
 -spec new(map()) -> world().
 new(Opts) ->
+    reject_unknown(maps:keys(Opts) -- (maps:keys(defaults()) ++ ?WORLD_OPTS)),
     Econ = maps:merge(defaults(), maps:with(maps:keys(defaults()), Opts)),
     Seed = maps:get(seed, Opts, 42),
     Rng = rand:seed_s(exsss, {Seed, Seed, Seed}),

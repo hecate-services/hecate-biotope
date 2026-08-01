@@ -9,10 +9,20 @@
 %% down before world 3 was built, both refer only to the economy or to the
 %% resource, and neither mentions what evolves.
 %%
-%%   ground_seed        the smallest at which a sensorless creature that never
-%%                      moves can raise one child within max_age. WORLD 2'S
-%%                      CRITERION KEPT VERBATIM, so the two worlds differ in one
-%%                      mechanism and not in how their constants were chosen.
+%%   ground_seed        GONE, WITH THE CONSTANT IT DERIVED. The criterion was
+%%                      "the smallest at which a sensorless creature that never
+%%                      moves can raise one child within max_age", world 2's,
+%%                      kept verbatim for eleven worlds. It presupposed the
+%%                      answer to the question this project keeps asking, and
+%%                      RESULTS_GROUND_FLOOR.md showed the magnitude never
+%%                      mattered: swept 0 to 48, the sessile lineage simply
+%%                      re-sizes. World 14 replaced the constant with a share of
+%%                      what the neighbours hold, and `recolonise_pct' is SWEPT
+%%                      rather than derived, so there is nothing here to verify.
+%%                      The block that measured it is deleted rather than left
+%%                      to report on a rule that is gone, which is this script's
+%%                      own lesson: a verification that cannot run is worse than
+%%                      none, because it is still cited.
 %%
 %%   ground_growth_pct  the smallest at which recovery is mostly COMPOUNDING
 %%                      rather than mostly linear, meaning the proportional term
@@ -39,13 +49,18 @@
 %% kind that is quietly wrong, and the last one nearly was: the arithmetic for
 %% world 2's influx ignored the opening windfall, and only excluding it by hand
 %% made the measurement agree.
+%% THE BEST FLOOR A CELL CAN GET, since world 14. The floor is a share of what
+%% the neighbours hold rather than one number, so the reachability lines below
+%% report what is available to a cell in a living neighbourhood. A cell in the
+%% middle of a desert gets less, and that is the rule rather than a caveat.
+best_floor(Econ) ->
+    maps:get(ground_ceiling, Econ) * maps:get(recolonise_pct, Econ) div 100.
+
 main(_Args) ->
     Econ = world:defaults(),
     io:format("~nmetabolism=~p start_energy=~p max_age=~p ground_ceiling=~p~n~n",
               [maps:get(metabolism, Econ), maps:get(start_energy, Econ),
                maps:get(max_age, Econ), maps:get(ground_ceiling, Econ)]),
-    sessile_table(Econ),
-    verdict("ground_seed", smallest_viable(Econ), maps:get(ground_seed, Econ)),
     recovery_table(Econ),
     verdict("ground_growth_pct", fastest_enough(Econ),
             maps:get(ground_growth_pct, Econ)),
@@ -97,7 +112,7 @@ print_upkeep(Divisor, Econ) ->
 settled_size(Divisor, Econ) ->
     Yield = ground:sustainable(Econ),
     W = world:new(#{population => 1, radius => 2, seed => 1,
-                    ground_seed => Yield, ground_growth_pct => 0,
+                    recolonise_pct => 100, ground_growth_pct => 0,
                     ground_ceiling => Yield, upkeep_divisor => Divisor,
                     founder_uptake => Yield, max_age => 100000000,
                     start_energy => 40, founder_body => [],
@@ -128,7 +143,7 @@ yield_line(Econ) ->
               [Sustainable]),
     io:format("  a lineage feeding at or below it holds its cell for good~n"),
     io:format("  above it the cell is stripped and income falls to ~p, the floor~n",
-              [maps:get(ground_seed, Econ)]),
+              [best_floor(Econ)]),
     io:format("  founding rates are drawn across 0 to ~p, so both sides exist~n",
               [Ceiling]),
     io:format("~s~n~n", [reachable(Sustainable > Metabolism, Sustainable,
@@ -172,42 +187,6 @@ reachable(false, Sustainable, Metabolism) ->
 still() ->
     #{founder_body => [], founder_brain => #{hidden => [], outputs => #{}}}.
 
-%% A STRIPPER GETS THE SEED RATE AND NOTHING ELSE. It empties its cell every
-%% tick, so there is never any stock left to compound from and the proportional
-%% term contributes nothing at all. That is the whole point of world 3: to sit
-%% still is to suppress your own supply.
-sessile_table(Econ) ->
-    io:format("~s~n", [row(["seed", "gain/tick", "over life", "needs",
-                            "raises a child"])]),
-    lists:foreach(fun(S) -> print_sessile(S, Econ) end, lists:seq(9, 16)).
-
-print_sessile(Seed, Econ) ->
-    {Gain, Over} = sessile_gain(Seed, Econ),
-    Needs = maps:get(start_energy, Econ),
-    io:format("~s~n", [row([Seed, Gain, Over, Needs, yesno(Over >= Needs)])]).
-
-%% THE WINDFALL IS EXCLUDED. A world begins with every cell full, so the first
-%% absorption hands a founder a whole ceiling at once. Real, but a one-off: the
-%% criterion has to bind in STEADY STATE, which is the condition a lineage must
-%% survive in for good. So a tick is run to drain the cell before reading.
-sessile_gain(Seed, Econ) ->
-    W0 = world:new(maps:merge(#{ground_seed => Seed, ground_growth_pct => 0,
-                                population => 1, radius => 2, seed => 1},
-                              still())),
-    Settled = world:tick(W0, 1),
-    Life = maps:get(max_age, Econ),
-    {energy(world:tick(Settled, 1)) - energy(Settled),
-     energy(world:tick(Settled, Life)) - energy(Settled)}.
-
-energy(W) ->
-    #{energy_total := E} = world:snapshot(W),
-    E.
-
-smallest_viable(Econ) ->
-    Needs = maps:get(start_energy, Econ),
-    first([S || S <- lists:seq(1, 40),
-                element(2, sessile_gain(S, Econ)) >= Needs]).
-
 %%==============================================================================
 %% How fast bare ground comes back
 %%==============================================================================
@@ -234,7 +213,7 @@ print_recovery(Pct, Econ) ->
 %% only thing that can make returning to it worth a fare.
 crossover(0, _Econ) -> never;
 crossover(Pct, Econ) ->
-    Seed = maps:get(ground_seed, Econ),
+    Seed = best_floor(Econ),
     beyond(100 * Seed div Pct, maps:get(ground_ceiling, Econ)).
 
 beyond(At, Ceiling) when At >= Ceiling -> never;
@@ -265,7 +244,7 @@ fastest_enough(Econ) ->
 %% the two extremes and refuses to predict the middle, which is exactly what the
 %% world is being run to find out.
 endgame(Econ) ->
-    Seed = maps:get(ground_seed, Econ),
+    Seed = best_floor(Econ),
     Metabolism = maps:get(metabolism, Econ),
     Fare = maps:get(move_cost, Econ),
     Ceiling = maps:get(ground_ceiling, Econ),

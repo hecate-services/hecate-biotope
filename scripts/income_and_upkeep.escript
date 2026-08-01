@@ -48,7 +48,7 @@ cell_ledger() ->
     Sustainable = ground:sustainable(Econ),
     io:format("~nONE CELL~n~n"),
     io:format("  ceiling                ~p~n", [maps:get(ground_ceiling, Econ)]),
-    io:format("  floor added when bare  ~p~n", [maps:get(ground_seed, Econ)]),
+    io:format("  floor added when bare  ~p~n", [best_floor(Econ)]),
     io:format("  MOST IT YIELDS A TICK  ~p   <- the ceiling on sessile income~n",
               [Sustainable]),
     io:format("~n  against that, per tick:~n"),

@@ -85,23 +85,52 @@ new(Radius, Econ) ->
 %% It also gives the Marginal Value Theorem something to bite on for the first
 %% time. World 2 had no diminishing returns within a cell, so there was no
 %% leaving rule for anything to discover.
+%%
+%% WORLD 14 FIXED THE OTHER HALF. World 3 made recovery depend on the cell's own
+%% stock and left the FLOOR a global constant, while saying two paragraphs below
+%% that the floor is recolonisation from what is around a patch. It was not. It
+%% was the same number everywhere, so a desert cell in the middle of a grazed-out
+%% region refilled exactly as fast as one beside untouched ground, and the
+%% resource stayed uniform in the one term that matters once a board is grazed
+%% down. That is the term the sessile regime lives on.
+%%
+%% EVERY CELL GROWS FROM THE SAME PRIOR STATE, so the order they are visited in
+%% cannot matter. `maps:map/2' hands the fun the original values and the closure
+%% reads the original map, which is what makes this simultaneous rather than a
+%% sweep across the board.
 -spec grow(ground(), map()) -> ground().
 grow(G, Econ) ->
-    Seed = maps:get(ground_seed, Econ),
     Pct = maps:get(ground_growth_pct, Econ),
+    Rate = maps:get(recolonise_pct, Econ),
     Ceiling = maps:get(ground_ceiling, Econ),
-    maps:map(fun(_H, E) -> recover(E, Seed, Pct, Ceiling) end, G).
+    maps:map(fun(H, E) -> recover(E, colonise(H, G, Rate), Pct, Ceiling) end, G).
+
+%% WHAT A BARE PATCH GETS FROM WHAT IS AROUND IT, which is what the floor was
+%% always described as. A share of the mean stock of the neighbours, so a patch
+%% beside untouched ground comes back and one in the middle of a desert does not.
+%%
+%% THE NEIGHBOURS ARE THE ONES THAT EXIST. The disc is the whole world and beyond
+%% its rim is nothing rather than bare ground, so counting absent cells as zero
+%% would make the rim permanently poor: an edge artefact wearing the costume of a
+%% gradient, and one a sensor could evolve to read.
+colonise(H, G, Rate) ->
+    Around = [maps:get(N, G) || N <- hex:neighbours(H), is_map_key(N, G)],
+    mean(Around) * Rate div 100.
+
+mean([]) -> 0;
+mean(L) -> lists:sum(L) div length(L).
 
 %% A cell at or above the ceiling is left alone, so a corpse can carry one far
 %% above anything sunlight builds and it stays there until something grazes it.
 %%
-%% THE SEED IS A FLOOR AND NOT AN ADDITION. Bare ground has nothing to compound
+%% THE FLOOR IS A FLOOR AND NOT AN ADDITION. Bare ground has nothing to compound
 %% from, so pure proportional growth would leave a stripped cell dead forever and
-%% the board would go sterile one cell at a time. The floor is recolonisation:
-%% the baseline any bare patch gets from what is around it.
-recover(E, _Seed, _Pct, Ceiling) when E >= Ceiling -> E;
-recover(E, Seed, Pct, Ceiling) ->
-    min(Ceiling, E + max(Seed, E * Pct div 100)).
+%% the board would go sterile one cell at a time. Since world 14 a stripped cell
+%% CAN stay dead, if everything around it is stripped too, and that is the point:
+%% being common now costs something.
+recover(E, _Floor, _Pct, Ceiling) when E >= Ceiling -> E;
+recover(E, Floor, Pct, Ceiling) ->
+    min(Ceiling, E + max(Floor, E * Pct div 100)).
 
 %% @doc Draw up to `Rate' from a cell, and say how much that was.
 %%
@@ -129,11 +158,16 @@ sustainable(Econ) ->
     Ceiling = maps:get(ground_ceiling, Econ),
     lists:max([yield(Stock, Econ) || Stock <- lists:seq(0, Ceiling)]).
 
+%% THE BEST CASE A CELL CAN BE IN, which is what a peak of the curve has always
+%% meant here. Since world 14 the floor is a share of what the neighbours hold,
+%% so the most a cell can get is the share of a full neighbourhood: the line this
+%% derives is the one that is reachable SOMEWHERE, not everywhere, and a cell in
+%% the middle of a desert is now below it.
 yield(Stock, Econ) ->
     Ceiling = maps:get(ground_ceiling, Econ),
+    Best = Ceiling * maps:get(recolonise_pct, Econ) div 100,
     min(Ceiling - Stock,
-        max(maps:get(ground_seed, Econ),
-            Stock * maps:get(ground_growth_pct, Econ) div 100)).
+        max(Best, Stock * maps:get(ground_growth_pct, Econ) div 100)).
 
 %% @doc Return energy to a cell. What a corpse does.
 -spec deposit(hex:hex(), non_neg_integer(), ground()) -> ground().

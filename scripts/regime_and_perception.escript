@@ -59,9 +59,11 @@ print(#{seed := Seed, population := Pop} = S) ->
                             maps:get(depth, S), per_cell(S)])]).
 
 %% MEAN STANDING STOCK PER CELL, which is where the two regimes are supposed to
-%% sit either side of a line. Bare ground gains `max(ground_seed, stock * pct)',
-%% so below `ground_seed * 100 / pct' a cell is living on the floor and above it
-%% on its own compounding. At the configured 12 and 6 that crossover is 200.
+%% sit either side of a line. Written under world 13, where bare ground gained
+%% `max(ground_seed, stock * pct)' and the crossover was a single number, 200.
+%% SINCE WORLD 14 THERE IS NO ONE CROSSOVER: the floor is a share of what the
+%% neighbours hold, so it differs cell by cell. The column still says what the
+%% board holds on average, which is what the regimes were told apart by.
 per_cell(#{ground_total := G, radius := R}) -> G div cells(R).
 
 cells(R) -> 1 + 3 * R * (R + 1).

@@ -65,7 +65,7 @@ closed_books(W) ->
 %% A world with the sun switched off, so nothing enters and the total can only
 %% be conserved or leak. With ground entering there is nothing to test against.
 sealed(Opts) ->
-    quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+    quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
                        population => 12, radius => 3, seed => 5,
                        max_age => 60, start_energy => 400}, Opts)).
 
@@ -131,15 +131,15 @@ a_lower_efficiency_loses_more_of_what_it_moves_test() ->
 %% that it fell by exactly what was spent, so any other leak would have hidden
 %% behind the one it had built in.
 a_still_world_conserves_energy_exactly_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 100000}, inert())),
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, metabolism => 0, 
+                           max_age => 100000}, inert())),
     Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 20)],
     ?assertEqual(1, length(lists:usort(Totals))).
 
 %% The only sink is the work of staying alive.
 existing_is_the_only_leak_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 7, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 100000}, inert())),
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, metabolism => 7, 
+                           max_age => 100000}, inert())),
     ?assertEqual(books(W) - 70, books(world:tick(W, 10))).
 
 %% THE MOVER'S BILL IS NO LONGER A FIXED NUMBER, and that is world 12. A creature
@@ -147,8 +147,8 @@ existing_is_the_only_leak_test() ->
 %% spends says how far it went. The stayer is still exact, because standing still
 %% is still free.
 moving_costs_over_and_above_existing_test() ->
-    Opts = #{ground_seed => 0, ground_growth_pct => 0, metabolism => 3, move_cost => 5, sensor_rent => 0,
-             hidden_rent => 0, max_age => 100000},
+    Opts = #{recolonise_pct => 0, ground_growth_pct => 0, metabolism => 3, move_cost => 5, 
+             max_age => 100000},
     Still = quiet(maps:merge(Opts, inert())),
     Moving = quiet(maps:merge(Opts, restless())),
     Existing = 30,
@@ -166,8 +166,8 @@ moving_costs_over_and_above_existing_test() ->
 %% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON. World 1 deleted it, and a
 %% well-fed creature could be carrying hundreds.
 dying_of_old_age_returns_its_energy_to_the_ground_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 3,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, metabolism => 0, 
+                           max_age => 3,
                            start_energy => 500}, inert())),
     Before = books(W),
     After = world:tick(W, 6),
@@ -184,12 +184,60 @@ dying_of_old_age_returns_its_energy_to_the_ground_test() ->
 %% on arriving. An earlier version of this asserted the world total and was
 %% simply wrong about what the ceiling means.
 the_ground_fills_to_its_ceiling_and_no_further_test() ->
-    W = world:new(#{radius => 1, population => 0, ground_seed => 100, ground_growth_pct => 0,
+    W = world:new(#{radius => 1, population => 0, recolonise_pct => 40, ground_growth_pct => 0,
                     ground_ceiling => 250, seed => 7}),
     #{ground_total := Early} = world:snapshot(world:tick(W, 50)),
     #{ground_total := Late} = world:snapshot(world:tick(W, 200)),
     ?assertEqual(hex:cells(1) * 250, Early),
     ?assertEqual(Early, Late).
+
+%%==============================================================================
+%% World 14: a patch comes back from what is around it
+%%==============================================================================
+
+%% Growth switched off, so what a stripped cell gains is the floor and nothing
+%% else, and the three tests below differ only in what surrounds it.
+neighbourhood() -> maps:merge(world:defaults(), #{ground_growth_pct => 0}).
+
+flatten(Cells, G) -> lists:foldl(fun(H, Acc) -> Acc#{H => 0} end, G, Cells).
+
+%% THE CONTROL IS A POINT ON THE SWEEP, and this is the assertion that says so.
+%% Every neighbour at the ceiling of 400 at a rate of 3 gives 12, which is the
+%% `ground_seed' worlds 2 to 13 used. If this drifts, world 14 stops being
+%% comparable with anything before it and the whole sweep loses its zero.
+a_full_neighbourhood_gives_exactly_the_old_floor_test() ->
+    Econ = neighbourhood(),
+    Stripped = flatten([{0, 0}], ground:new(2, Econ)),
+    ?assertEqual(12, ground:at({0, 0}, ground:grow(Stripped, Econ))).
+
+%% AND A PATCH IN THE MIDDLE OF A DESERT DOES NOT COME BACK. The same stripped
+%% cell as above, differing only in what is around it, and this is the whole of
+%% world 14. Under every world before this one it gained 12 regardless.
+a_patch_surrounded_by_desert_stays_dead_test() ->
+    Econ = neighbourhood(),
+    Desert = flatten([{0, 0} | hex:neighbours({0, 0})], ground:new(2, Econ)),
+    ?assertEqual(0, ground:at({0, 0}, ground:grow(Desert, Econ))).
+
+%% AND IT IS A GRADIENT AND NOT A SWITCH, which is what makes an EDGE the place
+%% worth being. Three of six neighbours alive gives a mean of 200 and a floor of
+%% six: half the neighbourhood, half the recovery.
+recovery_falls_off_with_what_is_left_around_test() ->
+    Econ = neighbourhood(),
+    Half = flatten([{0, 0} | lists:sublist(hex:neighbours({0, 0}), 3)],
+                   ground:new(2, Econ)),
+    ?assertEqual(6, ground:at({0, 0}, ground:grow(Half, Econ))).
+
+%% THE RIM IS NOT SYSTEMATICALLY POOR. Beyond the edge of the disc is nothing
+%% rather than bare ground, so a rim cell averages over the neighbours it has. If
+%% absent cells counted as zero every rim cell would recover at half the rate of
+%% an inland one for ever, which is an edge artefact wearing the costume of a
+%% gradient, and one a sensor could evolve to read.
+the_rim_recovers_as_well_as_the_middle_test() ->
+    Econ = neighbourhood(),
+    Full = ground:new(2, Econ),
+    Rim = hd([H || H <- maps:keys(Full), length(hex:neighbours_in(H, 2)) < 6]),
+    Grown = ground:grow(flatten([{0, 0}, Rim], Full), Econ),
+    ?assertEqual(ground:at({0, 0}, Grown), ground:at(Rim, Grown)).
 
 %%==============================================================================
 %% Absorbing, contesting, and one rule for both
@@ -233,10 +281,10 @@ a_founder_always_has_at_least_some_body_test() ->
 %% eats or does not.
 what_a_creature_can_take_in_is_bounded_by_its_frame_test() ->
     Fed = fun(Start) ->
-                  W = quiet(maps:merge(#{ground_seed => 400,
+                  W = quiet(maps:merge(#{recolonise_pct => 100,
                                          ground_growth_pct => 0,
                                          ground_ceiling => 400, metabolism => 0,
-                                         sensor_rent => 0, hidden_rent => 0,
+                                         
                                          max_age => 100000,
                                          start_energy => Start,
                                          founder_uptake => 400}, inert())),
@@ -257,8 +305,8 @@ absorbing_cannot_exceed_what_is_in_the_cell_test() ->
 %% FEED GENTLY AND THE CELL SUSTAINS YOU INDEFINITELY. Below what the ground can
 %% put back, the standing stock holds and the income never falls.
 a_gentle_feeder_does_not_exhaust_its_cell_test() ->
-    W = grazer(5, #{ground_seed => 5, ground_growth_pct => 0,
-                    ground_ceiling => 300}),
+    W = grazer(5, #{recolonise_pct => 1, ground_growth_pct => 0,
+                    ground_ceiling => 500}),
     Ground = fun(N) ->
                      #{ground_total := G} = world:snapshot(world:tick(W, N)),
                      G - (hex:cells(3) - 1) * 300
@@ -269,8 +317,8 @@ a_gentle_feeder_does_not_exhaust_its_cell_test() ->
 %% possible now, and what it costs is that your income collapses to the bare
 %% floor: exactly the seed rate, whatever your body could have handled.
 a_greedy_feeder_strips_its_cell_and_lives_on_the_floor_test() ->
-    W = grazer(1000, #{ground_seed => 7, ground_growth_pct => 0,
-                       ground_ceiling => 300}),
+    W = grazer(1000, #{recolonise_pct => 1, ground_growth_pct => 0,
+                       ground_ceiling => 700}),
     Settled = world:tick(W, 5),
     #{energy_total := Before} = world:snapshot(Settled),
     #{energy_total := After} = world:snapshot(world:tick(Settled, 10)),
@@ -279,9 +327,9 @@ a_greedy_feeder_strips_its_cell_and_lives_on_the_floor_test() ->
 %% A sensorless, brainless creature that cannot move or breed, feeding at a
 %% pinned rate, so every unit of energy is attributable to absorption.
 grazer(Rate, Opts) ->
-    quiet(maps:merge(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
-                                  metabolism => 0, sensor_rent => 0,
-                                  hidden_rent => 0, max_age => 100000,
+    quiet(maps:merge(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
+                                  metabolism => 0, 
+                                  max_age => 100000,
                                   %% FOUNDED LARGE SO THE BODY IS NOT WHAT BINDS.
                                   %% Since world 8 a creature cannot take in more
                                   %% than its frame, and a founder gets half its
@@ -297,12 +345,12 @@ grazer(Rate, Opts) ->
 %% chosen. Below it a lineage can hold a cell for good; above it the cell is
 %% stripped and staying becomes fatal.
 the_sustainable_yield_is_derived_from_the_curve_test() ->
-    Flat = maps:merge(world:defaults(), #{ground_seed => 9,
+    Flat = maps:merge(world:defaults(), #{recolonise_pct => 2,
                                           ground_growth_pct => 0,
-                                          ground_ceiling => 400}),
+                                          ground_ceiling => 450}),
     %% With no compounding the best a cell can do is its floor.
     ?assertEqual(9, ground:sustainable(Flat)),
-    Compounding = maps:merge(world:defaults(), #{ground_seed => 12,
+    Compounding = maps:merge(world:defaults(), #{recolonise_pct => 3,
                                                  ground_growth_pct => 6,
                                                  ground_ceiling => 400}),
     ?assert(ground:sustainable(Compounding) > 12).
@@ -313,9 +361,9 @@ a_child_feeds_nearly_as_its_parent_did_test() ->
     %% A real ceiling, because the trait is bounded by one: a creature takes at
     %% most a full cell's worth per tick, so a world with no ground at all would
     %% clamp every feeding rate to nothing and measure the clamp.
-    W = quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+    W = quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
                            ground_growth_pct => 0, ground_ceiling => 400,
-                           metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                           metabolism => 0,
                            max_age => 100000, start_energy => 400,
                            uptake_mutation => 3,
                            founder_uptake => 200}, fertile())),
@@ -365,9 +413,9 @@ a_parent_outweighs_its_newborn_at_any_split_test() ->
 %% assumes. That is the machinery working; it just makes a rule impossible to
 %% isolate, which is what these two want to do.
 family(Energy) ->
-    quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0, ground_growth_pct => 0,
-                       ground_ceiling => 0, metabolism => 0, sensor_rent => 0,
-                       hidden_rent => 0, max_age => 100000,
+    quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0, ground_growth_pct => 0,
+                       ground_ceiling => 0, metabolism => 0, 
+                       max_age => 100000,
                        brain_mutation => 0, brain_mutation_structural => 1000000,
                        body_mutation => 1000000,
                        start_energy => Energy}, fertile())).
@@ -378,9 +426,9 @@ look(W, N) ->
     {maps:get(population, S), maps:get(consumed, S), books(Ticked)}.
 
 equals_do_not_consume_each_other_test() ->
-    W = quiet(maps:merge(#{population => 2, radius => 0, ground_seed => 0, ground_growth_pct => 0,
+    W = quiet(maps:merge(#{population => 2, radius => 0, recolonise_pct => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
+                           
                            max_age => 100000}, inert())),
     #{population := Pop, consumed := Eaten} = world:snapshot(world:tick(W, 5)),
     ?assertEqual(2, Pop),
@@ -425,7 +473,7 @@ cheaper_neural_tissue_is_cheaper_to_carry_test() ->
 equipped(Sensors, Hidden) -> equipped(Sensors, Hidden, 330).
 
 equipped(Sensors, Hidden, Neural) ->
-    W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0,
+    W = quiet(#{recolonise_pct => 0, ground_growth_pct => 0, metabolism => 0,
                 upkeep_divisor => 33, neural_cost => Neural,
                 max_age => 100000, start_energy => 900,
                 founder_body => Sensors,
@@ -439,15 +487,15 @@ equipped(Sensors, Hidden, Neural) ->
 %% A creature with no `move' output never moves, and in this world that is a
 %% living rather than a death sentence: it takes what gathers where it stands.
 without_a_move_output_it_stays_put_test() ->
-    W = quiet(maps:merge(#{ground_seed => 5, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 100000}, inert())),
+    W = quiet(maps:merge(#{recolonise_pct => 1, ground_growth_pct => 0, metabolism => 0,
+                           max_age => 100000}, inert())),
     #{still_pct := Still} = world:snapshot(world:tick(W, 5)),
     ?assertEqual(100, Still).
 
 %% Staying still leaves no trail, which makes sitting tight a way to go unnoticed
 %% as well as a way to save energy, and is the only counter to being tracked.
 moving_leaves_a_trail_and_staying_does_not_test() ->
-    Opts = #{ground_seed => 5, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+    Opts = #{recolonise_pct => 1, ground_growth_pct => 0, metabolism => 0,
              max_age => 100000},
     #{scent_cells := Walked, still_pct := Moving} =
         world:snapshot(world:tick(quiet(maps:merge(Opts, restless())), 5)),
@@ -461,16 +509,16 @@ moving_leaves_a_trail_and_staying_does_not_test() ->
 %% constants are gone: deciding reproduction by a hand-written rule with a
 %% heritable parameter was exactly the shape `hunt' had.
 without_a_breed_output_it_leaves_no_descendants_test() ->
-    W = quiet(maps:merge(#{ground_seed => 100, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 100000}, inert())),
+    W = quiet(maps:merge(#{recolonise_pct => 25, ground_growth_pct => 0, metabolism => 0,
+                           max_age => 100000}, inert())),
     #{population := Pop} = world:snapshot(world:tick(W, 50)),
     ?assertEqual(1, Pop).
 
 %% Birth conserves energy, and costs half of whatever the parent happens to be
 %% carrying rather than a fixed sum.
 breeding_conserves_energy_and_costs_half_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
+                           
                            max_age => 100000, start_energy => 400}, fertile())),
     #{population := Pop} = world:snapshot(world:tick(W)),
     ?assertEqual(2, Pop),
@@ -510,8 +558,8 @@ a_new_world_is_full_and_flat_test() ->
 %%==============================================================================
 
 starvation_is_counted_as_starvation_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 30,
-                           sensor_rent => 0, hidden_rent => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 30,
+                           
                            start_energy => 60}, inert())),
     #{population := Pop, starved := S, aged_out := O, consumed := C} =
         world:snapshot(world:tick(W, 5)),
@@ -523,8 +571,8 @@ starvation_is_counted_as_starvation_test() ->
 %% Three causes, never summed. "The population crashed" and "the population grew
 %% old" are different findings and one total cannot tell them apart.
 old_age_is_counted_as_old_age_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
+                           
                            max_age => 3}, inert())),
     #{population := Pop, starved := S, aged_out := O} =
         world:snapshot(world:tick(W, 6)),
@@ -537,9 +585,9 @@ old_age_is_counted_as_old_age_test() ->
 %% publishing, its ground refilling and its tick advancing, so the moment it
 %% emptied is the one thing no later sample carries.
 a_world_that_dies_records_when_and_does_not_revise_it_test() ->
-    W = quiet(maps:merge(#{population => 3, ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0,
-                           metabolism => 30, sensor_rent => 0,
-                           hidden_rent => 0, start_energy => 60}, inert())),
+    W = quiet(maps:merge(#{population => 3, recolonise_pct => 0, ground_growth_pct => 0, ground_ceiling => 0,
+                           metabolism => 30, 
+                           start_energy => 60}, inert())),
     ?assertEqual(undefined, maps:get(extinct_at, world:snapshot(W))),
     #{population := Pop, extinct_at := At} = world:snapshot(world:tick(W, 10)),
     ?assertEqual(0, Pop),
@@ -571,9 +619,9 @@ bodies_and_brains_stay_in_step_through_churn_test() ->
 %% The cap is a safety valve against a mistuned run, not a model parameter, so
 %% hitting it must be visible rather than looking like a stable ceiling.
 refused_births_are_counted_test() ->
-    W = quiet(maps:merge(#{population => 4, max_creatures => 4, ground_seed => 0, ground_growth_pct => 0,
+    W = quiet(maps:merge(#{population => 4, max_creatures => 4, recolonise_pct => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
+                           
                            max_age => 100000, start_energy => 400}, fertile())),
     #{population := P, births_refused := R} = world:snapshot(world:tick(W)),
     ?assertEqual(4, P),
@@ -715,7 +763,7 @@ feeding_rates_are_drawn_in_buckets_test() ->
 %% Zeroes rather than a short list for an empty world, so a reader plotting bars
 %% gets a flat chart instead of a gap it has to interpret.
 an_empty_world_has_empty_bars_test() ->
-    W = world:tick(quiet(maps:merge(#{population => 1, ground_seed => 0,
+    W = world:tick(quiet(maps:merge(#{population => 1, recolonise_pct => 0,
                                       ground_growth_pct => 0,
                                       ground_ceiling => 0, metabolism => 30,
                                       start_energy => 20}, inert())), 5),
@@ -734,10 +782,10 @@ an_empty_world_has_empty_bars_test() ->
 %% large creatures win contests and 97% of deaths are being eaten.
 holding_energy_costs_by_the_unit_test() ->
     Cost = fun(Energy, Divisor) ->
-                   W = quiet(maps:merge(#{ground_seed => 0,
+                   W = quiet(maps:merge(#{recolonise_pct => 0,
                                           ground_growth_pct => 0,
                                           ground_ceiling => 0, metabolism => 0,
-                                          sensor_rent => 0, hidden_rent => 0,
+                                          
                                           max_age => 100000,
                                           start_energy => Energy,
                                           upkeep_divisor => Divisor},
@@ -759,10 +807,10 @@ holding_energy_costs_by_the_unit_test() ->
 %% it were tissue and flattened every difference between them.
 carrying_a_store_is_nearly_free_test() ->
     Cost = fun(Store) ->
-                   W = quiet(maps:merge(#{ground_seed => 0,
+                   W = quiet(maps:merge(#{recolonise_pct => 0,
                                           ground_growth_pct => 0,
                                           ground_ceiling => 0, metabolism => 0,
-                                          sensor_rent => 0, hidden_rent => 0,
+                                          
                                           max_age => 100000,
                                           start_energy => Store,
                                           upkeep_divisor => 1000000},
@@ -774,9 +822,9 @@ carrying_a_store_is_nearly_free_test() ->
 
 %% It is charged ON TOP of everything else rather than instead of it.
 holding_is_charged_beside_the_other_costs_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 7,
-                           sensor_rent => 0, hidden_rent => 0,
+                           
                            max_age => 100000, start_energy => 400,
                            upkeep_divisor => 100}, inert())),
     %% Seven to exist, and two for the two hundred of frame that four hundred
@@ -786,9 +834,9 @@ holding_is_charged_beside_the_other_costs_test() ->
 %% A creature already in debt is about to be reaped, and billing it for a
 %% negative balance would HAND IT ENERGY rather than take any.
 a_creature_in_debt_is_not_paid_to_carry_it_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 500,
-                           sensor_rent => 0, hidden_rent => 0,
+                           
                            start_energy => 100, upkeep_divisor => 10},
                          inert())),
     Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 4)],
@@ -803,9 +851,9 @@ a_creature_in_debt_is_not_paid_to_carry_it_test() ->
 %% one that never converts would simply accumulate for ever and the test would
 %% measure nothing.
 structure_stops_climbing_where_upkeep_meets_income_test() ->
-    W = quiet(maps:merge(#{ground_seed => 8, ground_growth_pct => 0,
+    W = quiet(maps:merge(#{recolonise_pct => 100, ground_growth_pct => 0,
                            ground_ceiling => 8, metabolism => 0,
-                           sensor_rent => 0, hidden_rent => 0,
+                           
                            max_age => 1000000, start_energy => 2,
                            upkeep_divisor => 50, founder_uptake => 8},
                          builder(100))),
@@ -818,9 +866,9 @@ structure_stops_climbing_where_upkeep_meets_income_test() ->
 %% loses to a lean large one, which before world 6 was not expressible at all:
 %% hoarding and being formidable were the same number.
 the_leaner_larger_creature_takes_the_fatter_smaller_one_test() ->
-    W = quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+    W = quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
                            ground_growth_pct => 0, ground_ceiling => 0,
-                           metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                           metabolism => 0,
                            max_age => 100000, start_energy => 201,
                            brain_mutation => 0,
                            brain_mutation_structural => 1000000,
@@ -844,7 +892,7 @@ size_is_reported_as_a_largest_and_a_shape_test() ->
 
 %% An empty world has no largest creature, rather than a crash or a stale one.
 an_empty_world_has_no_largest_creature_test() ->
-    W = world:tick(quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
+    W = world:tick(quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
                                       ground_ceiling => 0, metabolism => 30,
                                       start_energy => 20}, inert())), 5),
     #{population := Pop, energy_max := Max} = world:snapshot(W),
@@ -890,9 +938,9 @@ eating_only_part_of_a_victim_conserves_the_rest_test() ->
 
 %% A parent that will breed, in a single cell, feeding at a chosen rate.
 hungry(Energy, Uptake) ->
-    quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+    quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
                        ground_growth_pct => 0, ground_ceiling => 0,
-                       metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                       metabolism => 0,
                        max_age => 100000, brain_mutation => 0,
                        brain_mutation_structural => 1000000,
                        body_mutation => 1000000, uptake_mutation => 0,
@@ -933,9 +981,9 @@ a_kill_does_not_buy_a_second_helping_test() ->
     ?assertEqual(Before, After).
 
 crowded() ->
-    quiet(maps:merge(#{population => 2, radius => 0, ground_seed => 0,
+    quiet(maps:merge(#{population => 2, radius => 0, recolonise_pct => 0,
                        ground_growth_pct => 0, ground_ceiling => 5000,
-                       metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                       metabolism => 0,
                        max_age => 100000, uptake_mutation => 0,
                        founder_uptake => 30, start_energy => 400}, inert())).
 
@@ -963,10 +1011,10 @@ crowded() ->
 %% one gets less far for the same fare.
 a_heavier_creature_pays_more_for_the_same_ground_test() ->
     Spent = fun(Energy) ->
-                    W = quiet(maps:merge(#{ground_seed => 0,
+                    W = quiet(maps:merge(#{recolonise_pct => 0,
                                            ground_growth_pct => 0,
                                            metabolism => 0, move_cost => 5,
-                                           sensor_rent => 0, hidden_rent => 0,
+                                           
                                            max_age => 100000,
                                            upkeep_divisor => 10,
                                            start_energy => Energy}, restless())),
@@ -985,9 +1033,9 @@ a_heavier_creature_pays_more_for_the_same_ground_test() ->
 %% Asserted as the world still advancing at all: a walk that did not terminate
 %% would hang here rather than fail.
 a_walk_terminates_test() ->
-    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0,
-                           metabolism => 0, move_cost => 1, sensor_rent => 0,
-                           hidden_rent => 0, max_age => 100000,
+    W = quiet(maps:merge(#{recolonise_pct => 0, ground_growth_pct => 0,
+                           metabolism => 0, move_cost => 1, 
+                           max_age => 100000,
                            population => 6, radius => 2,
                            start_energy => 100000}, restless())),
     #{tick := T, population := P} = world:snapshot(world:tick(W, 20)),

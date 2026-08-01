@@ -4,6 +4,12 @@
 %%
 %% Criteria frozen in PREREGISTRATION_GROUND_FLOOR.md before this was run.
 %%
+%% THIS IS A WORLD 13 EXPERIMENT AND NO LONGER RUNS. World 14 deleted
+%% `ground_seed', so `world:new/1' refuses the option and says which keys it
+%% takes. Kept as the record of what was measured, since the result it produced
+%% is what world 14 was built out of. Its findings are in
+%% RESULTS_GROUND_FLOOR.md and its entry is A.5.
+%%
 %% `ground_seed' is what a stripped cell gains for nothing, and it was set in
 %% world 4 by asking whether a creature that sits still and sees nothing could
 %% fund a child on it. That criterion presupposes the answer to the question this
