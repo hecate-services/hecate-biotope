@@ -120,10 +120,11 @@ allowed.
 
 | # | The simplification | Status |
 |---|---|---|
-| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **CORRECTED**, world 5. Priced the free good and size became hard-bounded, largest creature 66-99 against a founding 800. **It also UNDID world 4's positive**: the landscape flattened from a spread of 26-86 back to 9-10, and energy from creatures fell to zero in every seed. Creatures can no longer store, so they no longer differ, so contests move nothing and no place becomes different from another. **Some variance was living on that free good.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
+| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **CORRECTED**, world 5, **and the correction was LINEAR, which is harsher than anything nature does.** Kleiber's three-quarter exponent is empirical, contested against two-thirds, and shows curvature rather than being constant, so it is a robust regularity and not a law. But every candidate exponent is SUBLINEAR: cost per unit mass falls as size rises. Linear holds it constant, so large size was taxed more heavily here than in any real organism. See 2.5 for the deeper error. Priced the free good and size became hard-bounded, largest creature 66-99 against a founding 800. **It also UNDID world 4's positive**: the landscape flattened from a spread of 26-86 back to 9-10, and energy from creatures fell to zero in every seed. Creatures can no longer store, so they no longer differ, so contests move nothing and no place becomes different from another. **Some variance was living on that free good.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
 | 2.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
 | 2.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
 | 2.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
+| 2.5 | **Energy conflates a STORE with a STRUCTURE.** One number is a creature's fat reserve, its body, its weapon in a contest and its reproductive capital, all at once | **OPEN, and it is what world 5 actually got wrong.** These have opposite physics: an inert store costs almost nothing to hold, which is what fat is FOR, while working tissue is expensive to run. World 5 priced the conflated quantity, so it taxed reserves as though they were tissue. No scaling exponent fixes that, because the thing being scaled is two things welded together. |
 
 ## 3. What energy costs to act
 
@@ -140,7 +141,7 @@ allowed.
 | # | The simplification | Status |
 |---|---|---|
 | 4.1 | A creature absorbed everything in its cell instantly | **CORRECTED**, world 4. Feeding is rate-limited and heritable. Produced the first positive: the landscape differentiates, `ground_spread` 26-86 against 9 before. |
-| 4.2 | **PRICES A FREE GOOD: eating. Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, and partly self-inflicted.** World 1 had a cost and a decision; removing the named verb `hunt` was right, and making consumption unconditional in the same change was a separate act that was never justified. **A creature cannot be a herbivore even in principle**: if it is the biggest thing present it eats, whether that suits it or not. |
+| 4.2 | **PRICES A FREE GOOD: eating. Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, partly self-inflicted, and the RIGHT FORM is now known.** World 1 had a cost and a decision; removing the named verb `hunt` was right and making consumption unconditional in the same change was never justified. So every creature is an obligate predator on every smaller creature it meets, which is why **97% of all deaths are being eaten** — an artifact rather than a finding. Real plants do not consume their neighbours, and not because they are a different TYPE, which was correctly abolished, but because **a tree has no mouth**. So the correction is not "make eating cost" but **make eating require an apparatus that costs rent**, exactly like a sensor. A creature that has not invested cannot consume another however large it is, and lives on ground alone. **That is a herbivore as a tradeoff rather than a type.** |
 | 4.3 | **Trophic efficiency is 100%.** A victim's entire energy transfers to whatever ate it | **OPEN. PRICES A FREE GOOD: eating creatures rather than ground.** Real food chains lose roughly nine tenths per level. As it stands, herbivory and carnivory are economically identical, so there is nothing to specialise *into*. |
 | 4.4 | Absorption from the ground is likewise perfectly efficient | **OPEN**, and the same question. |
 
@@ -189,3 +190,10 @@ the only way a map of this kind ever gets built.
 And when a world is proposed, it should say **which free good it prices, and
 which tradeoff that leaves live**. A correction that leaves everything adjacent
 free will be overridden the way world 4's was, however physical it is.
+
+**A correction can also destroy the variance a later experiment needs.** World 5
+priced size and drove energy from creatures to zero in every seed, which makes
+entry 4.2 currently **untestable**: the benefit side of a predation apparatus is
+nothing, so it would be selected out whatever it cost, and the result would say
+nothing at all. So the queue is not fixed once and for all — an entry can be
+blocked by an earlier correction, and **2.5 now precedes 4.2** for that reason.
