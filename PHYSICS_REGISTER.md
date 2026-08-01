@@ -1,5 +1,10 @@
 # The physics register
 
+> **Naming.** Entries here are lettered (`B.5`, `D.2`) and **worlds are numbered**
+> (world 4, world 5). They were both numbered once and it was impossible to tell
+> "world 2.5" from an entry id. See [WORLDS.md](WORLDS.md) for what each world
+> did and what happened.
+
 Every place this world simplifies the behaviour of energy, whether that
 simplification has been corrected, and what happened when it was.
 
@@ -56,13 +61,13 @@ neutralises every tradeoff it touches.**
 
 ### The free goods currently in this world
 
-- ~~**holding energy** (2.1)~~ — priced in world 5, and pricing it cost the only
+- ~~**holding energy** (B.1)~~ — priced in world 5, and pricing it cost the only
   positive the project had. A free good is not simply a defect to be removed:
   something may be living on it.
-- **eating at all** (4.2) — no cost to subdue, and no decision either
-- **eating a creature specifically** (4.3) — perfect trophic efficiency, so
+- **eating at all** (D.2) — no cost to subdue, and no decision either
+- **eating a creature specifically** (D.3) — perfect trophic efficiency, so
   carnivory costs no more than grazing
-- **being still** (3.2) — costs nothing and risks nothing, since nothing can find
+- **being still** (C.2) — costs nothing and risks nothing, since nothing can find
   you
 
 Every failure recorded here traces to one of those four. **An entry that prices a
@@ -107,58 +112,58 @@ allowed.
 
 ---
 
-## 1. Where energy enters
+## A. Where energy enters
 
 | # | The simplification | Status |
 |---|---|---|
-| 1.1 | Ground recovered at a fixed rate regardless of what was left in it | **CORRECTED**, world 3. No effect on anything: a stayer strips its cell to zero every tick, so nothing ever holds stock for a stock-dependent rule to act on. |
-| 1.2 | Recovery is spatially uniform: no terrain, no fertile or barren ground | **OPEN, and deliberately so.** A terrain generator has free parameters, and the honest criterion for setting them would be "correlated over the distances a sensor can evolve to reach", which is choosing the world's structure so that sensors pay. Emergent enrichment has no such knob. |
-| 1.3 | Standing stock is capped at a ceiling | **OPEN.** Real systems do saturate, so this is probably right, but the cap is a chosen number rather than a derived one. |
-| 1.4 | Energy arrives everywhere at once, with no day, season or weather | **OPEN.** Temporal variation in supply is the one thing dispersal theory says most reliably drives movement, and this world has none: every tick is identical. |
+| A.1 | Ground recovered at a fixed rate regardless of what was left in it | **CORRECTED**, world 3. No effect on anything: a stayer strips its cell to zero every tick, so nothing ever holds stock for a stock-dependent rule to act on. |
+| A.2 | Recovery is spatially uniform: no terrain, no fertile or barren ground | **OPEN, and deliberately so.** A terrain generator has free parameters, and the honest criterion for setting them would be "correlated over the distances a sensor can evolve to reach", which is choosing the world's structure so that sensors pay. Emergent enrichment has no such knob. |
+| A.3 | Standing stock is capped at a ceiling | **OPEN.** Real systems do saturate, so this is probably right, but the cap is a chosen number rather than a derived one. |
+| A.4 | Energy arrives everywhere at once, with no day, season or weather | **OPEN.** Temporal variation in supply is the one thing dispersal theory says most reliably drives movement, and this world has none: every tick is identical. |
 
-## 2. What energy costs to hold
-
-| # | The simplification | Status |
-|---|---|---|
-| 2.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **CORRECTED**, world 5, **and the correction was LINEAR, which is harsher than anything nature does.** Kleiber's three-quarter exponent is empirical, contested against two-thirds, and shows curvature rather than being constant, so it is a robust regularity and not a law. But every candidate exponent is SUBLINEAR: cost per unit mass falls as size rises. Linear holds it constant, so large size was taxed more heavily here than in any real organism. See 2.5 for the deeper error. Priced the free good and size became hard-bounded, largest creature 66-99 against a founding 800. **It also UNDID world 4's positive**: the landscape flattened from a spread of 26-86 back to 9-10, and energy from creatures fell to zero in every seed. Creatures can no longer store, so they no longer differ, so contests move nothing and no place becomes different from another. **Some variance was living on that free good.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
-| 2.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
-| 2.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
-| 2.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
-| 2.5 | **Energy conflates a STORE with a STRUCTURE.** One number is a creature's fat reserve, its body, its weapon in a contest and its reproductive capital, all at once | **OPEN, and it is what world 5 actually got wrong.** These have opposite physics: an inert store costs almost nothing to hold, which is what fat is FOR, while working tissue is expensive to run. World 5 priced the conflated quantity, so it taxed reserves as though they were tissue. No scaling exponent fixes that, because the thing being scaled is two things welded together. |
-
-## 3. What energy costs to act
+## B. What energy costs to hold
 
 | # | The simplification | Status |
 |---|---|---|
-| 3.1 | Movement costs the same whatever a creature weighs | **OPEN.** Removes the small-and-quick against large-and-slow axis entirely. |
-| 3.2 | Everything moves exactly one cell per tick | **OPEN. PRICES A FREE GOOD: being still.** No pursuit and no flight, so escape does not exist and "prey" has no strategy available but being larger, which is the predator strategy. |
-| 3.3 | Reproduction costs only the dowry: no gestation, no gamete production | **OPEN.** |
-| 3.4 | Offspring are placed at a fixed distance by a fixed rule | **OPEN.** Dispersal is not heritable, so kin competition, which theory says drives movement in exactly this world's conditions, has nothing to act on. |
-| 3.5 | The dowry is exactly half, and not heritable | **OPEN.** |
+| B.1 | **Metabolism is flat regardless of how much a creature holds.** One carrying 10,000 pays exactly what one carrying 10 pays | **CORRECTED**, world 5, **and the correction was LINEAR, which is harsher than anything nature does.** Kleiber's three-quarter exponent is empirical, contested against two-thirds, and shows curvature rather than being constant, so it is a robust regularity and not a law. But every candidate exponent is SUBLINEAR: cost per unit mass falls as size rises. Linear holds it constant, so large size was taxed more heavily here than in any real organism. See B.5 for the deeper error. Priced the free good and size became hard-bounded, largest creature 66-99 against a founding 800. **It also UNDID world 4's positive**: the landscape flattened from a spread of 26-86 back to 9-10, and energy from creatures fell to zero in every seed. Creatures can no longer store, so they no longer differ, so contests move nothing and no place becomes different from another. **Some variance was living on that free good.** Kleiber's law says otherwise for every organism ever measured. The consequence is that **size is a free good**, which is why grabbing fast beat prudence in world 4: energy is armour with no upkeep, so there is never a reason not to hoard. |
+| B.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
+| B.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
+| B.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
+| B.5 | **Energy conflates a STORE with a STRUCTURE.** One number is a creature's fat reserve, its body, its weapon in a contest and its reproductive capital, all at once | **OPEN, and it is what world 5 actually got wrong.** These have opposite physics: an inert store costs almost nothing to hold, which is what fat is FOR, while working tissue is expensive to run. World 5 priced the conflated quantity, so it taxed reserves as though they were tissue. No scaling exponent fixes that, because the thing being scaled is two things welded together. |
 
-## 4. How energy transfers
-
-| # | The simplification | Status |
-|---|---|---|
-| 4.1 | A creature absorbed everything in its cell instantly | **CORRECTED**, world 4. Feeding is rate-limited and heritable. Produced the first positive: the landscape differentiates, `ground_spread` 26-86 against 9 before. |
-| 4.2 | **PRICES A FREE GOOD: eating. Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, partly self-inflicted, and the RIGHT FORM is now known.** World 1 had a cost and a decision; removing the named verb `hunt` was right and making consumption unconditional in the same change was never justified. So every creature is an obligate predator on every smaller creature it meets, which is why **97% of all deaths are being eaten** — an artifact rather than a finding. Real plants do not consume their neighbours, and not because they are a different TYPE, which was correctly abolished, but because **a tree has no mouth**. So the correction is not "make eating cost" but **make eating require an apparatus that costs rent**, exactly like a sensor. A creature that has not invested cannot consume another however large it is, and lives on ground alone. **That is a herbivore as a tradeoff rather than a type.** |
-| 4.3 | **Trophic efficiency is 100%.** A victim's entire energy transfers to whatever ate it | **OPEN. PRICES A FREE GOOD: eating creatures rather than ground.** Real food chains lose roughly nine tenths per level. As it stands, herbivory and carnivory are economically identical, so there is nothing to specialise *into*. |
-| 4.4 | Absorption from the ground is likewise perfectly efficient | **OPEN**, and the same question. |
-
-## 5. Where energy goes
+## C. What energy costs to act
 
 | # | The simplification | Status |
 |---|---|---|
-| 5.1 | A creature that died simply ceased, and its energy was deleted | **CORRECTED**, world 2. Death returns everything to the cell it died on, which closed the books and made them checkable to the unit for the first time. |
-| 5.2 | A corpse is available instantly and entire; there is no decay | **OPEN.** |
-| 5.3 | Metabolism is the only true sink | **Probably correct.** Work leaves as heat; everything else circulates. |
+| C.1 | Movement costs the same whatever a creature weighs | **OPEN.** Removes the small-and-quick against large-and-slow axis entirely. |
+| C.2 | Everything moves exactly one cell per tick | **OPEN. PRICES A FREE GOOD: being still.** No pursuit and no flight, so escape does not exist and "prey" has no strategy available but being larger, which is the predator strategy. |
+| C.3 | Reproduction costs only the dowry: no gestation, no gamete production | **OPEN.** |
+| C.4 | Offspring are placed at a fixed distance by a fixed rule | **OPEN.** Dispersal is not heritable, so kin competition, which theory says drives movement in exactly this world's conditions, has nothing to act on. |
+| C.5 | The dowry is exactly half, and not heritable | **OPEN.** |
 
-## 6. Perception
+## D. How energy transfers
 
 | # | The simplification | Status |
 |---|---|---|
-| 6.1 | A sensor reads an exact sum with no noise, no error and no delay | **OPEN.** |
-| 6.2 | Readings were divided by one shared constant regardless of magnitude | **CORRECTED**, world 2. Natural units per field. |
+| D.1 | A creature absorbed everything in its cell instantly | **CORRECTED**, world 4. Feeding is rate-limited and heritable. Produced the first positive: the landscape differentiates, `ground_spread` 26-86 against 9 before. |
+| D.2 | **PRICES A FREE GOOD: eating. Consumption is unconditional and free.** The largest creature in a cell eats every smaller one, always, with no cost and no decision | **OPEN, partly self-inflicted, and the RIGHT FORM is now known.** World 1 had a cost and a decision; removing the named verb `hunt` was right and making consumption unconditional in the same change was never justified. So every creature is an obligate predator on every smaller creature it meets, which is why **97% of all deaths are being eaten** — an artifact rather than a finding. Real plants do not consume their neighbours, and not because they are a different TYPE, which was correctly abolished, but because **a tree has no mouth**. So the correction is not "make eating cost" but **make eating require an apparatus that costs rent**, exactly like a sensor. A creature that has not invested cannot consume another however large it is, and lives on ground alone. **That is a herbivore as a tradeoff rather than a type.** |
+| D.3 | **Trophic efficiency is 100%.** A victim's entire energy transfers to whatever ate it | **OPEN. PRICES A FREE GOOD: eating creatures rather than ground.** Real food chains lose roughly nine tenths per level. As it stands, herbivory and carnivory are economically identical, so there is nothing to specialise *into*. |
+| D.4 | Absorption from the ground is likewise perfectly efficient | **OPEN**, and the same question. |
+
+## E. Where energy goes
+
+| # | The simplification | Status |
+|---|---|---|
+| E.1 | A creature that died simply ceased, and its energy was deleted | **CORRECTED**, world 2. Death returns everything to the cell it died on, which closed the books and made them checkable to the unit for the first time. |
+| E.2 | A corpse is available instantly and entire; there is no decay | **OPEN.** |
+| E.3 | Metabolism is the only true sink | **Probably correct.** Work leaves as heat; everything else circulates. |
+
+## F. Perception
+
+| # | The simplification | Status |
+|---|---|---|
+| F.1 | A sensor reads an exact sum with no noise, no error and no delay | **OPEN.** |
+| F.2 | Readings were divided by one shared constant regardless of magnitude | **CORRECTED**, world 2. Natural units per field. |
 
 ---
 
@@ -193,7 +198,7 @@ free will be overridden the way world 4's was, however physical it is.
 
 **A correction can also destroy the variance a later experiment needs.** World 5
 priced size and drove energy from creatures to zero in every seed, which makes
-entry 4.2 currently **untestable**: the benefit side of a predation apparatus is
+entry D.2 currently **untestable**: the benefit side of a predation apparatus is
 nothing, so it would be selected out whatever it cost, and the result would say
 nothing at all. So the queue is not fixed once and for all — an entry can be
-blocked by an earlier correction, and **2.5 now precedes 4.2** for that reason.
+blocked by an earlier correction, and **B.5 now precedes D.2** for that reason.
