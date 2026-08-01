@@ -50,18 +50,58 @@ new(Radius, Econ) ->
     Ceiling = maps:get(ground_ceiling, Econ),
     maps:from_keys(hex:disc(Radius), Ceiling).
 
-%% @doc One tick of ambient supply.
+%% @doc One tick of recovery.
+%%
+%% ==========================================================================
+%% RECOVERY DEPENDS ON WHAT IS LEFT, AND THAT IS THE WHOLE OF WORLD 3
+%% ==========================================================================
+%%
+%% World 2 added a fixed amount to every cell every tick, so a cell stripped a
+%% thousand times refilled exactly as fast as one never touched. A resource with
+%% no memory, and it made movement arithmetically impossible for EVERY parameter
+%% choice:
+%%
+%%   sessility is viable exactly when income exceeds metabolism
+%%   equilibrium density is then income over metabolism, which is above one
+%%   so every cell is grazed more than once a tick
+%%   so a mover never finds more than a stayer already has, and nets minus the fare
+%%
+%% Every seed of world 2 ended one hundred percent sessile, with no sensors and
+%% no hidden nodes. Not a tuning failure: a uniform resource that renews in place
+%% IS the resource that selects for sitting still, which is why plants do not
+%% move.
+%%
+%% Stored energy is biomass and biomass regrows in proportion to itself. A rate
+%% independent of stock is the unphysical special case, and it is the one world 2
+%% used. Every standard renewable-resource model, in fisheries and forestry
+%% alike, makes recovery depend on the standing stock.
+%%
+%% WHAT THIS BREAKS is step two. Total productivity is no longer fixed by the
+%% rules: a population that strips everything holds the board near nothing and
+%% gets only the seed rate, while one that grazes lightly holds stock where the
+%% curve is steepest. THE POPULATION'S OWN BEHAVIOUR NOW SETS HOW MUCH THERE IS
+%% TO GO ROUND, which is what the previous world could not express.
+%%
+%% It also gives the Marginal Value Theorem something to bite on for the first
+%% time. World 2 had no diminishing returns within a cell, so there was no
+%% leaving rule for anything to discover.
 -spec grow(ground(), map()) -> ground().
 grow(G, Econ) ->
-    Influx = maps:get(influx, Econ),
+    Seed = maps:get(ground_seed, Econ),
+    Pct = maps:get(ground_growth_pct, Econ),
     Ceiling = maps:get(ground_ceiling, Econ),
-    maps:map(fun(_H, E) -> replenish(E, Influx, Ceiling) end, G).
+    maps:map(fun(_H, E) -> recover(E, Seed, Pct, Ceiling) end, G).
 
-%% A cell already at or above the ceiling is left alone. Below it, supply is
-%% added and the ceiling is the limit. So a corpse can carry a cell far above what
-%% the sun would ever build, and stays there until something grazes it.
-replenish(E, _Influx, Ceiling) when E >= Ceiling -> E;
-replenish(E, Influx, Ceiling) -> min(Ceiling, E + Influx).
+%% A cell at or above the ceiling is left alone, so a corpse can carry one far
+%% above anything sunlight builds and it stays there until something grazes it.
+%%
+%% THE SEED IS A FLOOR AND NOT AN ADDITION. Bare ground has nothing to compound
+%% from, so pure proportional growth would leave a stripped cell dead forever and
+%% the board would go sterile one cell at a time. The floor is recolonisation:
+%% the baseline any bare patch gets from what is around it.
+recover(E, _Seed, _Pct, Ceiling) when E >= Ceiling -> E;
+recover(E, Seed, Pct, Ceiling) ->
+    min(Ceiling, E + max(Seed, E * Pct div 100)).
 
 %% @doc Absorb everything in a cell, and say how much that was.
 -spec take(hex:hex(), ground()) -> {non_neg_integer(), ground()}.

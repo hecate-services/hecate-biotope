@@ -45,19 +45,19 @@ books(W) ->
 %% that it fell by exactly what was spent, so any other leak would have hidden
 %% behind the one it had built in.
 a_still_world_conserves_energy_exactly_test() ->
-    W = quiet(maps:merge(#{influx => 0, metabolism => 0, sensor_rent => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
                            hidden_rent => 0, max_age => 100000}, inert())),
     Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 20)],
     ?assertEqual(1, length(lists:usort(Totals))).
 
 %% The only sink is the work of staying alive.
 existing_is_the_only_leak_test() ->
-    W = quiet(maps:merge(#{influx => 0, metabolism => 7, sensor_rent => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 7, sensor_rent => 0,
                            hidden_rent => 0, max_age => 100000}, inert())),
     ?assertEqual(books(W) - 70, books(world:tick(W, 10))).
 
 moving_costs_over_and_above_existing_test() ->
-    Opts = #{influx => 0, metabolism => 3, move_cost => 5, sensor_rent => 0,
+    Opts = #{ground_seed => 0, ground_growth_pct => 0, metabolism => 3, move_cost => 5, sensor_rent => 0,
              hidden_rent => 0, max_age => 100000},
     Still = quiet(maps:merge(Opts, inert())),
     Moving = quiet(maps:merge(Opts, restless())),
@@ -67,7 +67,7 @@ moving_costs_over_and_above_existing_test() ->
 %% DEATH RETURNS ENERGY TO THE GROUND IT DIED ON. World 1 deleted it, and a
 %% well-fed creature could be carrying hundreds.
 dying_of_old_age_returns_its_energy_to_the_ground_test() ->
-    W = quiet(maps:merge(#{influx => 0, metabolism => 0, sensor_rent => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
                            hidden_rent => 0, max_age => 3,
                            start_energy => 500}, inert())),
     Before = books(W),
@@ -79,13 +79,13 @@ dying_of_old_age_returns_its_energy_to_the_ground_test() ->
     ?assertEqual(0, InCreatures),
     ?assertEqual(Before, books(After)).
 
-%% Ambient supply stops at the ceiling rather than accumulating without bound.
+%% Recovery stops at the ceiling rather than accumulating without bound.
 %% Asserted with nobody there to graze it: with a creature present the WORLD
 %% total keeps rising, correctly, because the ceiling caps a CELL and influx goes
 %% on arriving. An earlier version of this asserted the world total and was
 %% simply wrong about what the ceiling means.
 the_ground_fills_to_its_ceiling_and_no_further_test() ->
-    W = world:new(#{radius => 1, population => 0, influx => 100,
+    W = world:new(#{radius => 1, population => 0, ground_seed => 100, ground_growth_pct => 0,
                     ground_ceiling => 250, seed => 7}),
     #{ground_total := Early} = world:snapshot(world:tick(W, 50)),
     #{ground_total := Late} = world:snapshot(world:tick(W, 200)),
@@ -97,7 +97,7 @@ the_ground_fills_to_its_ceiling_and_no_further_test() ->
 %%==============================================================================
 
 absorbing_takes_the_whole_cell_test() ->
-    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 300, metabolism => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 300, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 100000, start_energy => 100}, inert())),
     #{energy_total := E1, ground_total := G1} = world:snapshot(world:tick(W)),
@@ -138,7 +138,7 @@ an_evenly_split_parent_and_child_are_equals_test() ->
 %% assumes. That is the machinery working; it just makes a rule impossible to
 %% isolate, which is what these two want to do.
 family(Energy) ->
-    quiet(maps:merge(#{population => 1, radius => 0, influx => 0,
+    quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0, ground_growth_pct => 0,
                        ground_ceiling => 0, metabolism => 0, sensor_rent => 0,
                        hidden_rent => 0, max_age => 100000,
                        brain_mutation => 0, brain_mutation_structural => 1000000,
@@ -151,7 +151,7 @@ look(W, N) ->
     {maps:get(population, S), maps:get(consumed, S), books(Ticked)}.
 
 equals_do_not_consume_each_other_test() ->
-    W = quiet(maps:merge(#{population => 2, radius => 0, influx => 0,
+    W = quiet(maps:merge(#{population => 2, radius => 0, ground_seed => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 100000}, inert())),
@@ -168,7 +168,7 @@ equals_do_not_consume_each_other_test() ->
 %% never be at a disadvantage.
 a_sensor_costs_its_rent_every_tick_test() ->
     Cost = fun(Sensors) ->
-                   W = quiet(#{influx => 0, metabolism => 0, sensor_rent => 2,
+                   W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 2,
                                hidden_rent => 0, max_age => 100000,
                                start_energy => 900, founder_body => Sensors,
                                founder_brain => #{hidden => [],
@@ -186,7 +186,7 @@ a_sensor_costs_its_rent_every_tick_test() ->
 %% accumulates capacity it never uses, exactly as it would accumulate senses.
 a_hidden_node_costs_its_rent_every_tick_test() ->
     Cost = fun(Hidden) ->
-                   W = quiet(#{influx => 0, metabolism => 0, sensor_rent => 0,
+                   W = quiet(#{ground_seed => 0, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
                                hidden_rent => 3, max_age => 100000,
                                start_energy => 900, founder_body => [],
                                founder_brain => #{hidden => Hidden,
@@ -204,7 +204,7 @@ a_hidden_node_costs_its_rent_every_tick_test() ->
 %% A creature with no `move' output never moves, and in this world that is a
 %% living rather than a death sentence: it takes what gathers where it stands.
 without_a_move_output_it_stays_put_test() ->
-    W = quiet(maps:merge(#{influx => 5, metabolism => 0, sensor_rent => 0,
+    W = quiet(maps:merge(#{ground_seed => 5, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
                            hidden_rent => 0, max_age => 100000}, inert())),
     #{still_pct := Still} = world:snapshot(world:tick(W, 5)),
     ?assertEqual(100, Still).
@@ -212,7 +212,7 @@ without_a_move_output_it_stays_put_test() ->
 %% Staying still leaves no trail, which makes sitting tight a way to go unnoticed
 %% as well as a way to save energy, and is the only counter to being tracked.
 moving_leaves_a_trail_and_staying_does_not_test() ->
-    Opts = #{influx => 5, metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+    Opts = #{ground_seed => 5, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0, hidden_rent => 0,
              max_age => 100000},
     #{scent_cells := Walked, still_pct := Moving} =
         world:snapshot(world:tick(quiet(maps:merge(Opts, restless())), 5)),
@@ -226,7 +226,7 @@ moving_leaves_a_trail_and_staying_does_not_test() ->
 %% constants are gone: deciding reproduction by a hand-written rule with a
 %% heritable parameter was exactly the shape `hunt' had.
 without_a_breed_output_it_leaves_no_descendants_test() ->
-    W = quiet(maps:merge(#{influx => 100, metabolism => 0, sensor_rent => 0,
+    W = quiet(maps:merge(#{ground_seed => 100, ground_growth_pct => 0, metabolism => 0, sensor_rent => 0,
                            hidden_rent => 0, max_age => 100000}, inert())),
     #{population := Pop} = world:snapshot(world:tick(W, 50)),
     ?assertEqual(1, Pop).
@@ -234,7 +234,7 @@ without_a_breed_output_it_leaves_no_descendants_test() ->
 %% Birth conserves energy, and costs half of whatever the parent happens to be
 %% carrying rather than a fixed sum.
 breeding_conserves_energy_and_costs_half_test() ->
-    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 100000, start_energy => 400}, fertile())),
     #{population := Pop} = world:snapshot(world:tick(W)),
@@ -275,7 +275,7 @@ a_new_world_is_full_and_flat_test() ->
 %%==============================================================================
 
 starvation_is_counted_as_starvation_test() ->
-    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 30,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 30,
                            sensor_rent => 0, hidden_rent => 0,
                            start_energy => 60}, inert())),
     #{population := Pop, starved := S, aged_out := O, consumed := C} =
@@ -288,7 +288,7 @@ starvation_is_counted_as_starvation_test() ->
 %% Three causes, never summed. "The population crashed" and "the population grew
 %% old" are different findings and one total cannot tell them apart.
 old_age_is_counted_as_old_age_test() ->
-    W = quiet(maps:merge(#{influx => 0, ground_ceiling => 0, metabolism => 0,
+    W = quiet(maps:merge(#{ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 3}, inert())),
     #{population := Pop, starved := S, aged_out := O} =
@@ -302,7 +302,7 @@ old_age_is_counted_as_old_age_test() ->
 %% publishing, its ground refilling and its tick advancing, so the moment it
 %% emptied is the one thing no later sample carries.
 a_world_that_dies_records_when_and_does_not_revise_it_test() ->
-    W = quiet(maps:merge(#{population => 3, influx => 0, ground_ceiling => 0,
+    W = quiet(maps:merge(#{population => 3, ground_seed => 0, ground_growth_pct => 0, ground_ceiling => 0,
                            metabolism => 30, sensor_rent => 0,
                            hidden_rent => 0, start_energy => 60}, inert())),
     ?assertEqual(undefined, maps:get(extinct_at, world:snapshot(W))),
@@ -336,7 +336,7 @@ bodies_and_brains_stay_in_step_through_churn_test() ->
 %% The cap is a safety valve against a mistuned run, not a model parameter, so
 %% hitting it must be visible rather than looking like a stable ceiling.
 refused_births_are_counted_test() ->
-    W = quiet(maps:merge(#{population => 4, max_creatures => 4, influx => 0,
+    W = quiet(maps:merge(#{population => 4, max_creatures => 4, ground_seed => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 100000, start_energy => 400}, fertile())),

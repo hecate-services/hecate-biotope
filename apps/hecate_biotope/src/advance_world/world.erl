@@ -77,7 +77,8 @@
                       %% creature, observed rather than declared.
                       still := boolean()}.
 
--type econ() :: #{influx := pos_integer(),
+-type econ() :: #{ground_seed := pos_integer(),
+                  ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
                   metabolism := non_neg_integer(),
                   move_cost := non_neg_integer(),
@@ -140,23 +141,40 @@
 %% See PREREGISTRATION.md for the criteria, written down before the first run.
 -spec defaults() -> econ().
 defaults() ->
-    #{%% WHERE ENERGY ENTERS THE WORLD. Every cell gathers `influx' per tick up
-      %% to `ground_ceiling'; a corpse is added on top and is not capped, because
-      %% the ceiling says how much the sun builds up and not how much ground can
-      %% hold. There are no plants: staying put and living off this IS being one.
+    #{%% WHERE ENERGY ENTERS THE WORLD, and the one thing world 3 changed.
       %%
-      %% `influx' IS THE ONE NUMBER THAT DECIDES WHETHER PLANTS CAN EXIST and is
-      %% therefore the one most at risk of being chosen for its outcome. Derived
-      %% from the economy alone by the criterion fixed in PREREGISTRATION.md
-      %% before measuring: the SMALLEST influx at which a sensorless creature
-      %% that never moves can double its starting energy within `max_age', which
-      %% is the least generous value at which the sessile option exists at all.
-      %% Anything smaller forbids plants outright.
+      %% Recovery depends on what is LEFT: bare ground comes back at
+      %% `ground_seed', and ground with something in it compounds by
+      %% `ground_growth_pct'. World 2 added a fixed amount regardless, which made
+      %% a stripped cell recover as fast as an untouched one and made movement
+      %% arithmetically impossible for every parameter choice. See ground.erl.
       %%
-      %%   surplus per tick  = influx - metabolism
-      %%   to double 800 within 600 ticks needs surplus >= 2 (1.33 rounded up)
-      %%   so influx = metabolism + 2 = 12
-      influx            => 12,
+      %% BOTH NUMBERS ARE DERIVED FROM CRITERIA FIXED BEFORE MEASURING, in
+      %% PREREGISTRATION.md, and neither refers to what evolves:
+      %%
+      %%   ground_seed        the smallest at which a sensorless creature that
+      %%                      never moves can raise one child within max_age.
+      %%                      World 2's criterion kept verbatim, so the worlds
+      %%                      differ in one mechanism and not in how their
+      %%                      constants were chosen.
+      %%
+      %%   ground_growth_pct  the smallest at which recovery is mostly
+      %%                      COMPOUNDING rather than mostly linear, meaning the
+      %%                      proportional term overtakes the seed floor below
+      %%                      half the ceiling. AMENDED before any run: the
+      %%                      original asked only that bare ground reach half the
+      %%                      ceiling within a lifetime, and the verifier showed
+      %%                      the SEED FLOOR ALONE does that in seventeen ticks,
+      %%                      so every rate satisfied it and zero was smallest.
+      %%                      Growth would have stayed linear and world 3 would
+      %%                      have been world 2 exactly.
+      %%                      A property of the RESOURCE and of no lifestyle: it
+      %%                      says recovery is meaningful on the timescale life
+      %%                      runs at. AMENDED before any run: see below.
+      %%
+      %% Derived by scripts/verify_ground.escript and recorded there.
+      ground_seed       => 12,
+      ground_growth_pct => 6,
       ground_ceiling    => 400,
       %% WHAT IT COSTS TO EXIST AND TO ACT, at ten times world 1's grain. Scaling
       %% every energy quantity by one factor changes nothing about the world and
