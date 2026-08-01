@@ -55,16 +55,21 @@
 -export([founder/3, inherit/4, evaluate/3, attention/2]).
 -export([purposes/0, hidden_count/1, has/2, width/2]).
 
--type purpose() :: move | breed.
+-type purpose() :: move | breed | grow.
 -type output() :: #{inputs := [integer()], hidden := [integer()]}.
 -type brain() :: #{hidden := [[integer()]], outputs := #{purpose() => output()}}.
 -export_type([purpose/0, brain/0]).
 
-%% What a creature can do. TWO, AND THAT IS A FACT ABOUT THIS WORLD RATHER THAN
-%% AN OVERSIGHT: little here is physically distinct to do. Consumption is
-%% automatic on contact, and scent is left by moving because moving disturbs
-%% ground, which is physics and not a gland that could be switched off.
--define(PURPOSES, [move, breed]).
+%% What a creature can do. THREE SINCE WORLD 6, and the third arrived because
+%% splitting the store from the structure forces a rule for how one becomes the
+%% other. "A creature grows when it has a surplus" would be biology written into
+%% the physics, the exact shape of the deleted `breed_at'. An output is the same
+%% treatment reproduction already gets and is more general: a lineage can evolve
+%% to build when it is safe and hoard when it is not.
+%%
+%% `grow' IS READ AS A QUANTITY rather than a threshold, clamped to what the
+%% creature is carrying, so it needs no constant of its own.
+-define(PURPOSES, [move, breed, grow]).
 
 %% What a hidden node's total is divided by before it is read as a reading.
 %% Inputs run to sixty-odd and weights to eight, so a raw total runs to hundreds

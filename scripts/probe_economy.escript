@@ -47,8 +47,28 @@ main(Args) ->
     ok = check_keys(Overrides),
     io:format("~nticks=~p seeds=~p~n", [Ticks, Seeds]),
     io:format("economy: ~p~n~n", [maps:with(maps:keys(Overrides), Econ)]),
-    Rows = [run(Seed, Ticks, Overrides) || Seed <- lists:seq(1, Seeds)],
+    Rows = in_parallel(fun(Seed) -> run(Seed, Ticks, Overrides) end,
+                       lists:seq(1, Seeds)),
     report(Rows, Ticks).
+
+%% SEEDS ARE INDEPENDENT, so they run at once. Each is a pure function of its
+%% number, sharing no state with any other and reading no clock, so running five
+%% together on a machine with cores to spare produces the same five rows in the
+%% same order as running them one after another. The results are unchanged; only
+%% the waiting is.
+%%
+%% Order is preserved by collecting on a ref per seed rather than by taking
+%% whatever finishes first, because a report whose rows change places between
+%% runs cannot be diffed against the last one.
+in_parallel(F, Items) ->
+    Parent = self(),
+    Refs = [spawn_one(Parent, F, I) || I <- Items],
+    [receive {Ref, Result} -> Result end || Ref <- Refs].
+
+spawn_one(Parent, F, Item) ->
+    Ref = make_ref(),
+    spawn_link(fun() -> Parent ! {Ref, F(Item)} end),
+    Ref.
 
 parse([]) -> {2000, 5, #{}};
 parse([T]) -> {list_to_integer(T), 5, #{}};
@@ -97,7 +117,8 @@ sample(W, Left, Every, Acc) ->
 
 report(Rows, Ticks) ->
     io:format("~s~n", [row(["seed", "final", "peak", "trough", "ground",
-                            "born", "starved", "eaten", "aged", "refused"])]),
+                            "stores", "frames", "born", "starved", "eaten",
+                            "aged", "refused"])]),
     lists:foreach(fun print_viability/1, Rows),
     outcomes(Rows),
     census(Rows),
@@ -107,15 +128,33 @@ report(Rows, Ticks) ->
               [Extinct, length(Rows), Ticks]),
     io:format("final population: min ~p median ~p max ~p~n",
               [lists:min(Finals), median(Finals), lists:max(Finals)]),
+    shapes(Rows),
     trajectory(hd(Rows)).
+
+%% THE SHAPE OF THE FRAMES, eight buckets from nothing to the largest alive.
+%%
+%% A MAXIMUM CANNOT ANSWER THE QUESTION WORLD 6 ASKED. "Store and structure
+%% diverge" means lineages that carry much and build little, or the reverse, and
+%% a single largest tells you nothing about whether the population sits at one
+%% size or at several. Everything in one bucket is one size; weight at both ends
+%% is two livings.
+shapes(Rows) ->
+    io:format("~nframe sizes, smallest bucket first (~p buckets to the largest "
+              "alive)~n", [8]),
+    lists:foreach(fun(#{seed := S, final := #{structure_hist := H,
+                                              structure_max := Max}}) ->
+                          io:format("seed ~p  max ~p  ~p~n", [S, Max, H])
+                  end, Rows).
 
 %% VIABILITY ONLY. Whether the world works, which is the only thing a number may
 %% ever be tuned against.
 print_viability(#{seed := S, peak := Pk, trough := Tr,
                   final := #{population := P, ground_total := G, born := B,
+                             energy_total := Stores, structure_total := Frames,
                              starved := St, consumed := C, aged_out := Ag,
                              births_refused := Rf}}) ->
-    io:format("~s~n", [row([S, P, Pk, Tr, G, B, St, C, Ag, Rf])]).
+    io:format("~s~n",
+              [row([S, P, Pk, Tr, G, Stores, Frames, B, St, C, Ag, Rf])]).
 
 %% WHAT THE POPULATION TURNED OUT TO BE. Everything that varies, side by side,
 %% with NONE OF IT PRIVILEGED: no headline metric and no summary line that picks
@@ -127,10 +166,17 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% is stripped and its income collapses to the bare floor. Nothing calls either of
 %% those prudence or greed.
 %%
-%% `biggest' is the largest creature alive, and without it "size is bounded"
-%% cannot be read at all. It has now been forgotten from this table twice, once
-%% for the feeding rate and once for size, each time after the observable was
-%% added to the world and before the run that needed it.
+%% `store' and `frame' are the largest reserve and the largest BODY alive, and
+%% they are two columns rather than one on purpose: world 6 exists to separate
+%% them, so adding them together here would report exactly the conflation the
+%% world was built to undo. `frame' is what upkeep is charged on and what wins a
+%% contest; `store' is nearly free to hold and useless in a fight.
+%%
+%% THIS TABLE HAS NOW FORGOTTEN AN OBSERVABLE THREE TIMES: the feeding rate,
+%% then size, then structure, each time after it was added to the world and
+%% before the run that needed it. The failure is always the same shape, so the
+%% check is: when a snapshot grows a field, this row grows with it in the same
+%% commit or the run measures nothing.
 %%
 %% `still' is the plant-ness of the population and nothing in the rules calls it
 %% that: there are no plants, so a creature that stays where it is and lives off
@@ -139,20 +185,23 @@ print_viability(#{seed := S, peak := Pk, trough := Tr,
 %% structure that nobody installed. `move' and `bred' are how many creatures can
 %% do those things AT ALL, since an absent output is not a weak one.
 outcomes(Rows) ->
-    io:format("~n~s~n", [row(["seed", "still%", "eats", "biggest", "meat%",
-                              "body", "brain", "move", "bred", "gspr", "tags",
-                              "sspr"])]),
+    io:format("~n~s~n", [row(["seed", "still%", "eats", "store", "frame",
+                              "meat%", "meat#", "body", "brain", "move", "bred",
+                              "gspr", "tags", "sspr"])]),
     lists:foreach(fun print_outcome/1, Rows).
 
 print_outcome(#{seed := S,
                 final := #{still_pct := Still, from_creatures_pct := Meat,
                            sensor_mean := Body, hidden_mean := Brain,
-                           uptake_mean := Eats, energy_max := Biggest,
+                           fed_by_creatures := MeatN,
+                           uptake_mean := Eats, energy_max := Store,
+                           structure_max := Frame,
                            movers := Movers, breeders := Breeders,
                            ground_spread := GSpread, scent_tags := Tags,
                            scent_spread := SSpread}}) ->
-    io:format("~s~n", [row([S, Still, Eats, Biggest, Meat, Body, Brain, Movers,
-                            Breeders, GSpread, Tags, SSpread])]).
+    io:format("~s~n", [row([S, Still, Eats, Store, Frame, Meat, MeatN, Body,
+                            Brain, Movers, Breeders, GSpread, Tags,
+                            SSpread])]).
 
 %% WHAT THEY MEASURE, AND WHETHER ANYTHING ACTS ON IT. Carriers then attention,
 %% per field, because CARRYING A SENSOR AND USING ONE ARE DIFFERENT THINGS: a

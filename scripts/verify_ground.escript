@@ -72,6 +72,14 @@ main(_Args) ->
 %% MEASURED BY LETTING ONE ACTUALLY GROW, not by algebra. The settling point is
 %% where income meets upkeep and the arithmetic for it is easy to get subtly
 %% wrong, which is the whole reason this file exists.
+%%
+%% WORLD 6 RE-DERIVES IT AGAINST STRUCTURE, since only structure is billed now.
+%% The criterion above is unchanged and was fixed before this was measured. Two
+%% things about the probe had to change to keep measuring what it says it does:
+%% the creature must be a BUILDER, because one that never converts its store
+%% would be billed nothing and grow for ever, and it must be founded large enough
+%% to pay a tick of metabolism, because charging happens before feeding and a
+%% founder of one unit now starves on tick one.
 upkeep_table(Econ) ->
     io:format("~s~n", [row(["divisor", "settles at", "one cell holds",
                             "within it"])]),
@@ -92,9 +100,12 @@ settled_size(Divisor, Econ) ->
                     ground_seed => Yield, ground_growth_pct => 0,
                     ground_ceiling => Yield, upkeep_divisor => Divisor,
                     founder_uptake => Yield, max_age => 100000000,
-                    start_energy => 1, founder_body => [],
-                    founder_brain => #{hidden => [], outputs => #{}}}),
-    #{energy_max := Size} = world:snapshot(world:tick(W, 20000)),
+                    start_energy => 40, founder_body => [],
+                    founder_brain =>
+                        #{hidden => [],
+                          outputs => #{grow => #{inputs => [1000000],
+                                                 hidden => []}}}}),
+    #{structure_max := Size} = world:snapshot(world:tick(W, 20000)),
     Size.
 
 gentlest_binding(Econ) ->
@@ -140,8 +151,24 @@ reachable(false, Sustainable, Metabolism) ->
 %%==============================================================================
 
 %% A creature with no sensors, no hidden layer and no outputs at all: it cannot
-%% move, cannot breed, and pays nothing but metabolism. The cheapest thing the
-%% rules allow, which is what the criterion is about.
+%% move and cannot breed.
+%%
+%% THIS PROBE DISAGREES, AND THE DISAGREEMENT IS OLDER THAN THIS WORLD. It was
+%% written in world 4, where such a creature paid nothing but metabolism and was
+%% therefore the cheapest thing the rules allowed. World 5 made size cost, so it
+%% now also pays upkeep on the frame it was founded with, can never shed it
+%% because it has no output to, and needs a seed of 24 rather than 12 to clear
+%% the bar. World 5 charged that upkeep on everything held rather than on half,
+%% so it was strictly harsher there: the disagreement was already true then and
+%% went unseen only because this script would not compile.
+%%
+%% NOT ACTED ON HERE, deliberately. The reachability this criterion exists to
+%% establish is the one the yield line below reports, and that passes: a prudent
+%% stayer nets 22 against a cost of 10. What fails is a lineage that strips its
+%% cell and then sits on the bare floor, and world 3 made that fatal ON PURPOSE.
+%% Raising the seed to rescue it would undo world 3 and would change world 6 in a
+%% second way besides the one it pre-registered, which is how a comparison stops
+%% meaning anything. It is logged as its own entry instead.
 still() ->
     #{founder_body => [], founder_brain => #{hidden => [], outputs => #{}}}.
 
@@ -263,7 +290,7 @@ verdict(Name, Value, Configured) -> verdict(smallest, Name, Value, Configured).
 verdict(Which, Name, Value, Configured) ->
     io:format("~n~s ~s meeting its criterion: ~p~n", [Which, Name, Value]),
     io:format("configured in world:defaults/0:   ~p~n", [Configured]),
-    io:format("~s~n~n", [agreement(Smallest =:= Configured)]).
+    io:format("~s~n~n", [agreement(Value =:= Configured)]).
 
 agreement(true) ->
     "AGREES. The configured value is the least generous one meeting the\n"

@@ -120,6 +120,7 @@ allowed.
 | A.2 | Recovery is spatially uniform: no terrain, no fertile or barren ground | **OPEN, and deliberately so.** A terrain generator has free parameters, and the honest criterion for setting them would be "correlated over the distances a sensor can evolve to reach", which is choosing the world's structure so that sensors pay. Emergent enrichment has no such knob. |
 | A.3 | Standing stock is capped at a ceiling | **OPEN.** Real systems do saturate, so this is probably right, but the cap is a chosen number rather than a derived one. |
 | A.4 | Energy arrives everywhere at once, with no day, season or weather | **OPEN.** Temporal variation in supply is the one thing dispersal theory says most reliably drives movement, and this world has none: every tick is identical. |
+| A.5 | **The seed rate is a floor a stripped cell gets for nothing**, and it was set in world 4 by asking whether a creature that sits still and does nothing could fund a child on it | **OPEN, and the criterion that set it has gone stale.** That creature paid only metabolism in world 4. Since world 5 it also pays upkeep on the frame it was founded with and cannot shed, so the criterion now asks for a seed of 24 against the 12 configured, and `scripts/verify_ground.escript` reports DISAGREES. **Not acted on, twice deliberately.** The reachability the criterion exists to establish is the yield line, which passes: a prudent stayer nets 22 against a cost of 10. What fails is a lineage that strips its cell and then sits on the bare floor, and **world 3 made that fatal on purpose**. Raising the seed to rescue it would undo world 3. It went unseen through two worlds because the script had an unbound variable and would not compile, which is the more useful lesson: **a verification that cannot run is worse than none, because it is still cited.** |
 
 ## B. What energy costs to hold
 
@@ -129,7 +130,7 @@ allowed.
 | B.2 | Sensor rent rises with the radius of reach, not the area covered | **OPEN, and no physics settles it.** Named in the pre-registrations rather than defended. Area was rejected because at rent 1 a range-two sensor would cost nineteen a tick against a metabolism of ten, pricing reach out before selection saw it. |
 | B.3 | A hidden node costs a flat rent regardless of how many inputs it reads | **OPEN, and no physics settles it.** |
 | B.4 | Senescence is a fixed age, unrelated to how hard a creature has lived | **OPEN.** Ageing is energetic in real organisms; here it is a counter. |
-| B.5 | **Energy conflates a STORE with a STRUCTURE.** One number is a creature's fat reserve, its body, its weapon in a contest and its reproductive capital, all at once | **OPEN, and it is what world 5 actually got wrong.** These have opposite physics: an inert store costs almost nothing to hold, which is what fat is FOR, while working tissue is expensive to run. World 5 priced the conflated quantity, so it taxed reserves as though they were tissue. No scaling exponent fixes that, because the thing being scaled is two things welded together. |
+| B.5 | **Energy conflates a STORE with a STRUCTURE.** One number is a creature's fat reserve, its body, its weapon in a contest and its reproductive capital, all at once | **CORRECTED**, world 6, and it produced **the first bimodal population this project has made**: ~2,200 creatures with almost no frame and ~100 with a large one, middle buckets nearly empty, in all five seeds, from rules naming no size and no class. These have opposite physics: an inert store costs almost nothing to hold, which is what fat is FOR, while working tissue is expensive to run. World 5 priced the conflated quantity and so taxed reserves as though they were tissue; no scaling exponent fixes that, because the thing being scaled is two things welded together. **It did NOT restore world 4's landscape variance** (`ground_spread` 11-13 against world 4's 26-86) and **did not make predation pay**: 165k-213k kills a run and not one creature whose intake is dominated by them. Carries a caveat: a herd-index bug was fixed in the same world, so world 6 differs from world 5 in two ways. See [RESULTS_WORLD6.md](RESULTS_WORLD6.md). |
 
 ## C. What energy costs to act
 
@@ -197,8 +198,20 @@ which tradeoff that leaves live**. A correction that leaves everything adjacent
 free will be overridden the way world 4's was, however physical it is.
 
 **A correction can also destroy the variance a later experiment needs.** World 5
-priced size and drove energy from creatures to zero in every seed, which makes
-entry D.2 currently **untestable**: the benefit side of a predation apparatus is
-nothing, so it would be selected out whatever it cost, and the result would say
-nothing at all. So the queue is not fixed once and for all — an entry can be
-blocked by an earlier correction, and **B.5 now precedes D.2** for that reason.
+priced size and drove energy from creatures to zero in every seed, which made
+entry D.2 **untestable**: the benefit side of a predation apparatus was nothing,
+so it would be selected out whatever it cost. So the queue is not fixed once and
+for all: an entry can be blocked by an earlier correction, and B.5 preceded D.2
+for that reason. **World 6 unblocked it**, which is the first time this register
+has been used to schedule work and had the schedule pay off.
+
+**But world 6 also moved the queue again.** D.2 is testable now and is still the
+wrong next entry: 190,000 kills a run yield nothing because what gets eaten is
+empty, and prey are empty because nothing can flee. **C.2, being still costs
+nothing, now precedes D.2.** A predation apparatus with no escape to defeat is
+an apparatus for a problem the world does not have.
+
+**A verification that cannot run is worse than none, because it is still cited.**
+`scripts/verify_ground.escript` had an unbound variable and would not compile
+for two whole worlds while its derivations continued to be quoted as though they
+had been checked. See A.5.

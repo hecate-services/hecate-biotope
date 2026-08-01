@@ -45,10 +45,12 @@
 -module(world).
 
 -export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0, econ_id/1]).
+-export([ruleset/0]).
 -export([population/1, ground_energy/1, at_tick/1, alive/2]).
 
 -type hex() :: hex:hex().
 -type id() :: pos_integer().
+
 
 %% Where a creature may go: its own cell and the six around it. Not a rule about
 %% behaviour, a statement about how far a thing can travel in one tick.
@@ -81,6 +83,13 @@
                       %% and you move or starve. OVERGRAZING IS POSSIBLE NOW, and
                       %% fatal to whatever does it.
                       uptake := non_neg_integer(),
+                      %% WHAT IT IS BUILT OF, as opposed to what it is carrying.
+                      %% World 5 had one number for both and taxed a fat reserve
+                      %% as though it were working tissue, which flattened every
+                      %% difference between creatures. A store is nearly free to
+                      %% hold, which is what fat is FOR; structure is expensive
+                      %% to run and is what wins a contest.
+                      structure := non_neg_integer(),
                       scent := scent:tag(),
                       %% WHAT THIS CREATURE HAS ACTUALLY EATEN, by where the
                       %% energy came from. An observer's record, not a rule:
@@ -156,6 +165,23 @@
 
 %% EVERY NUMBER HERE IS SET FOR VIABILITY OR FOR SCALE, NEVER FOR AN OUTCOME.
 %% See PREREGISTRATION.md for the criteria, written down before the first run.
+%% @doc Which world this is, and one sentence a stranger can read.
+%%
+%% IT LIVES WITH THE RULES AND NOT IN CONFIGURATION, because it is a property of
+%% the physics in this file rather than of how a node happened to be started. Two
+%% islands running the same binary are the same world by construction and no
+%% environment variable can make them disagree about it. A node showing world 5
+%% while another shows world 6 is telling the truth about what it is running,
+%% which is exactly the question a reader has when two cards disagree.
+%%
+%% CHANGE IT IN THE SAME COMMIT AS THE RULES. WORLDS.md carries the long version
+%% and PREREGISTRATION.md the reasoning; this is the label on the tin.
+-spec ruleset() -> #{number := pos_integer(), line := binary()}.
+ruleset() ->
+    #{number => 6,
+      line => <<"A creature has a lunchbox and a body. Only the body costs "
+                "anything to carry, and only the body wins a fight.">>}.
+
 -spec defaults() -> econ().
 defaults() ->
     #{%% WHERE ENERGY ENTERS THE WORLD, and the one thing world 3 changed.
@@ -285,8 +311,13 @@ populate(0, _Opts, W) -> W;
 populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
     {At, Rng1} = random_cell(maps:get(radius, Econ), Rng0),
     {Traits, Rng2} = founder_traits(Econ, Opts, Rng1),
-    populate(N - 1, Opts, add_creature(At, maps:get(start_energy, Econ), none,
-                                       Traits, W#world{rng = Rng2})).
+    %% A FOUNDER IS HALF STORE AND HALF STRUCTURE. Splitting the two forces a
+    %% starting ratio, and even is the least-informative one: it favours neither
+    %% carrying nor building, and mutation and the `grow' output decide the rest.
+    Start = maps:get(start_energy, Econ),
+    populate(N - 1, Opts,
+             add_creature(At, Start div 2, Start - Start div 2, none, Traits,
+                          W#world{rng = Rng2})).
 
 %% Everything heritable, drawn fresh and SPREAD. The first generation should
 %% already contain every shape of creature the rules allow, so selection has
@@ -342,9 +373,10 @@ founder_brain(draw, Body, Econ, Rng) ->
 founder_brain(Given, _Body, _Econ, Rng) ->
     {Given, Rng}.
 
-add_creature(At, Energy, Parent, Traits, #world{next_id = Id, creatures = Cs,
+add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatures = Cs,
                                                 tick = T, born = B} = W) ->
     C = maps:merge(#{id => Id, at => At, energy => Energy, age => 0,
+                     structure => Structure,
                      born => T, parent => Parent, still => true,
                      from_ground => 0, from_creatures => 0},
                    Traits),
@@ -367,7 +399,7 @@ tick(W, N) ->
     W1 = charge(W),
     W2 = move_all(W1),
     W3 = consume(W2),
-    W4 = breed(W3),
+    W4 = build(breed(W3)),
     W5 = reap(W4),
     W6 = W5#world{ground = ground:grow(W5#world.ground, W5#world.econ)},
     W7 = fade(W6),
@@ -378,20 +410,39 @@ tick(W, N) ->
 %% hidden node nothing listens to, makes its owner strictly poorer than a
 %% neighbour without one.
 charge(#world{creatures = Cs, econ = Econ} = W) ->
-    W#world{creatures = maps:map(fun(_Id, C) -> live(C, Econ) end, Cs)}.
+    W#world{creatures = maps:map(fun(_Id, C) -> catabolise(live(C, Econ)) end,
+                                 Cs)}.
 
-live(#{body := Body, brain := Brain, energy := E} = C, Econ) ->
+%% STARVATION EATS THE BODY. A creature whose store runs out is not dead while it
+%% still has a frame: it consumes its own structure to keep going, which is what
+%% a starving organism does, and shrinks in the process.
+%%
+%% WITHOUT THIS THE SPLIT IS INCOHERENT AND BUILDING IS SUICIDAL. A creature that
+%% converted its whole store into structure would be reaped on the same tick for
+%% having nothing left to spend, however large a body it had just built. The test
+%% for bounded structure found it, which is what that test is for.
+%%
+%% Structure is energy in another form, so this moves between two terms of the
+%% same books and conserves.
+catabolise(#{energy := E, structure := S} = C) when E < 0, S > 0 ->
+    Taken = min(S, -E),
+    C#{energy => E + Taken, structure => S - Taken};
+catabolise(C) ->
+    C.
+
+live(#{body := Body, brain := Brain, structure := S} = C, Econ) ->
     Rent = body:upkeep(Body, Econ)
         + brain:hidden_count(Brain) * maps:get(hidden_rent, Econ),
-    spend(C, maps:get(metabolism, Econ) + Rent + carrying(E, Econ)).
+    spend(C, maps:get(metabolism, Econ) + Rent + carrying(S, Econ)).
 
-%% WHAT IT COSTS TO BE LARGE. Nothing, before world 5, which made energy free
-%% armour and beat the only real tradeoff this project had managed to build.
+%% WHAT IT COSTS TO BE LARGE, charged on STRUCTURE alone. World 5 charged it on
+%% everything a creature held, so a reserve was taxed as though it were working
+%% tissue, and creatures could no longer differ in what they carried. That
+%% flattened the landscape and drove the energy moving between creatures to zero.
 %%
-%% Floored at nothing for a creature already in debt: it is about to be reaped,
-%% and billing it for a negative balance would hand it energy.
-carrying(E, Econ) ->
-    max(0, E) div max(1, maps:get(upkeep_divisor, Econ)).
+%% A store is nearly free to hold. That is what fat is for.
+carrying(S, Econ) ->
+    max(0, S) div max(1, maps:get(upkeep_divisor, Econ)).
 
 spend(#{energy := E} = C, Cost) -> C#{energy => E - Cost}.
 
@@ -523,20 +574,26 @@ share_cell(Id, #{at := At}, Acc) ->
     maps:update_with(At, fun(Together) -> [Id | Together] end, [Id], Acc).
 
 resolve(Ids, #world{creatures = Cs} = W) ->
-    Ranked = lists:reverse(lists:sort([{maps:get(energy, maps:get(I, Cs)), I}
+    %% CONTEST IS DECIDED BY STRUCTURE, not by what a creature is carrying, so a
+    %% fat small creature loses to a lean large one. Before world 6 the two were
+    %% one number and hoarding was the same thing as being formidable.
+    Ranked = lists:reverse(lists:sort([{maps:get(structure, maps:get(I, Cs)), I}
                                        || I <- Ids])),
     [{_Strongest, Winner} | Rest] = Ranked,
     absorb(Winner, devour(Winner, [I || {_E, I} <- Rest], W)).
 
 devour(_Winner, [], W) -> W;
 devour(Winner, Losers, #world{creatures = Cs} = W) ->
-    #{energy := Mine} = maps:get(Winner, Cs),
-    Weaker = [I || I <- Losers, maps:get(energy, maps:get(I, Cs)) < Mine],
+    #{structure := Mine} = maps:get(Winner, Cs),
+    Weaker = [I || I <- Losers, maps:get(structure, maps:get(I, Cs)) < Mine],
     take_them(Weaker, Winner, W).
 
 take_them([], _Winner, W) -> W;
+%% A VICTIM YIELDS BOTH HALVES AS STORE. Structure is energy in another form, so
+%% eating something digests its body into what you are carrying, and the books
+%% close over ground plus stores plus structures.
 take_them(Weaker, Winner, #world{creatures = Cs} = W) ->
-    Gain = lists:sum([max(0, maps:get(energy, maps:get(I, Cs))) || I <- Weaker]),
+    Gain = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
     #{energy := E, from_creatures := F} = C = maps:get(Winner, Cs),
     Fed = C#{energy => E + Gain, from_creatures => F + Gain},
     W#world{creatures = maps:without(Weaker, Cs#{Winner => Fed}),
@@ -551,6 +608,8 @@ take_them(Weaker, Winner, #world{creatures = Cs} = W) ->
 %% how hard it feeds against how fast the ground comes back. Feed gently and the
 %% cell holds a standing stock indefinitely; feed hard and it is stripped, income
 %% falls to the bare floor, and staying becomes fatal.
+whole(#{energy := E, structure := S}) -> max(0, E) + max(0, S).
+
 absorb(Id, #world{creatures = Cs, ground = G} = W) ->
     #{at := At, energy := E, from_ground := P, uptake := Rate} =
         C = maps:get(Id, Cs),
@@ -564,6 +623,44 @@ absorb(Id, #world{creatures = Cs, ground = G} = W) ->
 %% Breeding, dying, fading
 %%------------------------------------------------------------------------------
 
+%% BUILDING IS A DECISION TOO, and it has to be. Splitting the store from the
+%% structure forces a rule for how one becomes the other, and "a creature grows
+%% when it has a surplus" would be biology written into the physics: the exact
+%% shape of `breed_at', deleted in world 2 for that reason.
+%%
+%% THE OUTPUT'S VALUE IS THE AMOUNT, clamped to what the creature is carrying, so
+%% it needs no constant of its own. A creature with no `grow' output never builds
+%% at all, which is a living rather than a death sentence: it stays whatever size
+%% it was born and spends everything on children instead.
+%% THE HERD IS GATHERED ONCE, as `move_all' gathers it and as `herd/1' says it
+%% is meant to be. Rebuilding it per creature made every creature in the fold see
+%% the ones before it, which is the turn-order advantage this module's header
+%% says it removed, and it made the phase quadratic in the population: at 2,263
+%% creatures a single seed of 2,000 ticks took over an hour.
+build(#world{creatures = Cs} = W) ->
+    Herd = herd(Cs),
+    lists:foldl(fun(Id, Acc) -> build_one(Id, Herd, Acc) end, W,
+                lists:sort(maps:keys(Cs))).
+
+build_one(Id, Herd, #world{creatures = Cs, econ = Econ} = W) ->
+    #{at := At} = C = maps:get(Id, Cs),
+    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
+                             Econ),
+    invest(affordable(maps:get(grow, Outputs, 0), maps:get(energy, C)), Id, W).
+
+%% BOTH ENDS CLAMPED AT NOTHING. A creature in debt has nothing to build with, and
+%% clamping only against its store would let the shortfall through as a NEGATIVE
+%% amount and run the transfer backwards, turning debt into structure and making a
+%% starving creature grow. That drove structure below zero, which the books ought
+%% to make impossible.
+affordable(Wanted, Store) -> min(max(0, Wanted), max(0, Store)).
+
+invest(0, _Id, W) -> W;
+invest(Amount, Id, #world{creatures = Cs} = W) ->
+    #{energy := E, structure := S} = C = maps:get(Id, Cs),
+    W#world{creatures = Cs#{Id => C#{energy => E - Amount,
+                                     structure => S + Amount}}}.
+
 %% A CHILD IS A DECISION NOW, not a threshold. The brain is asked, on its own
 %% cell, and above zero it spends HALF its current energy on a child placed
 %% alongside. Zero is the natural boundary for a signed value and needs no
@@ -572,12 +669,18 @@ absorb(Id, #world{creatures = Cs, ground = G} = W) ->
 %% No floor stops a creature breeding itself down to nothing: one that does
 %% leaves children too small to survive, and that is a bad strategy rather than an
 %% illegal one. Four constants left the economy here and no rule replaced them.
+%% GATHERED ONCE, for the same two reasons as `build/1' above. Here the artefact
+%% was that a creature asked whether to breed while already seeing the children
+%% its neighbours had just had, which is a decision made against a world that
+%% does not exist yet for anybody else.
 breed(#world{creatures = Cs} = W) ->
-    lists:foldl(fun breed_one/2, W, lists:sort(maps:keys(Cs))).
+    Herd = herd(Cs),
+    lists:foldl(fun(Id, Acc) -> breed_one(Id, Herd, Acc) end, W,
+                lists:sort(maps:keys(Cs))).
 
-breed_one(Id, #world{creatures = Cs, econ = Econ} = W) ->
+breed_one(Id, Herd, #world{creatures = Cs, econ = Econ} = W) ->
     #{at := At, energy := E} = C = maps:get(Id, Cs),
-    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, herd(Cs), W),
+    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
                              Econ),
     willing(maps:get(breed, Outputs, 0) > 0 andalso E > 1, Id, W).
 
@@ -588,14 +691,19 @@ willing(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
 room(false, _Id, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
 room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
-    #{at := At, energy := E} = C = maps:get(Id, Cs),
+    #{at := At, energy := E, structure := S} = C = maps:get(Id, Cs),
+    %% BOTH HALVES SPLIT ALIKE, because reproduction transfers matter as well as
+    %% energy and structure is energy in another form. A child built of nothing
+    %% would lose every contest it ever entered.
     Dowry = E div 2,
+    Frame = S div 2,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
     W1 = note_change(Change,
-                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
+                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry,
+                                                      structure => S - Frame}},
                              rng = Rng2}),
-    add_creature(Where, Dowry, Id, Traits, W1).
+    add_creature(Where, Dowry, Frame, Id, Traits, W1).
 
 note_change({added, _Pos}, #world{sensors_gained = G} = W) ->
     W#world{sensors_gained = G + 1};
@@ -652,17 +760,20 @@ note_extinction(0, #world{extinct_at = undefined, tick = T} = W) ->
 note_extinction(_Alive, W) ->
     W.
 
-reap_one(_Id, #{energy := E, at := At}, _MaxAge, #world{starved = S} = W)
-  when E =< 0 ->
-    bury(At, E, W#world{starved = S + 1});
-reap_one(_Id, #{age := A, energy := E, at := At}, MaxAge,
+%% IN DEBT WITH NOTHING LEFT TO CONVERT. Exactly nothing in store is spent rather
+%% than dead: a creature that has just built its whole reserve into a frame still
+%% has the frame, and eats it next tick if it must.
+reap_one(_Id, #{energy := E, at := At} = C, _MaxAge, #world{starved = S} = W)
+  when E < 0 ->
+    bury(At, whole(C), W#world{starved = S + 1});
+reap_one(_Id, #{age := A, at := At} = C, MaxAge,
          #world{aged_out = O} = W) when A > MaxAge ->
-    bury(At, E, W#world{aged_out = O + 1});
+    bury(At, whole(C), W#world{aged_out = O + 1});
 reap_one(Id, #{age := A} = C, _MaxAge, #world{creatures = Cs} = W) ->
     W#world{creatures = Cs#{Id => C#{age => A + 1}}}.
 
-bury(At, E, #world{ground = G} = W) ->
-    W#world{ground = ground:deposit(At, max(0, E), G)}.
+bury(At, Amount, #world{ground = G} = W) ->
+    W#world{ground = ground:deposit(At, max(0, Amount), G)}.
 
 %% Every mark weakens and one that has weakened to nothing is dropped, so the map
 %% holds only ground that still smells. Without the fade a busy cell becomes a
@@ -703,6 +814,10 @@ snapshot(#world{econ = Econ} = W) ->
       absorbed => W#world.absorbed,
       births_refused => W#world.births_refused,
       energy_total => total_energy(W),
+      %% STRUCTURE REPORTED APART FROM STORE, because a mean of the two added
+      %% together is exactly the conflation world 6 exists to undo.
+      structure_total => total_structure(W),
+      structure_max => largest_structure(W),
       radius => maps:get(radius, W#world.econ),
       econ => W#world.econ,
       econ_id => econ_id(W#world.econ),
@@ -722,6 +837,17 @@ snapshot(#world{econ = Econ} = W) ->
       %% which needed thresholds nobody could justify and named two roles the
       %% world had no opinion about.
       from_creatures_pct => predation_share(W),
+      %% HOW MANY INDIVIDUALS LIVE THAT WAY, which the share above cannot say.
+      %% That share is a sum over the WHOLE POPULATION, so a minority living
+      %% entirely off other creatures is invisible in it whenever the majority
+      %% draws more from the ground in total. World 6's frame histogram came back
+      %% bimodal, which is what exposed the gap: a population mean cannot answer
+      %% a question about a subgroup.
+      %%
+      %% Counted, not named. A creature that has taken more from creatures than
+      %% from ground is one the world treats exactly like every other, and the
+      %% comparison is made here by an observer after the fact.
+      fed_by_creatures => living_off_creatures(W),
       %% WHAT THE POPULATION IS BUILT FROM, per field: how many carry a sensor
       %% for it and how much total reach is devoted to it. A census, not a
       %% verdict: it says what survived, not what was useful.
@@ -745,6 +871,12 @@ snapshot(#world{econ = Econ} = W) ->
       %% cannot tell one optimum from two.
       energy_max => largest(W),
       energy_hist => binned(energies(W), largest(W)),
+      %% AND THE SAME FOR THE FRAME, because world 6's whole question is whether
+      %% these two came apart. A maximum says how large the largest got and
+      %% cannot say whether the population sits at one size or several, which is
+      %% the pre-registered finding: lineages that carry much and build little,
+      %% or the reverse.
+      structure_hist => binned(structures(W), largest_structure(W)),
       movers => outputs_with(move, W),
       breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
@@ -795,6 +927,9 @@ largest(#world{creatures = Cs}) ->
 energies(#world{creatures = Cs}) ->
     [max(0, E) || #{energy := E} <- maps:values(Cs)].
 
+structures(#world{creatures = Cs}) ->
+    [max(0, S) || #{structure := S} <- maps:values(Cs)].
+
 sensor_counts(#world{creatures = Cs}) ->
     [length(B) || #{body := B} <- maps:values(Cs)].
 
@@ -822,6 +957,10 @@ mean_sensors(#world{creatures = Cs}) ->
 
 %% Of all the energy the living have ever eaten, what share came from creatures.
 %% Zero for a population that has eaten nothing, rather than a crash.
+living_off_creatures(#world{creatures = Cs}) ->
+    length([Id || {Id, #{from_ground := P, from_creatures := M}}
+                      <- maps:to_list(Cs), M > P]).
+
 predation_share(#world{creatures = Cs}) ->
     Vals = maps:values(Cs),
     Plants = lists:sum([P || #{from_ground := P} <- Vals]),
@@ -867,6 +1006,7 @@ econ_id(Econ) ->
 %% strength and there is no list it runs parallel to. The signature is left out:
 %% it would double the payload and a spectator has nothing to compare it against.
 -spec chart(world()) -> #{creatures := [integer()], energies := [integer()],
+                          structures := [integer()],
                           signatures := [integer()], uptakes := [integer()],
                           ground := [integer()],
                           scent := [integer()],
@@ -879,6 +1019,11 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
       %% balance, and a viewer sizing a dot by it would be asked to draw a
       %% negative radius.
       energies => [max(0, maps:get(energy, maps:get(Id, Cs))) || Id <- Ids],
+      %% WHAT EACH ONE IS BUILT OF, as against what it is carrying, same order.
+      %% Sending only the store would draw a fat creature and a large one exactly
+      %% alike, and since world 6 those are the two ends of a real axis: frame
+      %% wins contests and costs upkeep, store is cheap and useless in a fight.
+      structures => [max(0, maps:get(structure, maps:get(Id, Cs))) || Id <- Ids],
       %% WHO IS RELATED TO WHOM, one signature per creature in the same order.
       %% The scent MARKS deliberately leave this out, because there are hundreds
       %% of them and a viewer has nothing to compare one against. Creatures are a
@@ -913,6 +1058,13 @@ flatten_scent(Scent) ->
 %% whose total climbs without plants being eaten has a leak.
 total_energy(#world{creatures = Cs}) ->
     lists:sum([E || #{energy := E} <- maps:values(Cs)]).
+
+total_structure(#world{creatures = Cs}) ->
+    lists:sum([S || #{structure := S} <- maps:values(Cs)]).
+
+largest_structure(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+largest_structure(#world{creatures = Cs}) ->
+    lists:max([max(0, S) || #{structure := S} <- maps:values(Cs)]).
 
 -spec population(world()) -> non_neg_integer().
 population(#world{creatures = Cs}) -> map_size(Cs).

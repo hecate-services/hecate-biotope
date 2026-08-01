@@ -22,6 +22,13 @@ restless() ->
       founder_brain => #{hidden => [],
                          outputs => #{move => #{inputs => [-1], hidden => []}}}}.
 
+%% As above but it converts a fixed amount of store into structure every tick.
+builder(Amount) ->
+    #{founder_body => [],
+      founder_brain => #{hidden => [],
+                         outputs => #{grow => #{inputs => [Amount],
+                                                hidden => []}}}}.
+
 %% As above but it will breed on the first tick it can.
 fertile() ->
     #{founder_body => [],
@@ -38,10 +45,14 @@ quiet(Opts) ->
     world:new(maps:merge(#{population => 1, radius => 3, seed => 7,
                            upkeep_divisor => 1000000}, Opts)).
 
-%% Everything in the world is either in the ground or in a creature.
+%% Everything in the world is in the ground, in a creature's store, or built into
+%% its structure. THREE TERMS SINCE WORLD 6, because structure is energy in
+%% another form and leaving it out would make every transfer into it look like a
+%% leak.
 books(W) ->
-    #{energy_total := Creatures, ground_total := Ground} = world:snapshot(W),
-    Creatures + Ground.
+    #{energy_total := Stores, structure_total := Structures,
+      ground_total := Ground} = world:snapshot(W),
+    Stores + Structures + Ground.
 
 %%==============================================================================
 %% The books
@@ -109,7 +120,9 @@ the_ground_fills_to_its_ceiling_and_no_further_test() ->
 absorbing_is_limited_by_the_creature_test() ->
     W = grazer(70, #{ground_ceiling => 300}),
     #{energy_total := E1, ground_total := G1} = world:snapshot(world:tick(W)),
-    ?assertEqual(100 + 70, E1),
+    %% A FOUNDER IS HALF STORE AND HALF STRUCTURE since world 6, so of the
+    %% hundred it starts with only fifty is carried, and absorption adds to that.
+    ?assertEqual(50 + 70, E1),
     %% Its own cell keeps the 230 it could not take; every other cell is full.
     ?assertEqual((hex:cells(3) - 1) * 300 + 230, G1).
 
@@ -117,7 +130,7 @@ absorbing_is_limited_by_the_creature_test() ->
 absorbing_cannot_exceed_what_is_in_the_cell_test() ->
     W = grazer(1000, #{ground_ceiling => 250}),
     #{energy_total := E1} = world:snapshot(world:tick(W)),
-    ?assertEqual(100 + 250, E1).
+    ?assertEqual(50 + 250, E1).
 
 %% FEED GENTLY AND THE CELL SUSTAINS YOU INDEFINITELY. Below what the ground can
 %% put back, the standing stock holds and the income never falls.
@@ -556,12 +569,33 @@ holding_energy_costs_by_the_unit_test() ->
                                         inert())),
                    books(W) - books(world:tick(W))
            end,
-    %% Ten a tick for eight hundred held at a divisor of eighty.
-    ?assertEqual(10, Cost(800, 80)),
-    %% Twice the size, twice the bill.
-    ?assertEqual(20, Cost(1600, 80)),
-    %% A gentler divisor costs less for the same creature.
-    ?assertEqual(5, Cost(800, 160)).
+    %% Eight hundred to start is four hundred of STRUCTURE, and only structure
+    %% is billed: five a tick at a divisor of eighty. What a creature carries is
+    %% nearly free to hold, which is what fat is for.
+    ?assertEqual(5, Cost(800, 80)),
+    %% Twice the frame, twice the bill.
+    ?assertEqual(10, Cost(1600, 80)),
+    %% A gentler divisor costs less for the same frame.
+    ?assertEqual(2, Cost(800, 160)).
+
+%% AND A STORE IS NOT BILLED AT ALL, which is the whole of world 6. Two creatures
+%% with the same frame pay the same however differently they are provisioned, so
+%% they can once more be unlike one another. World 5 taxed the reserve as though
+%% it were tissue and flattened every difference between them.
+carrying_a_store_is_nearly_free_test() ->
+    Cost = fun(Store) ->
+                   W = quiet(maps:merge(#{ground_seed => 0,
+                                          ground_growth_pct => 0,
+                                          ground_ceiling => 0, metabolism => 0,
+                                          sensor_rent => 0, hidden_rent => 0,
+                                          max_age => 100000,
+                                          start_energy => Store,
+                                          upkeep_divisor => 1000000},
+                                        inert())),
+                   books(W) - books(world:tick(W))
+           end,
+    ?assertEqual(0, Cost(200)),
+    ?assertEqual(0, Cost(20000)).
 
 %% It is charged ON TOP of everything else rather than instead of it.
 holding_is_charged_beside_the_other_costs_test() ->
@@ -570,8 +604,9 @@ holding_is_charged_beside_the_other_costs_test() ->
                            sensor_rent => 0, hidden_rent => 0,
                            max_age => 100000, start_energy => 400,
                            upkeep_divisor => 100}, inert())),
-    %% Seven to exist and four to carry four hundred.
-    ?assertEqual(books(W) - 11, books(world:tick(W))).
+    %% Seven to exist, and two for the two hundred of frame that four hundred
+    %% starting energy leaves after the half-split.
+    ?assertEqual(books(W) - 9, books(world:tick(W))).
 
 %% A creature already in debt is about to be reaped, and billing it for a
 %% negative balance would HAND IT ENERGY rather than take any.
@@ -584,22 +619,43 @@ a_creature_in_debt_is_not_paid_to_carry_it_test() ->
     Totals = [books(world:tick(W, N)) || N <- lists:seq(0, 4)],
     ?assertEqual(lists:reverse(lists:sort(Totals)), Totals).
 
-%% SIZE IS BOUNDED NOW, and without this nothing else about world 5 can be read.
-%% A creature with income it cannot outgrow used to accumulate for ever; it now
-%% climbs until what it holds costs what it earns, and stops.
-size_stops_climbing_where_upkeep_meets_income_test() ->
-    %% Income is a flat eight a tick from the ground, and the divisor prices
-    %% holding at one per fifty, so it should settle near eight times fifty.
+%% STRUCTURE IS BOUNDED, and without this nothing else about world 5 or 6 can be
+%% read. A creature that keeps building climbs until its frame costs what it
+%% earns, and stops.
+%%
+%% It has to be a BUILDER to show this. Before world 6 the test could use an
+%% inert creature, because everything it held was billed; now a store is free, so
+%% one that never converts would simply accumulate for ever and the test would
+%% measure nothing.
+structure_stops_climbing_where_upkeep_meets_income_test() ->
     W = quiet(maps:merge(#{ground_seed => 8, ground_growth_pct => 0,
                            ground_ceiling => 8, metabolism => 0,
                            sensor_rent => 0, hidden_rent => 0,
-                           max_age => 1000000, start_energy => 1,
+                           max_age => 1000000, start_energy => 2,
                            upkeep_divisor => 50, founder_uptake => 8},
-                         inert())),
-    #{energy_max := Early} = world:snapshot(world:tick(W, 300)),
-    #{energy_max := Late} = world:snapshot(world:tick(W, 3000)),
+                         builder(100))),
+    #{structure_max := Early} = world:snapshot(world:tick(W, 300)),
+    #{structure_max := Late} = world:snapshot(world:tick(W, 3000)),
     ?assert(Early > 100),
     ?assertEqual(Early, Late).
+
+%% A CONTEST IS DECIDED BY FRAME AND NOT BY PROVISIONS. A fat small creature
+%% loses to a lean large one, which before world 6 was not expressible at all:
+%% hoarding and being formidable were the same number.
+the_leaner_larger_creature_takes_the_fatter_smaller_one_test() ->
+    W = quiet(maps:merge(#{population => 1, radius => 0, ground_seed => 0,
+                           ground_growth_pct => 0, ground_ceiling => 0,
+                           metabolism => 0, sensor_rent => 0, hidden_rent => 0,
+                           max_age => 100000, start_energy => 201,
+                           brain_mutation => 0,
+                           brain_mutation_structural => 1000000,
+                           body_mutation => 1000000}, fertile())),
+    %% The parent keeps the odd unit of frame, so it is the larger and takes the
+    %% child back, and the whole world is unchanged by the taking.
+    #{population := P, consumed := C} = world:snapshot(world:tick(W, 2)),
+    ?assertEqual(1, C),
+    ?assertEqual(2, P),
+    ?assertEqual(books(W), books(world:tick(W, 2))).
 
 %% The largest alive and the shape of the sizes, because a mean cannot tell one
 %% optimum from two and "bounded" cannot be read from an average at all.
