@@ -21,6 +21,8 @@ still gets wrong about energy, and which entry each world corrects.
 
 | **9** | **reproduction is paid out of the store**: a parent does not dismantle its own body to make a child (`C.7`) | **The engine restarted and the world stopped ending.** 3 seeds of 5 run the full 2000 ticks at 100%, still giving birth at the limit, with creatures **54 to 129 generations** descended from the founding against world 8's best of 15. **World 4's landscape came back** (`ground_spread` 86 against 9-30 since world 5) and **something eats for a living for the first time** (`from_creatures_pct` 18-33, 5-31 individuals, zero in every world since 4). Checked and it is NOT infanticide. Dead below 90%: at low efficiency a child is delivered too little to feed itself. [results](RESULTS_WORLD9.md) |
 
+| **10** | **capacity bounds meat too**: a predator takes `min(uptake, frame, what is there)` and what it cannot hold is buried as carrion (`B.7`) | **The jackpot is gone and almost nothing else moved.** World 8 bounded intake by the body at ONE of the two sites energy enters a creature; predation was bounded by nothing, so a kill was worth the whole victim. Energy from creatures 31% to **21%**, largest store 23,446 to **12,555**. **The landscape got SMOOTHER, not lumpier** (`ground_spread` 86 to 60), against the prediction: the jackpot was what made it rough, so life was differentiating the ground by HOARDING rather than by dying. Predation survived being priced, which is the strongest thing here. **Lineages still collapse to 1 of 40** — two ways of feeding are not two niches (`G.1`). [results](RESULTS_WORLD10.md) |
+
 ## The through-line
 
 Of seven corrections, three changed nothing measurable, **three produced a
@@ -71,6 +73,16 @@ Two rules came out of the run and now govern what gets built next:
   yourself" against "do not breed". The second is not a point on the surface, it
   is stepping off it. An axis one end of which leaves the game produces one
   strategy and a terminus, never diversity.
+- **Ask whether a law holds at EVERY site, not where it was introduced.** Twice
+  now a rule has hidden in the DIFFERENCE between two code paths rather than
+  inside either: the movement fare that could not be paid from your own body
+  (`C.6`), and world 8's capacity bound applied to grazing and not to predation
+  (`B.7`). Neither function was wrong on its own. This is the most productive
+  question in the register.
+- **A prediction can fail informatively.** World 10 predicted carrion would make
+  the landscape lumpier and it made it smoother, because the jackpot was what had
+  been making it rough. Removing a mechanism is sometimes the only way to see what
+  it was doing.
 - **A constant that looks like a symmetry is still a constant.** The dowry is
   `div 2` and nobody has ever asked why, because halving reads as a law rather
   than a choice. Written `div 7` it would have been challenged two worlds ago.
