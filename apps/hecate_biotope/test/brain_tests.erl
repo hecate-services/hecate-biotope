@@ -234,3 +234,31 @@ attention_sums_every_vector_that_reads_a_column_test() ->
 
 a_brain_with_nothing_in_it_attends_to_nothing_test() ->
     ?assertEqual([0, 0], brain:attention(#{hidden => [], outputs => #{}}, 2)).
+
+%%==============================================================================
+%% World 16: a thought is charged by how much it reads
+%%==============================================================================
+
+%% `hidden_count/1' counts NODES and `hidden_weights/1' counts WIRE. Until world
+%% 16 the cost used the first, so a node reading six inputs cost what one reading
+%% a single input cost. B.3 objected to exactly that and world 13 marked it
+%% corrected while changing only how the charge was levied.
+a_wider_thought_is_more_apparatus_test() ->
+    Narrow = #{hidden => [[1, 2]], outputs => #{}},
+    Wide = #{hidden => [[1, 2, 3, 4, 5, 6]], outputs => #{}},
+    ?assertEqual(1, brain:hidden_count(Narrow)),
+    ?assertEqual(1, brain:hidden_count(Wide)),
+    ?assert(brain:hidden_weights(Wide) > brain:hidden_weights(Narrow)),
+    ?assertEqual(6, brain:hidden_weights(Wide)).
+
+%% AND THE TWO NUMBERS MUST STAY SEPARATE, because a brain getting cheaper and a
+%% brain getting simpler look identical if you only have one of them.
+depth_and_width_are_different_measurements_test() ->
+    Deep = #{hidden => [[1], [1], [1]], outputs => #{}},
+    Wide = #{hidden => [[1, 1, 1]], outputs => #{}},
+    ?assertEqual(brain:hidden_weights(Deep), brain:hidden_weights(Wide)),
+    ?assertNotEqual(brain:hidden_count(Deep), brain:hidden_count(Wide)).
+
+a_brain_with_no_hidden_layer_is_no_apparatus_test() ->
+    ?assertEqual(0, brain:hidden_weights(#{hidden => [], outputs => #{}})).
+

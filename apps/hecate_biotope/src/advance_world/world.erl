@@ -228,10 +228,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 15,
-      line => <<"Eating another creature needs a mouth you pay for every tick "
-                "and a decision you make every tick, so for the first time here "
-                "something can be large, hungry and left alone.">>}.
+    #{number => 16,
+      line => <<"A thought is charged by how much it reads, so a brain that "
+                "combines everything it can see is no longer priced the same as "
+                "one that glances at a single number.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -643,7 +643,7 @@ needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
 %% Kept whole so `charge_one/2' can carry the fraction; `upkeep/2' below still
 %% reports the per-tick bill for anything that wants to read it.
 tissue(#{body := Body, brain := Brain, structure := S, mouth := Mouth}, Econ) ->
-    S + Mouth + (body:mass(Body) + brain:hidden_count(Brain))
+    S + Mouth + (body:mass(Body) + brain:hidden_weights(Brain))
         * maps:get(neural_cost, Econ).
 
 %% (`upkeep/2' is gone: `charge_one/2' owns the bill now, because the fraction
@@ -1316,6 +1316,12 @@ snapshot(#world{econ = Econ} = W) ->
       %% calls it one.
       still_pct => still_share(W),
       hidden_mean => mean_hidden(W),
+      %% HOW WIDE A THOUGHT IS, in inputs per hidden node, times a hundred.
+      %% Committed to in world 16's pre-registration whatever the result, because
+      %% it is the only number that separates a brain getting CHEAPER from a
+      %% brain getting SIMPLER, and no world before 16 measured the shape of
+      %% these brains at all.
+      hidden_inputs_mean => mean_fan_in(W),
       %% THE NEW AXIS. Prudence against greed, as the population settled it, and
       %% nothing anywhere calls either of those.
       uptake_mean => mean_uptake(W),
@@ -1489,6 +1495,14 @@ mean_age(Ages) -> lists:sum(Ages) div length(Ages).
 
 sensor_counts(#world{creatures = Cs}) ->
     [length(B) || #{body := B} <- maps:values(Cs)].
+
+mean_fan_in(#world{creatures = Cs}) ->
+    Nodes = lists:sum([brain:hidden_count(B) || #{brain := B} <- maps:values(Cs)]),
+    Wires = lists:sum([brain:hidden_weights(B) || #{brain := B} <- maps:values(Cs)]),
+    fan_in(Wires, Nodes).
+
+fan_in(_Wires, 0) -> 0;
+fan_in(Wires, Nodes) -> Wires * 100 div Nodes.
 
 hidden_counts(#world{creatures = Cs}) ->
     [brain:hidden_count(Br) || #{brain := Br} <- maps:values(Cs)].

@@ -53,7 +53,7 @@
 -module(brain).
 
 -export([founder/3, inherit/4, evaluate/3, attention/2]).
--export([purposes/0, hidden_count/1, has/2, width/2]).
+-export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
 
 -type purpose() :: move | breed | grow.
 -type output() :: #{inputs := [integer()], hidden := [integer()]}.
@@ -88,6 +88,20 @@ purposes() -> ?PURPOSES.
 
 -spec hidden_count(brain()) -> non_neg_integer().
 hidden_count(#{hidden := H}) -> length(H).
+
+%% @doc HOW MUCH WIRE THE HIDDEN LAYER IS, which is what world 16 charges for.
+%%
+%% `hidden_count/1' counts NODES and is what the census reports, because "how
+%% many hidden nodes" is a fact about shape. This counts WEIGHTS, because a node
+%% wired to six inputs is six times the apparatus of one wired to a single input
+%% and until world 16 they cost the same. `B.3' objected to that and world 13
+%% marked it corrected while changing only how the charge was levied.
+%%
+%% The two must stay separate: charging by weights and reporting by nodes is the
+%% whole point, since a brain getting cheaper and a brain getting simpler look
+%% identical if you only have one of the numbers.
+-spec hidden_weights(brain()) -> non_neg_integer().
+hidden_weights(#{hidden := H}) -> lists:sum([length(V) || V <- H]).
 
 -spec has(purpose(), brain()) -> boolean().
 has(Purpose, #{outputs := Os}) -> maps:is_key(Purpose, Os).

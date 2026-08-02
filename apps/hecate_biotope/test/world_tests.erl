@@ -1020,6 +1020,56 @@ crowded() ->
                        max_age => 100000, uptake_mutation => 0,
                        founder_uptake => 30, start_energy => 400}, predatory())).
 
+%% World 16: A WIDER BRAIN COSTS MORE TO CARRY, which is the whole change, and
+%% the coupling it creates is the part worth asserting: gaining a SENSOR raises
+%% the price of every hidden node, because every hidden vector gains a column.
+%% Perception and computation trade against each other here for the first time.
+%% MEASURED AS WHAT THE NODE ADDS, at two body sizes, because a wider brain
+%% needs more sensors and sensors cost too. Comparing a wide brain against a
+%% narrow one directly would compare bodies. What has to grow is the DIFFERENCE
+%% a hidden node makes, and under a flat charge that difference is the same at
+%% every body size, which is exactly what B.3 objected to.
+a_wider_brain_costs_more_to_carry_test() ->
+    Spent = fun(Sensors, Nodes) ->
+                    Body = [{ground, 0} || _ <- lists:seq(1, Sensors)],
+                    Row = lists:duplicate(Sensors + 1, 1),
+                    W = quiet(maps:merge(#{population => 1, radius => 0,
+                                           recolonise_pct => 0,
+                                           ground_growth_pct => 0,
+                                           ground_ceiling => 400, metabolism => 0,
+                                           founder_uptake => 0,
+                                           upkeep_divisor => 33, max_age => 1000000,
+                                           founder_body => Body,
+                                           founder_brain =>
+                                               #{hidden =>
+                                                     lists:duplicate(Nodes, Row),
+                                                 outputs => #{}},
+                                           start_energy => 4000}, #{})),
+                    #{dissipated := Gone} = world:snapshot(world:tick(W, 4)),
+                    Gone
+            end,
+    %% ENOUGH ENERGY TO SURVIVE THE WINDOW, or the measurement saturates: total
+    %% dissipation is capped by what the creature holds, so a fixture that kills
+    %% it burns everything in every arm and reads identical.
+    Narrow = Spent(1, 1) - Spent(1, 0),
+    Wide = Spent(3, 1) - Spent(3, 0),
+    ?assertEqual(80, Narrow),
+    ?assertEqual(160, Wide).
+
+%% AND THE CENSUS KEEPS THEM APART. `hidden_mean' counts nodes and
+%% `hidden_inputs_mean' says how wide they are, because a brain getting cheaper
+%% and a brain getting simpler are indistinguishable from either one alone.
+the_census_reports_depth_and_width_separately_test() ->
+    W = quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
+                           ground_growth_pct => 0, metabolism => 0,
+                           max_age => 100000, founder_body => [],
+                           founder_brain =>
+                               #{hidden => [[1, 1, 1]], outputs => #{}},
+                           start_energy => 400}, #{})),
+    #{hidden_mean := Nodes, hidden_inputs_mean := Width} = world:snapshot(W),
+    ?assertEqual(100, Nodes),
+    ?assertEqual(300, Width).
+
 %%==============================================================================
 %% World 15: a mouth is tissue, and eating is a decision
 %%==============================================================================

@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 11).
+-define(FACT_VERSION, 12).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -273,6 +273,7 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       %% because whether one population holds two ways of living is a statement
       %% about the SHAPE of the distribution. And not called `carnivores_pct',
       %% because that named a type in a world that has none.
+      hidden_inputs_mean => maps:get(hidden_inputs_mean, Snapshot),
       mouth_mean => maps:get(mouth_mean, Snapshot),
       mouth_hist => maps:get(mouth_hist, Snapshot),
       uptake_min => UptakeMin,
