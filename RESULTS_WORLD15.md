@@ -1,9 +1,13 @@
 # Results: world 15
 
-**All four pre-registered findings failed, and the reason is one thing: a mouth
-mutation is smaller than the resolution of the bill it changes.** The world was
-built correctly, the experiment ran, and it tested nothing, because the trait it
-depends on cannot be selected at all.
+**All four pre-registered findings failed. I then explained why, was wrong, and
+the correction is further down rather than quietly edited out of the top.**
+
+The likeliest explanation is the dullest one and it needed no arithmetic:
+**almost nothing is eaten in these worlds at all**, whatever size mouth a
+creature carries, because two creatures sharing a cell is a rare event at three
+to seven percent occupancy. An organ cannot be selected for by an opportunity
+that does not arrive. That is a claim and it is not tested.
 
 Pre-registered in [PREREGISTRATION_WORLD15.md](PREREGISTRATION_WORLD15.md).
 48 seeds, 20,000 ticks, 100% efficiency, default price. **8 survived.**
@@ -41,40 +45,13 @@ cloud of drift around one mode, not two clusters.
 Extinctions did not rise (40 of 48 against world 14's 42 of 48) and `lineages` is
 1 in all eight, both as pre-registered.
 
-## Why all four failed, and it is one reason
-
-**Seventy-five percent of mouth mutations cost exactly nothing.**
-
-The mutation step is 8. The upkeep divisor is 33. Upkeep is
-`(structure + mouth + apparatus) div 33`, so a step of 8 changes what is paid
-only when it crosses a multiple of 33.
-
-| mouth, on a body of 400 | bill per tick |
-|---|---|
-| 0 | 12 |
-| 9 | **12** |
-| 27 | **12** |
-| 119 | 15 |
-| 329 | 22 |
-
-A creature carrying a mouth of 27 pays **exactly what one carrying none pays**.
-Seeds 46 and 39 did not shed the organ; at that size there is nothing to shed.
-And seed 23 carries a mouth of 329, pays nearly double metabolism for it, takes
-**0%** of its food from creatures, and persists — because although the gradient
-is real at that end, three steps in four along it are invisible.
+## The trait drifted, and that much is solid
 
 **The observed spread is what drift alone predicts.** A random walk of ±8 over
 roughly 500 generations has a standard deviation near 179; the modes across
 worlds run 9 to 329 about a founding draw averaging 200. Nothing here needs
-selection to explain it.
-
-## So the pre-registration is untested, not refuted
-
-This is worth being exact about. World 15 asked whether a costly organ produces a
-niche. What it measured is whether an organ **whose cost the world cannot
-resolve** produces a niche, and the answer to that is no and was never in doubt.
-The four findings are recorded as failed because that is what the criteria say,
-and none of them is evidence about trophic structure.
+selection to explain it. What is **not** solid is any particular account of why
+selection failed to act, and the next section is one I got wrong.
 
 ## The A.6 explanation was wrong, and re-running with the fix proves it
 
