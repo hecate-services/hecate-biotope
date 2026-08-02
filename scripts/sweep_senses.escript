@@ -2,7 +2,14 @@
 %%! -pa _build/default/lib/hecate_biotope/ebin
 %% @doc World 17's experiment: how finely a sense should read.
 %%
-%% Usage:  ./scripts/sweep_senses.escript [ticks]
+%% Usage:  ./scripts/sweep_senses.escript [ticks [seeds]]
+%%
+%% THE SEED COUNT IS A PARAMETER BECAUSE 24 WAS NOT ENOUGH. Re-run against fixed
+%% physics on 2026-08-02, scales 1, 2 and 4 all killed 21 of 24, so the criterion
+%% this world chooses its constant by, fewest extinctions, had a three-way tie
+%% and could not choose at all. A criterion that cannot separate the candidates
+%% is not a criterion, and raising n is the only honest way to find out whether
+%% the tie is real or is the sample.
 %%
 %% Criteria in PREREGISTRATION_WORLD17.md, amended to sweep this constant before
 %% any result was claimed from it. `sense_scale` is how many steps of the reading
@@ -15,16 +22,17 @@
 %% why picking the tidy expression was the mistake.
 -mode(compile).
 
--define(SEEDS, 24).
 -define(STEPS, [1, 2, 4, 8, 16, 32, 63]).
 
 main(Args) ->
     Ticks = ticks(Args),
-    io:format("~nticks=~p seeds=~p. 1 is worlds 2-16, 63 is world 17 as first built.~n~n",
-              [Ticks, ?SEEDS]),
+    Seeds = seeds(Args),
+    io:format("~nticks=~p seeds=~p. every scale takes the MEAN; no value here is "
+              "worlds 2-16,~nwhich SUMMED and coincides only at reach 0.~n~n",
+              [Ticks, Seeds]),
     io:format("~s~n", [row(["scale", "dead", "alive", "SENSORS", "reach",
                             "nodes", "pop", "spread", "lines", "depth"])]),
-    lists:foreach(fun(S) -> report(S, Ticks) end, ?STEPS),
+    lists:foreach(fun(S) -> report(S, Ticks, Seeds) end, ?STEPS),
     io:format("~nSENSORS is per creature times a hundred and reach is total "
               "sensor reach carried~nby the population, which is what "
               "differentiates only if reach buys information.~n").
@@ -32,10 +40,14 @@ main(Args) ->
 ticks([]) -> 20000;
 ticks([A | _]) -> list_to_integer(A).
 
-report(Scale, Ticks) ->
+seeds([]) -> 24;
+seeds([_Ticks]) -> 24;
+seeds([_Ticks, S | _]) -> list_to_integer(S).
+
+report(Scale, Ticks, Seeds) ->
     Rows = [R || R <- in_parallel(fun(S) -> run(S, Scale, Ticks) end,
-                                  lists:seq(1, ?SEEDS)), R =/= dead],
-    io:format("~s~n", [row([Scale, ?SEEDS - length(Rows), length(Rows)
+                                  lists:seq(1, Seeds)), R =/= dead],
+    io:format("~s~n", [row([Scale, Seeds - length(Rows), length(Rows)
                             | summarise(Rows)])]).
 
 summarise([]) -> lists:duplicate(7, "-");

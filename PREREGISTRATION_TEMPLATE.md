@@ -59,6 +59,41 @@ Numbered, specific, and each capable of failing on its own. State the instrument
 for each: **a summary of a distribution cannot answer a question about its
 shape**, which this project has now learned three times in one investigation.
 
+**AND THE INSTRUMENT MUST EXIST BEFORE THE RUN, added after world 17.** Finding 3
+there was "reach differentiates", nothing in the repo reports the distribution of
+reach, and the finding could therefore neither succeed nor fail. It was scored
+UNTESTED after 24 seeds had been run to 20,000 ticks. **A pre-registered finding
+that names no instrument is a finding that cannot fail**, which is the same
+defect as a criterion chosen afterwards, wearing the opposite disguise. Name the
+script and the field, and if it does not exist yet, it is part of the world.
+
+---
+
+## THE STALE INSTRUMENT GATE
+
+**Any world that changes a rule must list every script that reads that rule and
+say when each was last checked against it.**
+
+Added after world 17, where `what_can_they_see.escript` was written in the commit
+BEFORE the rules it justified, was CORRECT when written, and was made wrong by
+the change it existed to measure. It kept reporting sums under a world that
+computes means, and it voided the pre-registration's own first-observation table.
+
+| script | which rule it reads | last verified against it |
+|---|---|---|
+| | | |
+
+**The check is what a script was COMPILED AGAINST, not what it prints.** The
+reach-0 column was byte-identical before and after the repair, because one cell
+divided by one cell is the same arithmetic, and reach 0 is the column a reviewer
+reads first. **An instrument that agrees with you where you look is the hardest
+kind to catch.** See `I.6`.
+
+**And believe a test result only from `rm -rf _build`, whole.** Removing
+`_build/test` alone leaves the default profile's beams reachable, and on
+2026-08-02 the same unchanged source gave three failures, then one, then none.
+See `I.8`.
+
 ## What will NOT happen, stated in advance
 
 Including the most likely outcome, which is usually nothing, and **the strongest
@@ -77,3 +112,13 @@ available negative** written out so it cannot be reinterpreted afterwards.
    strongly structured.
 5. New tests go red against the previous world's physics before they are
    believed.
+6. **No test names a swept constant by inheriting it.** Every test of a rule that
+   involves a swept constant sets that constant explicitly. Three tests of the
+   reading rule derived their expected values from `world:defaults()`, so the
+   sweep's answer turned them red for the one reason that is not a fault, and a
+   test that follows a swept constant asserts nothing about the rule anyway.
+7. **A node config may name what a node IS and never what the physics ARE.** A
+   constant that lives in a deployment config is a version handshake nobody
+   performs: the config and the image ship from different repos on different
+   cadences, and an unknown economy key is a startup failure by design. It cost
+   two hours of a dead island on 2026-08-02. See `I.9`.

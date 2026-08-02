@@ -100,6 +100,20 @@ it something to see, not a cheaper or clearer instrument.
 
 ## FIRST OBSERVATION, AND A DESIGN MISS RECORDED BEFORE THE SWEEP
 
+> ⚠ **THE WORLD 17 COLUMN BELOW IS VOID.** It was measured with
+> `scripts/what_can_they_see.escript`, which was written in the commit BEFORE
+> world 17's rules and still called `body:reading/3`. That form passes one cell,
+> so a reach-1 sensor had seven cells of energy divided by one and the numbers
+> are SUMS reported under a world that computes means. The world 16 column
+> stands: world 16 genuinely summed, so one cell was the right divisor then.
+>
+> Repaired and re-measured, the reach-1 zero share is **71 to 100%** where this
+> table says 0%, and the reach-1 maximum is **0 to 24** where it says 63. The
+> reach-0 row is unaffected, which is why it went unnoticed.
+>
+> **Left in place rather than corrected, because a frozen pre-registration is
+> superseded and not edited.** See `I.6` and [RESULTS_WORLD17.md](RESULTS_WORLD17.md).
+
 Re-measured immediately after building it, six seeds at 2,000 ticks:
 
 | | world 16 | **world 17** |

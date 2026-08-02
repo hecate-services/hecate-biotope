@@ -50,18 +50,29 @@ only_self_is_not_measured_over_cells_test() ->
 %% freely exchanged: a creature carrying four hundred is worth exactly as much as
 %% a full cell holding four hundred, and a brain should not need different weights
 %% to say so. Scent is not energy and has its own.
-%% AND SINCE WORLD 17 THAT UNIT IS THE CEILING SPREAD OVER THE READING RANGE.
+%% AND SINCE WORLD 17 THAT UNIT IS THE CEILING SPREAD OVER `sense_scale' STEPS.
 %% Dividing by what a FULL cell holds put the whole bottom of the range at zero:
 %% measured, 88 to 100% of occupied cells for a reach-0 ground sensor.
+%%
+%% ⚠ THE SCALE IS NAMED HERE AND NOT INHERITED. This test used to derive the unit
+%% as `ground_ceiling div reading_ceiling', which was the value world 17 shipped
+%% with, and it went red the moment the sweep replaced that value with a measured
+%% one. A test that follows a SWEPT constant asserts nothing about the rule: it
+%% restates whichever number the defaults happen to carry, and it fails for the
+%% one reason that is not a fault. `sense_scale' is the most swept thing in this
+%% world, so every test of the reading rule fixes it explicitly.
 energy_shares_one_unit_and_scent_has_its_own_test() ->
-    E = with(#{ground_ceiling => 400, scent_per_tick => 10}),
-    Fine = 400 div body:reading_ceiling(),
+    E = with(#{ground_ceiling => 400, sense_scale => 8, scent_per_tick => 10}),
+    Fine = 400 div 8,
     ?assertEqual(Fine, body:unit(ground, E)),
     ?assertEqual(Fine, body:unit(creatures, E)),
     ?assertEqual(Fine, body:unit(self, E)),
     ?assertEqual(10, body:unit(scent, E)),
     %% Scent already resolved properly and is left alone.
-    ?assertNotEqual(body:unit(ground, E), body:unit(scent, E)).
+    ?assertNotEqual(body:unit(ground, E), body:unit(scent, E)),
+    %% Floored at one, so a scale finer than the ceiling cannot divide by zero.
+    ?assertEqual(1, body:unit(ground, with(#{ground_ceiling => 400,
+                                             sense_scale => 4000}))).
 
 %% WORLD 1 GOT THIS BADLY WRONG and it is very likely why scent sensors went
 %% extinct in every seed. One divisor of twenty for quantities spanning thirty to
@@ -69,11 +80,18 @@ energy_shares_one_unit_and_scent_has_its_own_test() ->
 %% creatures saturated the ceiling. Not because trails are useless. Because the
 %% instrument could barely register them.
 a_reading_is_in_its_own_unit_test() ->
-    E = with(#{ground_ceiling => 400, scent_per_tick => 10}),
-    %% 1200 over three cells is a full cell each, which is the top of the range.
-    ?assertEqual(body:reading_ceiling(), body:reading(ground, 1200, 3, E)),
-    ?assertEqual(body:reading_ceiling(), body:reading(creatures, 1200, 3, E)),
-    ?assertEqual(3, body:reading(scent, 30, E)).
+    %% A FULL CELL READS `sense_scale' STEPS, which is what the constant means.
+    %% It reaches the top of the range only when the scale IS the range, and that
+    %% coincidence is the tidy expression the sweep retired: at the default of 2
+    %% a full cell reads 2 of a possible 63.
+    Wide = with(#{ground_ceiling => 400, sense_scale => 63, scent_per_tick => 10}),
+    %% 1200 over three cells is a full cell each.
+    ?assertEqual(body:reading_ceiling(), body:reading(ground, 1200, 3, Wide)),
+    ?assertEqual(body:reading_ceiling(), body:reading(creatures, 1200, 3, Wide)),
+    Coarse = with(#{ground_ceiling => 400, sense_scale => 2}),
+    ?assertEqual(2, body:reading(ground, 1200, 3, Coarse)),
+    %% Scent has its own unit and no scale applies to it.
+    ?assertEqual(3, body:reading(scent, 30, Wide)).
 
 %% WORLD 17: THE SAME GROUND READS THE SAME AT EVERY REACH, which is the whole
 %% change. It used to be a SUM, so a reach-1 sensor over seven cells read seven
@@ -87,14 +105,32 @@ the_same_richness_reads_the_same_at_any_reach_test() ->
     ?assertEqual(body:reading(ground, Cell, 1, E),
                  body:reading(ground, Cell * 19, 19, E)).
 
-%% AND THE BOTTOM OF THE RANGE IS NOW READABLE, which is where a hungry creature
-%% and a poor cell both live. Under world 16 every one of these read zero.
-a_fraction_of_a_cell_is_no_longer_invisible_test() ->
-    E = with(#{ground_ceiling => 400}),
-    Readings = [body:reading(self, Store, 1, E) || Store <- [12, 50, 100, 200]],
+%% AND THE BOTTOM OF THE RANGE IS READABLE WHEN THE SCALE IS FINE ENOUGH, which
+%% is where a hungry creature and a poor cell both live. Under world 16 every one
+%% of these read zero and there was no setting at which they did not.
+%%
+%% ⚠ AND IT IS NOT READABLE AT THE DEFAULT. That is the world 17 RESULT and not a
+%% broken test. `sense_scale' is swept on viability, the value that keeps worlds
+%% alive is 2, and at 2 a full cell spans two steps: 68 to 90% of reach-0 ground
+%% readings are still zero, against 88 to 100% under world 16. Resolution and
+%% survival pull against each other and no value buys both. RESULTS_WORLD17.md.
+%%
+%% BOTH ARE ASSERTED ON PURPOSE. A test that quietly picked the fine scale would
+%% read as though this world delivered a legible instrument, which it does not at
+%% any price a world survives, and that is the single most important thing world
+%% 17 has to say.
+a_fraction_of_a_cell_is_visible_only_when_the_scale_is_fine_test() ->
+    Fine = with(#{ground_ceiling => 400, sense_scale => 63}),
+    Readings = [body:reading(self, Store, 1, Fine) || Store <- [12, 50, 100, 200]],
     ?assertEqual([], [R || R <- Readings, R =:= 0]),
     ?assertEqual(lists:sort(Readings), Readings),
-    ?assertEqual(length(Readings), length(lists:usort(Readings))).
+    ?assertEqual(length(Readings), length(lists:usort(Readings))),
+    %% The same four stores at the scale the fleet actually runs. Three of the
+    %% four are invisible, and the two smallest cannot be told apart.
+    Live = with(#{ground_ceiling => 400, sense_scale => 2}),
+    ?assertEqual([0, 0, 0, 1],
+                 [body:reading(self, Store, 1, Live)
+                  || Store <- [12, 50, 100, 200]]).
 
 %% Capped generously, because in natural units a wide sensor over full ground
 %% legitimately reaches sixty-odd, and clipping that would hide exactly the

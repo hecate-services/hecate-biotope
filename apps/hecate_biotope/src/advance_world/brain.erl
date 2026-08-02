@@ -313,10 +313,25 @@ from_outputs([#{inputs := Ins} | _]) -> length(Ins) - 1.
 %% DRIFT through strategy space so intermediate forms exist and selection has a
 %% gradient to climb; large and rare makes children unrelated to their parents,
 %% which is resampling. Symmetric so nothing pushes weights anywhere on its own.
+%% ⚠ SORTED, AND THE SORT IS THE DIFFERENCE BETWEEN ONE SEED AND ONE WORLD.
+%% `nudge_outputs' draws a random number per weight and threads the generator
+%% through the outputs IN THE ORDER IT IS GIVEN THEM. `maps:to_list' on a map
+%% keyed by purpose ATOMS does not promise an order, and the order it happens to
+%% give depends on VM-global state rather than on anything in this world: running
+%% `brain_tests' first was enough to change a world's energy at TICK ONE, from
+%% 14,588 to 14,590, on the same seed with the same beams and the same economy.
+%%
+%% So a world was a pure function of its seed AND of what the VM had loaded,
+%% which is not a pure function of its seed. It held for all seventeen worlds.
+%% `same_seed_same_world.escript' reported "repeatable: yes" throughout because
+%% it compares two runs INSIDE ONE VM, where the atom table is already fixed.
+%%
+%% Sorting makes the order a property of the purposes themselves. Register `G.6'.
 nudge_all(#{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
     {Hidden, Rng1} = lists:mapfoldl(fun(Row, R) -> nudge_row(Row, Econ, R) end,
                                     Rng0, H),
-    {Outputs, Rng2} = nudge_outputs(maps:to_list(Os), Econ, Rng1, #{}),
+    {Outputs, Rng2} = nudge_outputs(lists:sort(maps:to_list(Os)), Econ, Rng1,
+                                    #{}),
     {Brain#{hidden => Hidden, outputs => Outputs}, Rng2}.
 
 nudge_outputs([], _Econ, Rng, Acc) -> {Acc, Rng};

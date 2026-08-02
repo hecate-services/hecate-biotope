@@ -283,16 +283,44 @@ defaults() ->
       %% recorded there. `recolonise_pct' is derived by nothing and swept.
       %% HOW MANY STEPS OF THE READING RANGE A FULL CELL SPANS, and the one
       %% constant world 17 adds. At 1 a full cell reads 1 and everything below it
-      %% reads nothing, which is worlds 2 to 16 and measured 88 to 100% of cells
-      %% reading zero at reach 0. At 63 a full cell fills the range and the
-      %% measurement immediately after building it showed every maximum pinned
-      %% there: blind at the bottom before, blind at the top now.
+      %% reads nothing; at 63 a full cell fills the range and every maximum pins
+      %% at the ceiling. Blind at the bottom, or blind at the top.
       %%
       %% SWEPT, because nothing derives it and picking the tidy expression is
-      %% what put it at 63 in the first place. The sweep spans both ends and the
-      %% old behaviour is the value 1, so worlds 2 to 16 sit inside the range
-      %% rather than outside the comparison.
-      sense_scale       => 63,
+      %% what put it at 63. `ground_ceiling div reading_ceiling' is one point on
+      %% a range and there was never an argument for it beyond neatness.
+      %% scripts/sweep_senses.escript, 96 seeds, 20,000 ticks:
+      %%
+      %%   scale    1     2     4     8    16    32    63
+      %%   dead    80    87    89    91    94    94    93
+      %%
+      %% ONE, ON FEWEST EXTINCTIONS AND NOTHING ELSE. That is the single
+      %% exception the standing rule allows, and no part of the choice refers to
+      %% sensors, reach, brains or population. **DEATHS RISE MONOTONICALLY WITH
+      %% RESOLUTION**, so the criterion this world sets its constants by chooses
+      %% the BLINDEST instrument available, and that is the world 17 result
+      %% rather than a disappointing side effect of it. See RESULTS_WORLD17.md
+      %% and `F.4'.
+      %%
+      %% ⚠ TWO EARLIER ANSWERS WERE WRONG AND BOTH ARE INSTRUCTIVE. The first
+      %% sweep read 63, from tidiness. The second read 2, from 24 seeds against
+      %% physics that was not reproducible (`G.6'); at 24 seeds the top three
+      %% scales tie at 21 deaths and cannot choose at all. **A criterion that
+      %% cannot separate its candidates is not a criterion**, and the fix was
+      %% four times the seeds rather than a tie-break invented afterwards.
+      %%
+      %% ⚠ AND 1 IS NOT WORLDS 2 TO 16. Those worlds SUMMED over the cells in
+      %% reach; every scale here takes the MEAN. The two coincide only at reach
+      %% 0, where one cell is one cell. No setting of this constant recovers the
+      %% old rule for a wide sensor.
+      %%
+      %% IT LIVES HERE AND NOT IN A NODE CONFIG. It spent world 17 as
+      %% `HECATE_BIOTOPE_ECON=sense_scale=2' on three beams, which is how beam01
+      %% spent two hours in a boot-crash loop: the node pulled a config naming
+      %% this key before it pulled the image that had it, and an unknown economy
+      %% key is a startup failure by design. A physics constant in a deployment
+      %% config is a version handshake nobody performs. See `I.9'.
+      sense_scale       => 1,
       recolonise_pct    => 3,
       ground_growth_pct => 6,
       ground_ceiling    => 400,
@@ -868,8 +896,21 @@ strength({S, _Tag}) -> S.
 %% false: the split survived as a structural fact about what exists.
 consume(#world{creatures = Cs} = W) ->
     Herd = herd(Cs),
-    lists:foldl(fun(Ids, Acc) -> resolve(Ids, Herd, Acc) end, W,
-                maps:values(occupancy(Cs))).
+    lists:foldl(fun({_At, Ids}, Acc) -> resolve(lists:sort(Ids), Herd, Acc) end,
+                W, consume_order(Cs)).
+
+%% ⚠ SORTED TWICE, FOR THE SAME REASON `brain:nudge_all/3' IS. `resolve/3'
+%% threads the world, and with it the generator, through the cells one at a time,
+%% so the ORDER OF THE CELLS is part of the physics. It came from
+%% `maps:values', which promises no order, and the occupants of a cell came from
+%% prepending in `maps:fold' order, which decides WHO EATS FIRST where two
+%% creatures share a cell. Neither is a property of this world.
+%%
+%% Every other phase of the tick already sorts: `charge', `move_all', `breed' and
+%% `build' all fold over `lists:sort(maps:keys(Cs))'. This phase and the brain
+%% were the two that did not, and consistency with the four that did is the whole
+%% argument for the order chosen. Register `G.6'.
+consume_order(Cs) -> lists:sort(maps:to_list(occupancy(Cs))).
 
 occupancy(Cs) -> maps:fold(fun share_cell/3, #{}, Cs).
 
