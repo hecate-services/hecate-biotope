@@ -29,6 +29,13 @@ See `H.10` and [RESULTS_WORLD15.md](RESULTS_WORLD15.md).
 of ten, which is what turned a fifty-percent selection differential on paper into
 a four-percent one in fact.
 
+**AND A SECOND QUESTION THE GATE MUST ASK, added after world 16.** Can the
+genome REPRESENT the variation this price is meant to select among? World 16
+charged a hidden node by its wiring in order to select for narrower brains, and a
+hidden node always reads every input, so narrowness is not a trait a creature can
+have. The price was selectable and the shape was not, and no amount of data would
+have said so. See `H.11`.
+
 **A trait that arrives WHOLE clears this easily and one that drifts usually does
 not.** A sensor is gained or lost entire at 10 a tick, which is 10% of earnings;
 a mouth drifts in steps worth 0.24%. That difference, and not the ecology, is why
