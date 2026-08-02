@@ -1090,6 +1090,15 @@ crowded() ->
 %% narrow one directly would compare bodies. What has to grow is the DIFFERENCE
 %% a hidden node makes, and under a flat charge that difference is the same at
 %% every body size, which is exactly what B.3 objected to.
+%%
+%% ⚠ `neural_cost' IS NAMED HERE AND NOT INHERITED, which is commitment 6 of
+%% world 19's pre-registration and was written because world 17 had three tests
+%% of the reading rule go red when its swept constant moved. This one inherited
+%% it and went red the moment `B.10` was acted on and the default fell from 330
+%% to 11. **A test that follows a swept constant asserts nothing about the rule**:
+%% it restates whichever number the defaults happen to carry, and it fails for
+%% the one reason that is not a fault. 330 is kept as the value the arithmetic
+%% below was derived at, so the numbers stay readable against world 13.
 a_wider_brain_costs_more_to_carry_test() ->
     Spent = fun(Sensors, Nodes) ->
                     Body = [{ground, 0} || _ <- lists:seq(1, Sensors)],
@@ -1099,7 +1108,9 @@ a_wider_brain_costs_more_to_carry_test() ->
                                            ground_growth_pct => 0,
                                            ground_ceiling => 400, metabolism => 0,
                                            founder_uptake => 0,
-                                           upkeep_divisor => 33, max_age => 1000000,
+                                           upkeep_divisor => 33,
+                                           neural_cost => 330,
+                                           max_age => 1000000,
                                            founder_body => Body,
                                            founder_brain =>
                                                #{hidden =>

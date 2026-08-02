@@ -41,12 +41,13 @@
 
 main(Args) ->
     Seeds = seeds(Args),
+    Ticks = ticks(Args),
     io:format("~nticks=~p seeds=~p at 100% efficiency. 330 is the control and is "
-              "under review, `B.10`.~n~n", [?TICKS, Seeds]),
+              "under review, `B.10`.~n~n", [Ticks, Seeds]),
     io:format("~s~n", [row(["neural", "dead", "pop", "sens", "brain", "WIDTH",
                             "reach", "life", "meat%", "frame", "lines",
                             "depth"])]),
-    lists:foreach(fun(N) -> report(N, Seeds) end, ?STEPS),
+    lists:foreach(fun(N) -> report(N, Seeds, Ticks) end, ?STEPS),
     io:format("~nsens and brain are per creature times a hundred. **WIDTH is live "
               "weights per~nhidden node, times a hundred, over the creatures that "
               "HAVE one**: the column~nworld 19 exists to move, and `H.11` says "
@@ -56,8 +57,16 @@ main(Args) ->
 seeds([]) -> ?DEFAULT_SEEDS;
 seeds([S | _]) -> list_to_integer(S).
 
-report(Neural, Seeds) ->
-    Rows = in_parallel(fun(Seed) -> run(Seed, Neural) end, lists:seq(1, Seeds)),
+%% THE HORIZON IS A PARAMETER BECAUSE 2,000 WAS WORLD 13's AND THE SWEEPS THIS IS
+%% READ AGAINST USE 20,000. World 14 measured five of every seven seeds that
+%% clear 700 dying shortly after it, so a short horizon reports a death rate that
+%% is not the death rate. The ORDERING survives a short run; the counts do not.
+ticks([_Seeds, T | _]) -> list_to_integer(T);
+ticks(_Args) -> ?TICKS.
+
+report(Neural, Seeds, Ticks) ->
+    Rows = in_parallel(fun(Seed) -> run(Seed, Neural, Ticks) end,
+                       lists:seq(1, Seeds)),
     Dead = length([R || #{population := 0} <- Rows, R <- [1]]),
     io:format("~s~n", [row([Neural, Dead | summarise([R || #{population := P} = R <- Rows, P > 0])])]).
 
@@ -68,16 +77,25 @@ summarise(Rows) ->
      Med(reach), Med(lifespan), Med(from_creatures_pct), Med(structure_max),
      Med(lineages), Med(depth)].
 
-run(Seed, Neural) ->
-    S = world:snapshot(world:tick(world:new(#{seed => Seed, population => 40,
-                                              transfer_efficiency => 100,
-                                              neural_cost => Neural}),
-                                  ?TICKS)),
-    S#{lifespan => lifespan(S), reach => reach(S)}.
+run(Seed, Neural, Ticks) ->
+    S = world:snapshot(advance(world:new(#{seed => Seed, population => 40,
+                                           transfer_efficiency => 100,
+                                           neural_cost => Neural}), Ticks)),
+    S#{lifespan => lifespan(S, Ticks), reach => reach(S)}.
 
-lifespan(#{population := 0}) -> 0;
-lifespan(#{population := Pop, born := Born}) ->
-    scaled(Pop * ?TICKS * 100, Born + 40 - Pop).
+%% In chunks, so a world that ends at tick 600 is not ticked another 19,400 times
+%% for nothing. At 20,000 ticks and 48 seeds that is most of the run.
+advance(W, 0) -> W;
+advance(W, Left) ->
+    Step = min(1000, Left),
+    going(world:population(W) > 0, world:tick(W, Step), Left - Step).
+
+going(false, W, _Left) -> W;
+going(true, W, Left) -> advance(W, Left).
+
+lifespan(#{population := 0}, _Ticks) -> 0;
+lifespan(#{population := Pop, born := Born}, Ticks) ->
+    scaled(Pop * Ticks * 100, Born + 40 - Pop).
 
 scaled(_Num, 0) -> 0;
 scaled(Num, Deaths) -> Num div Deaths.

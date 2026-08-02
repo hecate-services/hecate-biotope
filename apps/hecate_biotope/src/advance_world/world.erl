@@ -382,7 +382,32 @@ defaults() ->
       %% is. 330 IS THE CONTROL: at an `upkeep_divisor' of 33 it reproduces the
       %% flat rent of 10 a tick that worlds 2 to 12 charged, so those worlds are a
       %% point on this sweep rather than a different game.
-      neural_cost       => 330,
+      %% ==========================================================================
+      %% ELEVEN, AND THE 330 IT REPLACES WAS NEVER CHOSEN
+      %% ==========================================================================
+      %%
+      %% Its own comment said why it was 330: "at the divisor of 33 it reproduces
+      %% the old flat rent of 10 a tick exactly". That flat rent is what world 13
+      %% DELETED as a defect, and `B.2' and `B.3' both objected to it. **The
+      %% replacement was calibrated to reproduce the thing it replaced**, which is
+      %% continuity with a deleted rule rather than a criterion, and it stood for
+      %% six worlds.
+      %%
+      %% Swept under world 19's live-wiring rule, 48 seeds, 20,000 ticks:
+      %%
+      %%   neural   330  220  165  110   66   33   11    3    1
+      %%   dead      41   39   33   33   33   29   24   29   28
+      %%
+      %% ELEVEN, ON FEWEST EXTINCTIONS AND NOTHING ELSE. The control killed 85%
+      %% of the seeds it was given and this kills 50%. No part of the choice
+      %% refers to sensors, nodes, width, population or depth, and
+      %% RESULTS_WORLD19.md publishes every value so the criterion can be checked
+      %% rather than trusted.
+      %%
+      %% ⚠ A THIRTY-FOLD REDUCTION, and the largest change to this world's
+      %% economy since world 13 made an organ tissue. Every result about brains
+      %% not appearing, from world 13 onward, was measured at 330.
+      neural_cost       => 11,
       %% ==========================================================================
       %% WHAT AN ACT COSTS TO BE ABLE TO DO, and the one constant world 18 adds
       %% ==========================================================================
