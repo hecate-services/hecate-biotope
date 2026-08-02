@@ -62,6 +62,10 @@
 
 -type creature() :: #{id := id(),
                       at := hex(),
+                      %% WHAT IT CAN TAKE FROM THE LIVING, per tick. Zero is a
+                      %% creature that cannot kill and lives on the ground alone,
+                      %% which is most of what has ever lived here.
+                      mouth := non_neg_integer(),
                       energy := integer(),
                       age := non_neg_integer(),
                       born := non_neg_integer(),
@@ -219,10 +223,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 14,
-      line => <<"Bare ground comes back from what is around it, so a patch "
-                "beside living ground recovers and one in the middle of a "
-                "desert does not, and grazing everything flat now costs you.">>}.
+    #{number => 15,
+      line => <<"Eating another creature needs a mouth you pay for every tick "
+                "and a decision you make every tick, so for the first time here "
+                "something can be large, hungry and left alone.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -364,7 +368,8 @@ defaults() ->
 %% What a world takes that is not an economy constant: where it starts rather
 %% than what it costs to live there.
 -define(WORLD_OPTS, [seed, population, founder_body, founder_brain,
-                     founder_scent, founder_uptake, founder_uptake_max]).
+                     founder_scent, founder_uptake, founder_uptake_max,
+                     founder_mouth]).
 
 -spec new() -> world().
 new() -> new(#{}).
@@ -424,7 +429,13 @@ founder_traits(Econ, Opts, Rng0) ->
     Widest = maps:get(founder_uptake_max, Opts,
                       maps:get(ground_ceiling, Econ)),
     {Rate, Rng4} = given(founder_uptake, Opts, rates_up_to(Widest), Econ, Rng3),
-    {#{body => Body, brain => Brain, scent => Tag, uptake => Rate}, Rng4}.
+    %% DRAWN EXACTLY AS THE GUT IS, because both bound what enters a creature in
+    %% a tick and they differ only in which source. ZERO IS A LEGITIMATE
+    %% CREATURE and is the null everything else is measured against, the same
+    %% argument `body:founder/2' makes for a creature that measures nothing.
+    {Mouth, Rng5} = given(founder_mouth, Opts, rates_up_to(Widest), Econ, Rng4),
+    {#{body => Body, brain => Brain, scent => Tag, uptake => Rate,
+       mouth => Mouth}, Rng5}.
 
 %% Uniform across the range. The default ceiling is DERIVED rather than chosen:
 %% no more than a full cell holds can be taken from it.
@@ -590,10 +601,13 @@ needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
 %% control because at the divisor of 33 it reproduces the old flat rent of 10 a
 %% tick exactly. World 12 is therefore a point on this sweep rather than a
 %% different world.
-upkeep(#{body := Body, brain := Brain, structure := S}, Econ) ->
+upkeep(#{body := Body, brain := Brain, structure := S, mouth := Mouth}, Econ) ->
     Apparatus = (body:mass(Body) + brain:hidden_count(Brain))
         * maps:get(neural_cost, Econ),
-    maps:get(metabolism, Econ) + carrying(S + Apparatus, Econ).
+    %% THE MOUTH IS PLAIN TISSUE. Muscle and gut, not neural tissue, so it pays
+    %% the rate a frame pays and not `neural_cost'. No new constant: this is the
+    %% expression that has priced a body since world 5.
+    maps:get(metabolism, Econ) + carrying(S + Mouth + Apparatus, Econ).
 
 %% @doc What a transformation delivers, and what it costs to have delivered it.
 %%
@@ -797,7 +811,9 @@ strength({S, _Tag}) -> S.
 %% precisely why its claim to have deleted the herbivore/carnivore split was
 %% false: the split survived as a structural fact about what exists.
 consume(#world{creatures = Cs} = W) ->
-    lists:foldl(fun resolve/2, W, maps:values(occupancy(Cs))).
+    Herd = herd(Cs),
+    lists:foldl(fun(Ids, Acc) -> resolve(Ids, Herd, Acc) end, W,
+                maps:values(occupancy(Cs))).
 
 occupancy(Cs) -> maps:fold(fun share_cell/3, #{}, Cs).
 
@@ -833,15 +849,58 @@ share_cell(Id, #{at := At}, Acc) ->
 %% what is left where it stands. Strongest first, because that is the order the
 %% contest already established and an earlier grazer really does strip the cell.
 %% NO NEW CONSTANT: the bound is the expression that was already at both sites.
-resolve(Ids, #world{creatures = Cs} = W) ->
+%% ==========================================================================
+%% WORLD 15: NOTHING IS EATEN UNLESS SOMETHING CHOOSES TO EAT IT
+%% ==========================================================================
+%%
+%% Until now consumption was unconditional. The largest creature in a cell took
+%% every smaller one, always, with no organ and no decision, which `D.2' has
+%% called a free good since world 4 and `H.1' calls the missing half of it: `eat'
+%% was not one of the purposes at all, so neither party decided anything.
+%%
+%% NOW A CONSUMER MUST BE ABLE AND WILLING. Able means a mouth, which is tissue
+%% and is paid for every tick whether or not it is used. Willing means its brain
+%% said so this tick. The strongest that is both takes the weaker; **if nobody in
+%% the cell can or will, nothing is eaten and everyone lives.**
+%%
+%% THE RANK IS UNCHANGED and so is who loses. A creature that declines does not
+%% shield anything: the next one down that can and will is the consumer, which is
+%% the general form and avoids the arbitrary rule where a large toothless
+%% creature protects its neighbours by standing there.
+%%
+%% GATHERED ONCE, like `breed/1', so a creature decides against the world as it
+%% was when the phase began rather than one its neighbours have already eaten
+%% their way through.
+resolve(Ids, Herd, #world{creatures = Cs} = W) ->
     %% CONTEST IS DECIDED BY STRUCTURE, not by what a creature is carrying, so a
     %% fat small creature loses to a lean large one. Before world 6 the two were
     %% one number and hoarding was the same thing as being formidable.
     Ranked = lists:reverse(lists:sort([{maps:get(structure, maps:get(I, Cs)), I}
                                        || I <- Ids])),
-    [{_Strongest, Winner} | Rest] = Ranked,
-    {W1, Eaten} = devour(Winner, [I || {_E, I} <- Rest], W),
-    graze(surviving([Winner | [I || {_E, I} <- Rest]], W1), Winner, Eaten, W1).
+    Order = [I || {_E, I} <- Ranked],
+    hunted(predator(Order, Herd, W), Order, W).
+
+%% The strongest that both carries a mouth and asked to use it, or `none'.
+predator([], _Herd, _W) -> none;
+predator([Id | Rest], Herd, W) -> willing_to_eat(Id, Rest, Herd, W).
+
+willing_to_eat(Id, Rest, Herd, #world{creatures = Cs, econ = Econ} = W) ->
+    #{at := At, mouth := Mouth} = C = maps:get(Id, Cs),
+    Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
+                             Econ),
+    chose(Mouth > 0 andalso maps:get(eat, Outputs, 0) > 0, Id, Rest, Herd, W).
+
+chose(true, Id, _Rest, _Herd, _W) -> Id;
+chose(false, _Id, Rest, Herd, W) -> predator(Rest, Herd, W).
+
+%% NOBODY ATE, so everybody grazes. This is the branch that did not exist before
+%% world 15 and it is the whole change: a cell can now hold a large creature and
+%% a small one and simply leave them both standing.
+hunted(none, Order, W) ->
+    graze(surviving(Order, W), none, 0, W);
+hunted(Winner, Order, W) ->
+    {W1, Eaten} = devour(Winner, [I || I <- Order, I =/= Winner], W),
+    graze(surviving(Order, W1), Winner, Eaten, W1).
 
 %% Everything the contest left alive, in the order the contest ranked it.
 surviving(Ids, #world{creatures = Cs}) ->
@@ -891,11 +950,16 @@ take_them([], _Winner, W) -> {W, 0};
 %% Who dies is unchanged. The contest still goes to the largest and every weaker
 %% creature in the cell still loses; only how much of them the winner can use has
 %% changed.
+%% AND SINCE WORLD 15 THE MOUTH IS THE THIRD BOUND. A gut bounds what comes in
+%% from the ground, a frame bounds what a creature can hold at all, and a mouth
+%% bounds what it can take from the living. That is what mouth size BUYS, and it
+%% is why the trait is drawn on the same scale as `uptake': the two are the same
+%% quantity measured at the two sites energy enters a creature.
 take_them(Weaker, Winner, #world{creatures = Cs, econ = Econ} = W) ->
     Carcass = lists:sum([whole(maps:get(I, Cs)) || I <- Weaker]),
-    #{energy := E, from_creatures := F, at := At,
+    #{energy := E, from_creatures := F, at := At, mouth := Mouth,
       uptake := Want, structure := Body} = C = maps:get(Winner, Cs),
-    Eaten = min(Carcass, min(Want, max(0, Body))),
+    Eaten = min(Carcass, min(Mouth, min(Want, max(0, Body)))),
     %% THE SAME LOSS AS EATING GROUND, and deliberately the same. Prey tissue
     %% really does convert more cheaply than raw material, but HOW MANY steps
     %% that saves is a fact about particular chemistry rather than about
@@ -1082,13 +1146,20 @@ note_change(none, W) ->
 %% that does not crash, because every weight past the change point quietly starts
 %% valuing a different measurement.
 inherit_traits(Parent, Econ, Rng0) ->
-    #{body := Body, brain := Brain, scent := Tag, uptake := Rate} = Parent,
+    #{body := Body, brain := Brain, scent := Tag, uptake := Rate,
+      mouth := Mouth} = Parent,
     {ChildBody, Change, Rng1} = body:inherit(Body, Econ, Rng0),
     {ChildBrain, Rng2} = brain:inherit(Brain, Change, Econ, Rng1),
     {ChildTag, Rng3} = scent:inherit(Tag, Econ, Rng2),
     {ChildRate, Rng4} = inherit_rate(Rate, Econ, Rng3),
+    %% THE SAME DRIFT AS THE GUT AND NO NEW CONSTANT. `uptake_mutation' is
+    %% described in this file as a scale constant of the same kind as
+    %% `brain_mutation', small and symmetric so a lineage drifts rather than
+    %% resamples. That is a property of heritable integers here and not of
+    %% feeding, so it governs both.
+    {ChildMouth, Rng5} = inherit_rate(Mouth, Econ, Rng4),
     {#{body => ChildBody, brain => ChildBrain, scent => ChildTag,
-       uptake => ChildRate}, Change, Rng4}.
+       uptake => ChildRate, mouth => ChildMouth}, Change, Rng5}.
 
 %% A small symmetric nudge so a lineage drifts through feeding rates rather than
 %% resampling them.
@@ -1208,6 +1279,18 @@ snapshot(#world{econ = Econ} = W) ->
       %% THE NEW AXIS. Prudence against greed, as the population settled it, and
       %% nothing anywhere calls either of those.
       uptake_mean => mean_uptake(W),
+      %% ==================================================================
+      %% THE TROPHIC SPLIT, WORLD 15, AND IT IS THE POINT OF THAT WORLD
+      %% ==================================================================
+      %%
+      %% `mouth_mean' is how big a mouth the average creature carries and
+      %% `carnivores_pct' how many carry one at all. The second is the one that
+      %% matters: a share strictly between none and all is the first niche
+      %% differentiation this world has ever had, and either extreme is the null.
+      %% Both are censuses and neither is a verdict; nothing in the rules calls
+      %% anything a carnivore and there is no flag to set.
+      mouth_mean => mean_mouth(W),
+      carnivores_pct => mouthed_share(W),
       %% ==================================================================
       %% THE ENGINE, MEASURED RATHER THAN ASSUMED
       %% ==================================================================
@@ -1367,6 +1450,14 @@ uptake_values(#world{creatures = Cs}) ->
 mean_uptake(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_uptake(#world{creatures = Cs}) ->
     lists:sum([U || #{uptake := U} <- maps:values(Cs)]) div map_size(Cs).
+
+mean_mouth(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_mouth(#world{creatures = Cs}) ->
+    lists:sum([M || #{mouth := M} <- maps:values(Cs)]) div map_size(Cs).
+
+mouthed_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mouthed_share(#world{creatures = Cs}) ->
+    length([M || #{mouth := M} <- maps:values(Cs), M > 0]) * 100 div map_size(Cs).
 
 count_lineages(#world{creatures = Cs}) ->
     map_size(maps:from_keys([L || #{lineage := L} <- maps:values(Cs)], [])).

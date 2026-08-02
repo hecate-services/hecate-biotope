@@ -69,7 +69,11 @@
 %%
 %% `grow' IS READ AS A QUANTITY rather than a threshold, clamped to what the
 %% creature is carrying, so it needs no constant of its own.
--define(PURPOSES, [move, breed, grow]).
+%% `eat' JOINED IN WORLD 15 and it is the first purpose that can be REFUSED to
+%% the creature: `move', `breed' and `grow' are always available and this one
+%% needs an organ. A brain that says eat while carrying no mouth says nothing,
+%% exactly as a weight on a sensor a body does not have would.
+-define(PURPOSES, [move, breed, grow, eat]).
 
 %% What a hidden node's total is divided by before it is read as a reading.
 %% Inputs run to sixty-odd and weights to eight, so a raw total runs to hundreds

@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 9).
+-define(FACT_VERSION, 10).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -255,6 +255,10 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       depth => Depth,
       %% The range of the one heritable quantity that visibly varies. Selection
       %% has nothing to act on when this closes to nothing.
+      %% THE TROPHIC SPLIT. `carnivores_pct' is the point of world 15: a share
+      %% strictly between none and all is the first niche this world has had.
+      mouth_mean => maps:get(mouth_mean, Snapshot),
+      carnivores_pct => maps:get(carnivores_pct, Snapshot),
       uptake_min => UptakeMin,
       uptake_max => UptakeMax,
       %% HOW OLD THE EATEN WERE, in hundredths of a tick. A living made off other

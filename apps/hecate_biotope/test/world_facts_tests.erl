@@ -88,7 +88,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(9, V).
+    ?assertEqual(10, V).
 
 %%==============================================================================
 %% Which door the island is on

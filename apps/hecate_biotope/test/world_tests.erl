@@ -29,6 +29,27 @@ builder(Amount) ->
                          outputs => #{grow => #{inputs => [Amount],
                                                 hidden => []}}}}.
 
+%% As above but it will eat whatever it can, which since world 15 is a decision
+%% and not a consequence. EVERY TEST THAT ASSERTS A KILL NEEDS BOTH HALVES: an
+%% `eat' output and a mouth, because a creature that wants to and cannot is
+%% indistinguishable from one that can and will not. The fixtures pin a large
+%% mouth so it is never the binding constraint and the older assertions, which
+%% are about the gut and the frame, still mean what they meant.
+ravenous() ->
+    #{founder_body => [],
+      founder_brain => #{hidden => [],
+                         outputs => #{breed => #{inputs => [1], hidden => []},
+                                      eat => #{inputs => [1], hidden => []}}}}.
+
+%% Eats and does nothing else. Separate from `ravenous()' because a test about
+%% who may consume whom must not also be breeding: adding an `eat' output to a
+%% fixture that already bred turned "two equals stay two" into a population of
+%% four, which is the machinery working and the wrong thing to be asserting.
+predatory() ->
+    #{founder_body => [],
+      founder_brain => #{hidden => [],
+                         outputs => #{eat => #{inputs => [1], hidden => []}}}}.
+
 %% As above but it will breed on the first tick it can.
 fertile() ->
     #{founder_body => [],
@@ -417,19 +438,22 @@ family(Energy) ->
                        ground_ceiling => 0, metabolism => 0, 
                        max_age => 100000,
                        brain_mutation => 0, brain_mutation_structural => 1000000,
-                       body_mutation => 1000000,
-                       start_energy => Energy}, fertile())).
+                       body_mutation => 1000000, founder_mouth => 400,
+                       start_energy => Energy}, ravenous())).
 
 look(W, N) ->
     Ticked = world:tick(W, N),
     S = world:snapshot(Ticked),
     {maps:get(population, S), maps:get(consumed, S), books(Ticked)}.
 
+%% BOTH WILLING AND BOTH ARMED SINCE WORLD 15, or this would pass for the wrong
+%% reason. With a creature that has no `eat' output it asserts only that nothing
+%% eats without asking to, which is a different and much weaker claim.
 equals_do_not_consume_each_other_test() ->
     W = quiet(maps:merge(#{population => 2, radius => 0, recolonise_pct => 0, ground_growth_pct => 0,
                            ground_ceiling => 0, metabolism => 0,
-                           
-                           max_age => 100000}, inert())),
+                           founder_mouth => 400,
+                           max_age => 100000}, predatory())),
     #{population := Pop, consumed := Eaten} = world:snapshot(world:tick(W, 5)),
     ?assertEqual(2, Pop),
     ?assertEqual(0, Eaten).
@@ -870,9 +894,9 @@ the_leaner_larger_creature_takes_the_fatter_smaller_one_test() ->
                            ground_growth_pct => 0, ground_ceiling => 0,
                            metabolism => 0,
                            max_age => 100000, start_energy => 201,
-                           brain_mutation => 0,
+                           brain_mutation => 0, founder_mouth => 400,
                            brain_mutation_structural => 1000000,
-                           body_mutation => 1000000}, fertile())),
+                           body_mutation => 1000000}, ravenous())),
     %% The parent keeps the odd unit of frame, so it is the larger and takes the
     %% child back, and the whole world is unchanged by the taking.
     #{population := P, consumed := C} = world:snapshot(world:tick(W, 2)),
@@ -944,8 +968,8 @@ hungry(Energy, Uptake) ->
                        max_age => 100000, brain_mutation => 0,
                        brain_mutation_structural => 1000000,
                        body_mutation => 1000000, uptake_mutation => 0,
-                       founder_uptake => Uptake,
-                       start_energy => Energy}, fertile())).
+                       founder_uptake => Uptake, founder_mouth => 400,
+                       start_energy => Energy}, ravenous())).
 
 %%==============================================================================
 %% Feeding belongs to a creature, not to a contest, which is world 11
@@ -980,12 +1004,110 @@ a_kill_does_not_buy_a_second_helping_test() ->
     ?assertEqual(1, Eaten),
     ?assertEqual(Before, After).
 
+%% ARMED AND WILLING, for the same reason: two equals that both want to eat and
+%% both can is what makes "neither can eat the other" a statement about the
+%% contest rather than about their brains.
 crowded() ->
     quiet(maps:merge(#{population => 2, radius => 0, recolonise_pct => 0,
                        ground_growth_pct => 0, ground_ceiling => 5000,
-                       metabolism => 0,
+                       metabolism => 0, founder_mouth => 400,
                        max_age => 100000, uptake_mutation => 0,
-                       founder_uptake => 30, start_energy => 400}, inert())).
+                       founder_uptake => 30, start_energy => 400}, predatory())).
+
+%%==============================================================================
+%% World 15: a mouth is tissue, and eating is a decision
+%%==============================================================================
+
+%% THE WHOLE OF WORLD 15 IN ONE ASSERTION. Until now the largest creature in a
+%% cell consumed every smaller one, always. Now it needs an organ AND has to ask,
+%% and a cell can hold a large creature and a small one and leave both standing.
+%% This is the branch that did not exist before.
+%% ARMED AND UNWILLING, which is the exact complement of the test below it.
+a_creature_that_does_not_ask_eats_nobody_test() ->
+    W = quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
+                           ground_growth_pct => 0, ground_ceiling => 0,
+                           metabolism => 0, max_age => 100000,
+                           brain_mutation => 0, founder_mouth => 400,
+                           brain_mutation_structural => 1000000,
+                           body_mutation => 1000000,
+                           start_energy => 201}, fertile())),
+    #{population := Pop, consumed := Eaten} = world:snapshot(world:tick(W, 5)),
+    ?assert(Pop > 1),
+    ?assertEqual(0, Eaten).
+
+%% AND WANTING IS NOT ENOUGH. The same fixture, willing but toothless: an `eat'
+%% output with no mouth to use it is indistinguishable from not asking, which is
+%% what makes the mouth a real investment rather than a label.
+a_creature_with_no_mouth_eats_nobody_test() ->
+    W = quiet(maps:merge(#{population => 1, radius => 0, recolonise_pct => 0,
+                           ground_growth_pct => 0, ground_ceiling => 0,
+                           metabolism => 0, max_age => 100000,
+                           brain_mutation => 0, founder_mouth => 0,
+                           brain_mutation_structural => 1000000,
+                           body_mutation => 1000000,
+                           start_energy => 201}, ravenous())),
+    #{consumed := Eaten} = world:snapshot(world:tick(W, 5)),
+    ?assertEqual(0, Eaten).
+
+%% ABLE AND WILLING, and then it eats exactly as world 11 said it would. The
+%% older tests assert the gut and the frame; this asserts that the two new
+%% conditions are what stand between them and a kill.
+a_creature_that_can_and_will_eats_test() ->
+    #{consumed := Eaten} = world:snapshot(world:tick(hungry(200, 10), 2)),
+    ?assertEqual(1, Eaten).
+
+%% THE MOUTH IS THE THIRD BOUND, beside the gut and the frame. A wide gut and a
+%% narrow mouth takes the mouth's worth, which is what makes the size of the
+%% organ worth anything at all.
+%%
+%% MEASURED IN HOW MUCH OF THE MEAL WAS MEAT, and getting to that cost two wrong
+%% instruments and taught something about the physics.
+%%
+%% Neither the store nor the carrion on the ground varies with mouth size for a
+%% LONE predator, and both are right to. World 11 bounds a creature's intake ONCE
+%% across both sources, so a narrow mouth that leaves 45 units of carcass simply
+%% grazes those 45 back off the cell in the same tick, out of the same capacity.
+%% The tick's total is identical and only its ATTRIBUTION moves.
+%%
+%% So the mouth bounds KILLING and not eating, and it costs a predator nothing to
+%% be narrow only while nobody else is standing there. In a crowded cell the
+%% carrion is somebody else's. That is a property worth knowing and it is not
+%% what a fixture with one creature on one cell can show.
+a_narrow_mouth_takes_less_of_its_meal_as_meat_test() ->
+    Meat = fun(Mouth) ->
+                    W = quiet(maps:merge(#{population => 1, radius => 0,
+                                           recolonise_pct => 0,
+                                           ground_growth_pct => 0,
+                                           ground_ceiling => 0, metabolism => 0,
+                                           max_age => 100000, brain_mutation => 0,
+                                           brain_mutation_structural => 1000000,
+                                           body_mutation => 1000000,
+                                           uptake_mutation => 0,
+                                           founder_uptake => 400,
+                                           founder_mouth => Mouth,
+                                           start_energy => 200}, ravenous())),
+                    #{from_creatures_pct := Pct} =
+                        world:snapshot(world:tick(W, 2)),
+                    Pct
+            end,
+    ?assert(Meat(5) < Meat(50)).
+
+%% A MOUTH IS TISSUE AND IS PAID FOR WHETHER OR NOT IT IS USED, by the expression
+%% that already prices a frame. That is what makes it a tradeoff rather than a
+%% free good: carrying one costs on every tick a creature does not kill.
+a_mouth_costs_upkeep_even_when_it_eats_nothing_test() ->
+    Spent = fun(Mouth) ->
+                    W = quiet(maps:merge(#{population => 1, radius => 0,
+                                           recolonise_pct => 0,
+                                           ground_growth_pct => 0,
+                                           ground_ceiling => 0, metabolism => 0,
+                                           upkeep_divisor => 10, max_age => 100000,
+                                           founder_mouth => Mouth,
+                                           start_energy => 200}, inert())),
+                    #{dissipated := Gone} = world:snapshot(world:tick(W, 3)),
+                    Gone
+            end,
+    ?assert(Spent(300) > Spent(0)).
 
 %%==============================================================================
 %% Speed, and what it costs to be heavy, which is world 12
