@@ -1,5 +1,24 @@
 # The physics register
 
+> ## ⚠ EVERY NUMBER MEASURED BEFORE 2026-08-02 IS HISTORICAL
+>
+> A world was not a pure function of its seed until that date, for all seventeen
+> worlds. See **`G.6`**. The measurements below are what was observed; they
+> **cannot be reproduced**, because the physics that produced them depended on
+> what the VM had loaded as well as on the seed.
+>
+> **They are not withdrawn.** The effects they report are large and the
+> ordering fault perturbs a trajectory rather than biasing it in a direction, so
+> the CONCLUSIONS are expected to stand. What cannot be relied on is any exact
+> figure: a tick of death, a population, a percentage.
+>
+> **Deliberately not re-run.** Re-deriving sixteen worlds costs more than it buys
+> when no conclusion is in doubt. Anything that DOES come to depend on an exact
+> old figure must be re-measured before it is leaned on, and said so at the time.
+>
+> Everything from world 17 onward is reproducible and is checked by the
+> `cross-vm` column of `scripts/same_seed_same_world.escript`.
+
 > **Naming.** Entries here are lettered (`B.5`, `D.2`) and **worlds are numbered**
 > (world 4, world 5). They were both numbered once and it was impossible to tell
 > "world 2.5" from an entry id. See [WORLDS.md](WORLDS.md) for what each world

@@ -2,6 +2,16 @@
 
 One line per experiment: what single thing changed, and what happened.
 
+> ## ⚠ WORLDS 1 TO 16 REPORT NUMBERS THAT CANNOT BE REPRODUCED
+>
+> A world was not a pure function of its seed until 2026-08-02, register `G.6`.
+> The rows below are what was observed and are **not withdrawn**: the effects are
+> large and an ordering fault perturbs a trajectory rather than pushing it one
+> way, so the conclusions are expected to stand. **Exact figures are not
+> reproducible** and must be re-measured before anything new is built on one.
+> World 17 onward is checked by the `cross-vm` column of
+> `scripts/same_seed_same_world.escript`.
+
 **Worlds are numbered. Register entries are lettered** (`B.5`, `D.2`) — see
 [PHYSICS_REGISTER.md](PHYSICS_REGISTER.md) for the catalogue of what this world
 still gets wrong about energy, and which entry each world corrects.
