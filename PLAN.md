@@ -33,6 +33,16 @@ decide. `H.10` says a price determines whether a trait is VISIBLE to selection,
 never whether it is USEFUL. Fifteen worlds of pricing have produced no lasting
 computation, and no sixteenth price will.
 
+## Status, 2 August
+
+**Phase 1 is done.** The join blocker is fixed (`c1c903e`), `accepts_migrants`
+rides on every fact defaulting to false, and the join page is live with a `+` on
+the biotope grid. A stranger can run an island today.
+
+**R.1 to R.5 below are the next high priority and none is started.** They come
+from measurements taken this session and are ordered by what they cost against
+what they unblock. `R.1` is an hour and prevents the failure that cost world 15.
+
 ## Revised order
 
 | # | Package | Why now | Kind | Size |
