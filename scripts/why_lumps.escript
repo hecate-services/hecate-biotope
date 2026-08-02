@@ -51,6 +51,8 @@ main(Args) ->
     io:format("~n~s~n", [row(["island" | ["keep" ++ integer_to_list(L)
                                           || L <- ?LAGS]])]),
     lists:foreach(fun print_keeps/1, Worlds),
+    io:format("~n~s~n", [row(["island", "within", "total", "F_ST"])]),
+    lists:foreach(fun print_kin/1, Worlds),
     io:format("~nblobs = connected groups of occupied cells, vs rnd = the same "
               "count scattered~nat random. big% = share of occupied cells in the "
               "largest group. on/off = mean~nstock under occupied cells over mean "
@@ -58,7 +60,11 @@ main(Args) ->
               "gaining exactly nothing. gen = ticks per~ngeneration. keepN = "
               "occupied cells still occupied N ticks later, over what~nchance "
               "alone would leave, times a hundred. 100 means the lump has moved "
-              "on.~n").
+              "on.~n~nwithin = mean scent spread inside a lump, total = across the "
+              "whole island,~nboth 0 for clonal and 50 for unrelated. F_ST is how "
+              "much of the variation~nsits BETWEEN lumps rather than inside them: "
+              "0 means a lump is a random~nsample of the island, high means the "
+              "lumps are families.~n").
 
 parse(Arg) ->
     [Name, Seed, Ticks] = string:split(Arg, ":", all),
@@ -71,6 +77,9 @@ print(#{name := N, pop := P, cells := C, blobs := B, random_blobs := RB,
 
 print_keeps(#{name := N, keeps := Keeps}) ->
     io:format("~s~n", [row([N | Keeps])]).
+
+print_kin(#{name := N, within := W, total := T, fst := F}) ->
+    io:format("~s~n", [row([N, W, T, F])]).
 
 measure({Name, Seed, Ticks}) ->
     W = world:tick(world:new(#{seed => Seed, population => 40,
@@ -89,7 +98,46 @@ measure({Name, Seed, Ticks}) ->
       on_off => on_off(Occupied, Ground, Cells),
       frozen => frozen(Cells, Ground),
       gen => generation(Snap, Ticks),
+      fst => fst(Chart, components(Occupied)),
+      within => within(Chart, components(Occupied)),
+      total => scent:spread(maps:get(signatures, Chart)),
       keeps => [kept(Occupied, W, Lag) || Lag <- ?LAGS]}.
+
+%%==============================================================================
+%% Is a lump a family?
+%%==============================================================================
+
+%% HOW MUCH OF THE VARIATION SITS BETWEEN LUMPS RATHER THAN INSIDE THEM, which is
+%% Wright's F_ST written with the tools this world already has. `scent:spread/1'
+%% IS a mean pairwise difference, normalised, so the standard ratio applies
+%% directly: `(total - within) / total'. Zero means a lump is a random sample of
+%% the island and there is no population structure. High means the lumps are
+%% differentiated, which with local birth and a hundred-generation persistence is
+%% Hamilton's condition arriving without anybody installing it.
+%%
+%% THE MARKER IS NEUTRAL AND THAT CUTS BOTH WAYS. `scent' is inherited with a
+%% mutation rate and nothing reads it for fitness, so this measures ancestry and
+%% not adaptation. It is the right instrument for relatedness and the wrong one
+%% for anything else.
+fst(Chart, Groups) ->
+    apportioned(scent:spread(maps:get(signatures, Chart)),
+                within(Chart, Groups)).
+
+apportioned(0, _Within) -> 0;
+apportioned(Total, Within) -> (Total - Within) * 100 div Total.
+
+%% Averaged over the lumps big enough to have a pair, because `spread' of one
+%% creature is zero and a board of singletons would otherwise read as perfectly
+%% related.
+within(Chart, Groups) ->
+    Tagged = tagged(maps:get(creatures, Chart), maps:get(signatures, Chart)),
+    Spreads = [scent:spread(Tags) || G <- Groups,
+                                     Tags <- [[T || {H, T} <- Tagged,
+                                                    sets:is_element(H, G)]],
+                                     length(Tags) > 1],
+    avg(Spreads).
+
+tagged(Flat, Signatures) -> lists:zip(pairs(Flat), Signatures).
 
 %%==============================================================================
 %% What shape the living are in
@@ -100,17 +148,18 @@ measure({Name, Seed, Ticks}) ->
 %% give the same density and the same mean distance to a neighbour; they do not
 %% give the same component count.
 shape(Occupied) ->
-    Groups = components(sets:to_list(Occupied), Occupied, []),
-    biggest(Groups, sets:size(Occupied)).
+    biggest([sets:size(G) || G <- components(Occupied)], sets:size(Occupied)).
 
 biggest([], _K) -> {0, 0};
-biggest(Groups, K) -> {length(Groups), lists:max(Groups) * 100 div K}.
+biggest(Sizes, K) -> {length(Sizes), lists:max(Sizes) * 100 div K}.
 
-components([], _All, Sizes) -> Sizes;
-components([H | Rest], All, Sizes) ->
+components(Occupied) -> grouped(sets:to_list(Occupied), Occupied, []).
+
+grouped([], _All, Groups) -> Groups;
+grouped([H | Rest], All, Groups) ->
     Group = flood([H], All, sets:new()),
-    components([C || C <- Rest, not sets:is_element(C, Group)],
-               sets:subtract(All, Group), [sets:size(Group) | Sizes]).
+    grouped([C || C <- Rest, not sets:is_element(C, Group)],
+            sets:subtract(All, Group), [Group | Groups]).
 
 flood([], _All, Seen) -> Seen;
 flood([H | Rest], All, Seen) ->
