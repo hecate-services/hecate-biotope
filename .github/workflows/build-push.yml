@@ -39,6 +39,22 @@ jobs:
             echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
+      # WHICH WORLD THIS IMAGE IS, so a past one can be pulled back.
+      #
+      # `world-13` is the last build made while the physics said world 13, and it
+      # stays pullable for ever because the tag only moves while that world is
+      # the current one. So the CURRENT world's tag tracks main and every
+      # FINISHED world's tag is frozen at its last build, which is exactly what
+      # switching back and forth wants.
+      #
+      # It reads `world:ruleset/0` through scripts/world_number.sh rather than
+      # naming a number here, because a version in two places is a version that
+      # drifts, and this one has drifted before: world 13's physics shipped
+      # labelled world 12.
+      - name: Which world
+        id: world
+        run: echo "n=$(./scripts/world_number.sh)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -48,3 +64,4 @@ jobs:
           tags: |
             ghcr.io/hecate-services/hecate-biotope:latest
             ghcr.io/hecate-services/hecate-biotope:${{ steps.tag.outputs.tag }}
+            ghcr.io/hecate-services/hecate-biotope:world-${{ steps.world.outputs.n }}
