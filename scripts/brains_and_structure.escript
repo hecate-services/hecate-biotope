@@ -23,6 +23,11 @@
 %% seeds in three die at the expensive end, so the saving is most of the run.
 -mode(compile).
 
+%% THE HORIZON IS AN ARGUMENT, because the first run of this could not be told
+%% apart from having run it longer. World 13's sweep stopped at 2,000 and this
+%% one stopped at 20,000, so "computation is higher under world 14" and
+%% "computation is higher after ten times as long" made identical predictions.
+%% Same code, one parameter, both numbers.
 -define(TICKS, 20000).
 -define(SEEDS, 48).
 -define(CHUNK, 1000).
@@ -31,22 +36,29 @@
 %% Ten times the 0.01 floor of worlds 2 to 13, fixed before any number was seen.
 -define(APPEARS, 10).
 
-main(_) ->
+main(Args) ->
+    Ticks = horizon(Args),
     io:format("~nticks=~p seeds=~p, world 14, 100% efficiency. control is 330.~n",
-              [?TICKS, ?SEEDS]),
+              [Ticks, ?SEEDS]),
     io:format("\"appears\" is hidden per creature above ~p, fixed in advance.~n~n",
               [?APPEARS]),
     io:format("~s~n", [row(["price", "dead", "alive", "spread", "HIDDEN",
                             "sensors", "pop", "still", "lines", "depth",
                             "uspread"])]),
-    All = lists:append([report(N) || N <- ?STEPS]),
+    All = lists:append([report(N, Ticks) || N <- ?STEPS]),
     tertiles(All),
     io:format("~nHIDDEN and sensors are per creature times a hundred. spread is "
               "`ground_spread'.~nuspread is the range of feeding rates in the "
               "living population.~n").
 
-report(Price) ->
-    Rows = [R || R <- in_parallel(fun(S) -> run(S, Price) end,
+horizon([]) -> ?TICKS;
+horizon([Arg | _]) -> list_to_integer(Arg).
+
+%% THREADED AND NOT IN THE PROCESS DICTIONARY. `in_parallel/2' spawns a worker
+%% per seed and a process dictionary does not cross that boundary, so the first
+%% version read `undefined' in every worker and died on the arithmetic.
+report(Price, Ticks) ->
+    Rows = [R || R <- in_parallel(fun(S) -> run(S, Price, Ticks) end,
                                   lists:seq(1, ?SEEDS)), R =/= dead],
     io:format("~s~n", [row([Price, ?SEEDS - length(Rows), length(Rows)
                             | summarise(Rows)])]),
@@ -58,11 +70,11 @@ summarise(Rows) ->
     [Avg(ground_spread), Avg(hidden_mean), Avg(sensor_mean), Avg(population),
      Avg(still_pct), Avg(lineages), Avg(depth), Avg(uspread)].
 
-run(Seed, Price) ->
+run(Seed, Price, Ticks) ->
     W = advance(world:new(#{seed => Seed, population => 40,
                             transfer_efficiency => 100,
                             neural_cost => Price}),
-                ?TICKS),
+                Ticks),
     finished(world:snapshot(W), Price).
 
 advance(W, 0) -> W;
