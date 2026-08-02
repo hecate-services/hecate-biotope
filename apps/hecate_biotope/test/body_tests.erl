@@ -228,3 +228,17 @@ the_census_of_nothing_is_zeroes_test() ->
     ?assertEqual(lists:sort(body:fields()), lists:sort(maps:keys(Census))),
     ?assert(lists:all(fun(F) -> maps:get(carriers, F) =:= 0 end,
                       maps:values(Census))).
+
+%% H.8: A NON-SPATIAL SENSOR PAYS FOR NO REACH. `self' is read from the creature
+%% and never gathers cells, so reach does nothing for it, and charging for it was
+%% a bill for a capability that does not exist. Every spatial field still pays.
+a_self_sensor_pays_for_no_reach_test() ->
+    ?assertEqual(body:mass([{self, 0}]), body:mass([{self, 4}])),
+    ?assertEqual(1, body:mass([{self, 9}])).
+
+reach_is_still_paid_for_where_it_is_read_test() ->
+    ?assert(body:mass([{ground, 4}]) > body:mass([{ground, 0}])),
+    ?assertEqual(5, body:mass([{ground, 4}])),
+    ?assertEqual(5, body:mass([{scent, 4}])),
+    ?assertEqual(5, body:mass([{creatures, 4}])).
+

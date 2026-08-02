@@ -97,9 +97,21 @@ reading(Field, Raw, Econ) ->
 %% world's business and is charged at the same rate as any other tissue since
 %% world 13. A sensor is its reach plus itself, which is the shape the flat rent
 %% already used and the only one this world has ever had a reason for.
+%% AND REACH IS ONLY PAID FOR WHERE IT IS READ, which it was not until now. A
+%% `self' sensor is not spatial: `reading/3' never gathers cells for it and
+%% `spatial/1' says so, yet every sensor was charged `Range + 1' regardless. A
+%% creature carrying `{self, 4}' paid five units of neural tissue for four units
+%% of nothing. Nobody wrote that rule; it lived in the difference between the
+%% pricing function and the reading function, which is exactly where `C.6' and
+%% `B.8' both hid for several worlds. Register entry `H.8'.
 -spec mass(body()) -> non_neg_integer().
 mass(Body) ->
-    lists:sum([Range + 1 || {_Field, Range} <- Body]).
+    lists:sum([weight(Field, Range) || {Field, Range} <- Body]).
+
+weight(Field, Range) -> 1 + paid_reach(spatial(Field), Range).
+
+paid_reach(true, Range) -> Range;
+paid_reach(false, _Range) -> 0.
 
 %% @doc A founding body: a random number of random sensors, possibly none.
 %%
