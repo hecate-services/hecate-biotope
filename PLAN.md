@@ -1,7 +1,55 @@
 # Plan
 
+**REVISED after phase 0 and world 15.** The original order is below and mostly
+stands; what changed is at the top, because the session produced one insight that
+reorders everything.
+
+## What the measurements changed
+
+**Every price this project has ever levied that MOVED anything was proportional
+to the body. Every price that scaled with an organ did nothing.**
+
+| price | scales with | what happened |
+|---|---|---|
+| world 5, carrying | **structure**, 300 to 500 | size hard-bounded |
+| world 12, the fare | **structure** | bodies capped tenfold |
+| world 13, organs as tissue | a sensor, gained **whole** at 10 a tick | sensors 0.01 to 3.27 |
+| world 15, the mouth | drifting in steps of **8**, worth 0.24 a tick | nothing |
+
+A creature earns 87 to 231 a tick and spends 18 to 35, so **the whole cost side of
+this world is a rounding error against income.** Drift beats selection below about
+1% of income, which is 1 unit a tick, which is a tissue step of about 33. A sensor
+clears that comfortably because it arrives whole. A mouth mutation is 0.24% and
+does not.
+
+**So the register has spent five worlds pricing organs while the thing that
+determines whether a price is visible is the size of the MUTATION, not the size of
+the organ.** That is `H.10`, it is measured, and it predicts which future traits
+will be selectable before they are built.
+
+**And pricing cannot fix the thing the project is actually stuck on.** The
+register's own diagnosis is that brains are deleted because there is nothing to
+decide. `H.10` says a price determines whether a trait is VISIBLE to selection,
+never whether it is USEFUL. Fifteen worlds of pricing have produced no lasting
+computation, and no sixteenth price will.
+
+## Revised order
+
+| # | Package | Why now | Kind | Size |
+|---|---|---|---|---|
+| R.1 | **Make `H.10` a gate.** The pre-registration template gains one line: any world adding a heritable trait states its per-mutation cost as a share of measured income and shows it clears ~1%. | It would have saved world 15 entirely, and it costs an hour | BUILD | XS |
+| R.2 | **Fix `H.8`.** A `self` sensor pays for reach that `spatial/1` says is never read. | A straight defect, unambiguous, in the difference between two functions | BUILD | XS |
+| R.3 | **Decide `H.9`.** A hidden node costs the same whatever it reads, which `B.3` objected to and world 13 did not fix. | **This one is about brain complexity directly.** Charging by fan-in makes a big brain properly expensive and a small one cheap, which is the shape every real neural economy has | CLAIM | M |
+| R.4 | **Make the mouth selectable, then re-run world 15.** Sweep the mutation step rather than choosing it. | Not for the trophic split. Because it is the only route to a genuine conditional decision, which is what a hidden node is for | CLAIM | M |
+| R.5 | **`H.7`, price the actuators.** Every organ here is priced and every act is free. | Largest unpriced thing left, but least clear what it buys, and by `H.10` it must be priced at a step selection can see | CLAIM | L |
+
+**Phase 1 onward below is unchanged and still wanted.** The join blocker is still
+an hour and still unblocks other people.
+
+---
+
 Everything discussed, in the order I would do it, with sizes so any of it can be
-vetoed cheaply. **Nothing here is started.**
+vetoed cheaply.
 
 Each package says what it is, which end goal it serves, whether it is a **CLAIM**
 or a **BUILD**, and roughly how big. A CLAIM is an assertion about the world that
