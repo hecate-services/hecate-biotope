@@ -89,6 +89,15 @@ exactly the organ that lets one input modulate another.
 On a flat board there is nothing to combine, because stock and crowding are both
 uniform everywhere. That is beam00, and beam00 has no hidden nodes.
 
+**TESTED AND REFUTED, and the reversal is recorded in
+[RESULTS_BRAINS_AND_STRUCTURE.md](RESULTS_BRAINS_AND_STRUCTURE.md).** Pooled over
+164 surviving worlds, hidden nodes run 1.68, 1.72 and 0.80 from the flattest
+third of boards to the patchiest: the patchiest carry the LEAST computation, and
+the least of every organ, because they carry the most creatures. The flat island
+below had 23 creatures and was not a flat board but a nearly empty one. What is
+written in the rest of this section is what was believed before the run and is
+kept because the reasoning was published before it failed.
+
 **This is an association across three islands and nothing more.** It is not
 established, and the obvious experiment is:
 

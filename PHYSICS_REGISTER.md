@@ -76,18 +76,24 @@ in the tables.
 
 ### Why the brains keep being deleted
 
-**FIRST CRACK IN THIS, WORLD 14, AND IT IS AN ASSOCIATION AND NOT A RESULT.**
-Hidden nodes read **0.00** on the live island whose board stayed flat and **0.16
-and 0.25** on the two that went patchy, at the same `neural_cost` of 330 that
-held them at 0.01 for twelve worlds. There is a mechanism that would explain it:
-a linear brain scores a cell as a weighted sum of what it reads there, which is
-enough to climb a gradient and is what these creatures do, but on a patchy board
-the value of a cell is not monotone in any single reading — a rich cell shared
-with six others is worth less than a poorer empty one, and value is something
-like stock OVER competitors. **A linear brain can add and cannot divide.** On a
-flat board there is nothing to combine. Three islands is three islands; the
-experiments that would settle it are named in
-[RESULTS_LUMPS.md](RESULTS_LUMPS.md).
+**COMPUTATION IS HIGHER UNDER WORLD 14 AND PATCHINESS IS NOT WHY.** Tested and
+the hypothesis reversed. Hidden nodes read 0.00, 0.16 and 0.25 on three live
+islands whose boards had `ground_spread` 24, 83 and 89, which looked like a
+gradient and was not: pooled over **164 surviving worlds**, hidden nodes run
+**1.68, 1.72 and 0.80** from the flattest third to the patchiest. The patchiest
+boards carry the LEAST computation and the MOST creatures, 221 against 125, and
+they carry less of every organ including sensors. **Patchiness does not buy a
+reason to compute, it buys crowding, and crowding taxes every organ.** The flat
+island that started this had 23 creatures: it was not a flat board, it was a
+nearly empty one.
+
+What survives is that **hidden nodes are above the twelve-world floor of 0.01 at
+every price under world 14**, 0.15 at the control where world 13 recorded 0.01.
+**That result is confounded by the horizon** — this ran to 20,000 ticks and world
+13's sweep to 2,000 — and testing the horizon is the cheapest thing left. The
+mechanism argument that a linear brain can add and cannot divide is untouched by
+this and unsupported by it. See
+[RESULTS_BRAINS_AND_STRUCTURE.md](RESULTS_BRAINS_AND_STRUCTURE.md).
 
 
 A brain is the organ for resolving a tradeoff CONDITIONALLY: eat fast when the
