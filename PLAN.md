@@ -202,6 +202,92 @@ job whether or not it is designed for it.
 
 ---
 
+## Phase 6. Making the work findable and interpretable
+
+**Both of these are owed, both are mostly assembly rather than invention, and
+neither is a CLAIM.** Nothing here asserts anything about the world; they change
+who can read what the world already said.
+
+| # | What | Why | Kind | Size |
+|---|---|---|---|---|
+| 6.1 | **A Notebook on beam-campus-net.** The site already has the ELI5 Notebook pattern under `/research`. This research currently lives in **twelve `RESULTS_*.md` files, a physics register with nine sections and a plan**, none of which a visitor can find or would read in order. | Seventeen worlds of results that nobody outside this repo can reach | BUILD | M |
+| 6.2 | **An event stream, so the fact feed becomes a narrative.** | An interpreter, human or LLM, that can say what HAPPENED rather than what IS | BUILD | M |
+
+### 6.1 The Notebook, and what makes it hard
+
+**It is not a table of contents.** The material is already organised by world,
+and by world is the one order a newcomer cannot use: world 12 is unreadable
+without world 5, and the register's letters cut across all of it.
+
+**Three spines, and the choice between them is the whole design decision:**
+
+| spine | reads as | costs |
+|---|---|---|
+| by world, 1 to 17 | a lab notebook, chronological, honest | nobody starts at world 1 |
+| **by question** | "why do brains never appear", "why does one lineage always win" | needs the register re-cut, which is real work |
+| by register entry | complete and already written | it is a reference, not a read |
+
+**Recommendation: by question, with the worlds as evidence underneath.** The
+project's best material is the negative results and the process failures, and
+those only make sense as answers to a question somebody actually has.
+
+**Four questions that already have answers**, each of which is a page:
+
+1. **Why do brains never appear?** `H.10`, `H.11`, `H.12` and the behavioural
+   test. The answer is not "they are useless", it is three separate
+   demonstrations that this world could not express what was being asked for.
+2. **Why does one lineage always win?** `G.1`, Kingman, the F_ST result, and
+   lumps that turned out to be families.
+3. **What does it cost to be wrong carefully?** The instrument section `I`, six
+   failures of one shape, and `G.6`, which invalidated seventeen worlds of exact
+   numbers and was found by one failing test.
+4. **What is a world here?** The energy books, the First Law as a test rather
+   than a claim, and a seed that reproduces exactly.
+
+**Prerequisite, and it is small**: the site takes facts off the mesh and has no
+access to this repo's markdown. Either the Notebook is written in
+`beam-campus-net` and drifts, or it is **generated from this repo at build
+time**. Generated. `I.6` is what a second copy of a truth does.
+
+### 6.2 The event stream
+
+**The fact feed is a CENSUS and an interpreter needs a NARRATIVE.** Today a fact
+says `83 creatures, F_ST 61, depth 468`. It has never once said *a lineage that
+held the north patch for two hundred generations was displaced*.
+
+**Nothing emits events**, and that is the whole of the work. The world computes
+every transition it would need to report and then throws the difference away,
+because `snapshot/1` is a state and a state cannot say what changed.
+
+**The shape, and it follows the rule this project already uses for the mesh:**
+domain events stay local, and something decides explicitly what is worth
+saying. An event is not a diff of two snapshots. A diff would emit thousands a
+tick and say nothing.
+
+**Six candidates, each already computable from state the world holds:**
+
+| event | already computable from | why it is worth saying |
+|---|---|---|
+| `world_ended` | `extinct_at` | already logged, never published as an event |
+| `lineage_lost` | `lineages` falling | `G.1`'s whole subject, currently visible only as a number going down |
+| `lineage_fixed` | `lineages` reaching 1 | the moment a world becomes a monoculture |
+| `patch_taken` / `patch_lost` | lump membership over time | the `RESULTS_LUMPS` finding, which no fact has ever carried |
+| `organ_gained` / `organ_lost` | `sensors_gained`, `sensors_lost` | the counters exist and only their totals are published |
+| `record_set` | deepest lineage, largest creature | what a hall of fame is made of |
+
+**Two things to get right, both of which this project has been bitten by:**
+
+- **An event is a claim about a transition, so it needs the tick it happened at
+  and the run it belongs to.** `(island, run)` already keys the fleet's books
+  because an island that begins a new world resets its totals.
+- **Bounded.** A world that loses forty lineages in thirty ticks must not emit
+  forty facts a second. Aggregate within a tick or do not emit.
+
+**And it unblocks the thing nobody has asked for yet**: with events, an LLM can
+be handed a world's history and asked what happened in it, which is the only
+form in which this material is ever going to reach anyone who is not already
+reading the register.
+
 ## Not scheduled
 
 - **Backfill `:world-N` image tags** for worlds 1 to 13 by building from the last
