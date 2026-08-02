@@ -47,6 +47,7 @@
 -export([new/0, new/1, tick/1, tick/2, snapshot/1, chart/1, defaults/0, econ_id/1]).
 -export([ruleset/0]).
 -export([population/1, ground_energy/1, at_tick/1, alive/2]).
+-export([appraise/3, consider/3, creatures/1]).
 
 -type hex() :: hex:hex().
 -type id() :: pos_integer().
@@ -811,6 +812,61 @@ where(true, Id, C, At, Herd, #world{econ = Econ} = W, Rng0) ->
     Scored = [{value(C, Cell, At, Herd, W), Cell} || Cell <- Options],
     {To, Rng1} = pick_best(Scored, Rng0),
     {{Id, At, To}, Rng1}.
+
+%% @doc WHAT A CREATURE MAKES OF EACH CELL IT COULD MOVE TO, if its store held
+%% `Energy'. An observable, like `snapshot/1': it reads a rule and changes
+%% nothing, and no rule reads it.
+%%
+%% THE WORLD'S OWN `value/5', NOT A COPY OF IT. `I.6' was an instrument that
+%% computed its own version of a rule, was correct when written, and silently
+%% stopped agreeing when the rule changed. An instrument that shares the code
+%% path cannot drift from it.
+%%
+%% SCORES AND NOT A CHOSEN CELL, deliberately. `pick_best/2' breaks ties by
+%% drawing from the generator, so two identical appraisals can produce two
+%% different moves, and anything comparing CHOICES would report the tie-break as
+%% a change of mind. What a creature thinks is the ranking.
+%%
+%% THE HERD IS RECOMPUTED FROM THE ALTERED CREATURE, because a creature's own
+%% store is part of what a `creatures' sensor reads at its own cell. Varying the
+%% store without varying that would appraise a world that cannot exist.
+-spec appraise(world(), id(), non_neg_integer()) -> [{hex(), integer()}].
+appraise(#world{creatures = Cs, econ = Econ} = W, Id, Energy) ->
+    C = (maps:get(Id, Cs))#{energy => Energy},
+    Cs1 = Cs#{Id => C},
+    At = maps:get(at, C),
+    Herd = herd(Cs1),
+    W1 = W#world{creatures = Cs1},
+    [{Cell, value(C, Cell, At, Herd, W1)}
+     || Cell <- [At | hex:neighbours_in(At, maps:get(radius, Econ))]].
+
+%% @doc WHAT A CREATURE WANTS TO DO WHERE IT STANDS, if its store held `Energy'.
+%%
+%% THE COMPANION TO `appraise/3' AND A DIFFERENT KIND OF DECISION, which is the
+%% whole reason both exist. Moving is a RANKING across seven cells, so an input
+%% that reads the same at every one of them shifts all the scores together and
+%% cannot reorder anything. `breed', `grow' and `eat' are THRESHOLDS on one
+%% output at one place, so there is nothing for a constant to cancel against and
+%% the same input can decide the answer.
+%%
+%% Measuring one and reporting it as "behaviour" would be a claim about the
+%% creature that is really a claim about which decision was looked at.
+-spec consider(world(), id(), non_neg_integer()) ->
+          #{brain:purpose() => integer()}.
+consider(#world{creatures = Cs, econ = Econ} = W, Id, Energy) ->
+    C = (maps:get(Id, Cs))#{energy => Energy},
+    Cs1 = Cs#{Id => C},
+    At = maps:get(at, C),
+    brain:evaluate(maps:get(brain, C),
+                   inputs(C, At, At, herd(Cs1), W#world{creatures = Cs1}),
+                   Econ).
+
+%% @doc The living creatures, by id. An observable: the individuals themselves,
+%% which every other reader of this module has so far been spared needing.
+%% `snapshot/1' answers what the POPULATION is and cannot answer a question about
+%% one creature's behaviour.
+-spec creatures(world()) -> #{id() => creature()}.
+creatures(#world{creatures = Cs}) -> Cs.
 
 value(C, Cell, At, Herd, W) ->
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, Cell, At, Herd, W),
