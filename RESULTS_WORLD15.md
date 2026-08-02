@@ -3,11 +3,19 @@
 **All four pre-registered findings failed. I then explained why, was wrong, and
 the correction is further down rather than quietly edited out of the top.**
 
-The likeliest explanation is the dullest one and it needed no arithmetic:
-**almost nothing is eaten in these worlds at all**, whatever size mouth a
-creature carries, because two creatures sharing a cell is a rare event at three
-to seven percent occupancy. An organ cannot be selected for by an opportunity
-that does not arrive. That is a claim and it is not tested.
+I then offered a second explanation, that opportunities are too rare to select
+on, **and measuring it refuted that too.** `scripts/how_often_do_they_meet.escript`
+counts, tick by tick, how many creatures stand on a cell with something strictly
+smaller: **6 to 23 percent of the living, on an average tick, and 2 to 10 chances
+in a whole lifetime.** That is not an opportunity that never arrives.
+
+**So world 15's null is unexplained, and the honest state of it is a sharp open
+question rather than a story.** A mouth of 200 costs about 240 energy over a
+forty-tick life, against a lifetime intake near 500 to 900. A meal is a carcass
+worth perhaps 25 and there are a handful of chances at one. **The organ costs a
+quarter to a half of everything a creature will ever earn, returns a few percent,
+and is not shed.** Something is wrong with that picture and none of my three
+explanations survived contact with a measurement.
 
 Pre-registered in [PREREGISTRATION_WORLD15.md](PREREGISTRATION_WORLD15.md).
 48 seeds, 20,000 ticks, 100% efficiency, default price. **8 survived.**
