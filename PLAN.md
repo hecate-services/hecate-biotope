@@ -341,6 +341,165 @@ be handed a world's history and asked what happened in it, which is the only
 form in which this material is ever going to reach anyone who is not already
 reading the register.
 
+## The watering hole
+
+**Corrects `J.1`, the entry whose section did not exist until Raf asked why we
+had only ever considered energy.** A creature has exactly one requirement, so the
+scarcest thing is always the same thing and the optimum is always "get more".
+Liebig's Law of the Minimum says otherwise about every organism there has ever
+been.
+
+**It is a CLAIM.** Pre-registration, both gates, and no runner written first.
+
+**Not scheduled ahead of `B.10`.** A correction of a constant nobody chose comes
+before a new capability, or water is measured in a world whose harshness is an
+accident. The register's own order of work says a correction made while an
+adjacent defect remains gives an uninterpretable result.
+
+### Why it is worth a world
+
+The register already wrote the diagnosis: *"This world has ONE drive... Nothing
+pulls against anything... the brains are not being deleted for being too small.
+They are being deleted because there is nothing to decide."*
+
+**A second requirement in a different PLACE is the first proposal here that gives
+a brain something to decide.** Keep eating, or go and drink.
+
+And the premise is measured, `scripts/what_would_a_waterhole_buy.escript`:
+gathering a settled population into fewer cells raises the share standing on
+something strictly smaller from **6.1% to 17.0% at three-fold crowding and 38.5%
+at ten-fold**, then saturates. The risk that a crowd is company rather than food
+is cleared: measured size spread within a world is 11.9x, 2356x and 197x.
+
+| # | Package | Kind | Size |
+|---|---|---|---|
+| W.0 | **The gate, and it may fail.** | CLAIM gate | S |
+| W.1 | Water is a carried store with a fixed source | CLAIM | M |
+| W.2 | Water and thirst are readable | CLAIM | M |
+| W.3 | The two instruments this needs and does not have | BUILD | S |
+| W.4 | The sweep: holes against travel | CLAIM | M |
+| W.5 | The picture carries water | BUILD | S |
+
+### W.0 The gate, and it may fail
+
+**Do this before anything is built.** `R.1` exists because world 15 ran
+forty-eight seeds to twenty thousand ticks measuring a trait that could not be
+selected, and one line of arithmetic would have said so.
+
+**The dominant term is travel, and travel here is dear.** `fare = move_cost +
+carrying(structure)` with `move_cost` at 10, so one cell costs of order 20 to 35
+against an income near 94 a tick. **A creature spends a third of a tick's income
+to move one cell.**
+
+| | to measure |
+|---|---|
+| `carrying(structure)` at real bodies, so the true fare per cell | `scripts/where_does_it_go.escript` |
+| mean distance to the nearest hole, for each hole count and size | new, trivial geometry |
+| round trip cost = 2 x distance x fare | |
+| **that over the thirst interval, as a share of income** | **the roof: well under half or it is a prohibition** |
+| mean lifespan in ticks | needed, because a round trip costing six ticks of income is fatal in a world where creatures live tens |
+
+**THE ARITHMETIC ALREADY POINTS AT A DESIGN.** Few big holes means long journeys
+at 20 to 35 a cell. **Many small holes means short journeys and less
+concentration**, and the whole benefit comes from concentration. That tension is
+the experiment, not a detail of it.
+
+### W.1 Water is a carried store with a fixed source
+
+**The same shape as energy, because this world already has that shape and a
+second idiom would be a second thing to reason about.** A creature holds water,
+spends `thirst_rate` a tick, dies at zero, and refills by standing on a wet cell.
+
+- **Sources are unlimited and fixed.** A spring is effectively unlimited to one
+  animal, and the cost is the journey rather than the queue. **It is not a free
+  good**: travel is already priced and that is what pays for it.
+- **Placed from the seed**, so a world stays a pure function of it (`G.6`).
+- **No new death mode beyond zero.** Energy death is already "the store ran out";
+  water death is the same sentence about the other store, rather than a step
+  function bolted on.
+- **The books double rather than break.** Energy conservation is untouched. Water
+  is unconserved by construction, like sunlight, and the entry says so instead of
+  leaving a reader to discover a leak that is not one.
+
+**Two new constants, both swept, nothing derives either**: `thirst_rate` and
+`water_capacity`. And a decision to take in the pre-registration: whether
+capacity is heritable. If it is, it is a trait and `H.10` applies to it; if it is
+not, the gate reduces to the roof alone.
+
+### W.2 Water and thirst are readable
+
+Two new input columns, and they are **not** the same kind of thing.
+
+- **`water` is SPATIAL**, a field like `ground`. A creature can rank cells by it
+  with the brain it already has.
+- **`thirst` is NOT**, like `self`. It reads the same at every candidate cell.
+
+**⚠ THIS IS WHERE `H.12` MAKES A SHARP PREDICTION, AND IT IS THE POINT OF THE
+WORLD.** Movement is a ranking, so a non-spatial reading shifts all seven
+candidates alike and cannot reorder them. Water-seeking is therefore expressible
+and should appear. **Going to water only when thirsty is not**, because it needs
+thirst and water combined, and the only nonlinearity here is a hidden node.
+
+Which is `B.10`: a hidden node costs a third of income at a price nobody chose,
+and 9 creatures in 431 carry one.
+
+**⚠ AND ADDING FIELDS MAKES BRAINS DEARER.** An output row is `sensors + 1` wide
+and a hidden row likewise, so every new sensor raises the cost of every output
+and every node. Two new fields in a world where computation is already
+unaffordable is a real interaction and must be in the gate, not discovered after.
+
+### W.3 The two instruments this needs and does not have
+
+**`I.7`: a pre-registered finding that names no instrument is a finding that
+cannot fail.**
+
+- **Distance to the nearest hole**, as a distribution over the living. Without it
+  "creatures aggregate" cannot be scored.
+- **Does thirst change the choice.** `scripts/does_hunger_change_the_choice.escript`
+  already does exactly this for hunger using `world:appraise/3`, and extends by
+  overriding water instead of energy. **The negative prediction above is only
+  publishable if this exists.**
+
+### W.4 The sweep: holes against travel
+
+Two axes, because the tension in W.0 is two-dimensional:
+
+- **hole count**, from one to many, at fixed total wet area
+- **`thirst_rate`**, which sets how often the journey must be made
+
+Both walls reported, as world 18 did: the value below which the requirement
+changes nothing, and the value above which it is a prohibition rather than a
+requirement.
+
+### W.5 The picture carries water
+
+`world:chart/1` gains the wet cells and `island_disc` paints them. Cheap, and
+without it nobody can see the thing the world is about. The spectator gets it for
+free because both render the same chart.
+
+### What would count as a finding, in advance
+
+1. **Water sensors are carried.** Instrument: the per-field sensor census that
+   already exists in `snapshot`.
+2. **Creatures aggregate near water.** Instrument: W.3, new.
+3. **Encounters and predation rise.** Instruments: `how_often_do_they_meet` and
+   `is_meat_worth_eating`, both existing. `D.7` is the baseline: 0.08% of all
+   energy ever taken came from meat.
+4. **Conditional water-seeking does NOT appear.** The sharp one, derived from
+   `H.12` and `B.10` before the run rather than explained after it. Instrument:
+   W.3, new. **If it does appear, one of those two entries is wrong**, which is a
+   better outcome than the world working.
+
+### What will NOT happen
+
+**The most likely outcome is that the world gets harsher and nothing else
+changes.** Every addition to this register has cost survival, and this one adds a
+second way to run out.
+
+**And the strongest available negative**: if water changes where creatures stand
+and nothing else, then a second requirement is not what the brains were missing,
+and `J.1` is answered rather than corrected.
+
 ## Not scheduled
 
 - **Backfill `:world-N` image tags** for worlds 1 to 13 by building from the last
