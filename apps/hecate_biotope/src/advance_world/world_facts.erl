@@ -255,10 +255,12 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       depth => Depth,
       %% The range of the one heritable quantity that visibly varies. Selection
       %% has nothing to act on when this closes to nothing.
-      %% THE TROPHIC SPLIT. `carnivores_pct' is the point of world 15: a share
-      %% strictly between none and all is the first niche this world has had.
+      %% HOW MUCH MOUTH THE POPULATION CARRIES. A histogram and not a share,
+      %% because whether one population holds two ways of living is a statement
+      %% about the SHAPE of the distribution. And not called `carnivores_pct',
+      %% because that named a type in a world that has none.
       mouth_mean => maps:get(mouth_mean, Snapshot),
-      carnivores_pct => maps:get(carnivores_pct, Snapshot),
+      mouth_hist => maps:get(mouth_hist, Snapshot),
       uptake_min => UptakeMin,
       uptake_max => UptakeMax,
       %% HOW OLD THE EATEN WERE, in hundredths of a tick. A living made off other

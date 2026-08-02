@@ -1280,17 +1280,26 @@ snapshot(#world{econ = Econ} = W) ->
       %% nothing anywhere calls either of those.
       uptake_mean => mean_uptake(W),
       %% ==================================================================
-      %% THE TROPHIC SPLIT, WORLD 15, AND IT IS THE POINT OF THAT WORLD
+      %% HOW MUCH MOUTH THE POPULATION CARRIES, WORLD 15
       %% ==================================================================
       %%
-      %% `mouth_mean' is how big a mouth the average creature carries and
-      %% `carnivores_pct' how many carry one at all. The second is the one that
-      %% matters: a share strictly between none and all is the first niche
-      %% differentiation this world has ever had, and either extreme is the null.
-      %% Both are censuses and neither is a verdict; nothing in the rules calls
-      %% anything a carnivore and there is no flag to set.
+      %% NOT `carnivores_pct', WHICH IS WHAT THIS WAS FIRST CALLED AND WAS WRONG
+      %% TWICE OVER. Raf caught both. "Herbivore" is wrong because there are no
+      %% plants and a mouthless creature is an absorber. "Carnivore" is worse:
+      %% it names a TYPE, and this world has no types, only investments. The
+      %% spectator page has said for two worlds that nothing in the rules names
+      %% a predator and there is no carnivore flag to set, and then a carnivore
+      %% flag was added.
+      %%
+      %% AND A SHARE OF CARRIERS COULD NOT HAVE ANSWERED ANYTHING. `mouth > 0'
+      %% is satisfied by a mouth of one, and the trait is a drifting integer, so
+      %% it read 94 to 100 percent across worlds ranging from functionally
+      %% toothless to a quarter carnivorous. The histogram is the instrument the
+      %% question needed: whether a single population holds both ways of living
+      %% is a statement about the SHAPE of the distribution, which no share and
+      %% no mean can carry.
       mouth_mean => mean_mouth(W),
-      carnivores_pct => mouthed_share(W),
+      mouth_hist => binned(mouth_values(W), maps:get(ground_ceiling, Econ)),
       %% ==================================================================
       %% THE ENGINE, MEASURED RATHER THAN ASSUMED
       %% ==================================================================
@@ -1455,9 +1464,8 @@ mean_mouth(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_mouth(#world{creatures = Cs}) ->
     lists:sum([M || #{mouth := M} <- maps:values(Cs)]) div map_size(Cs).
 
-mouthed_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
-mouthed_share(#world{creatures = Cs}) ->
-    length([M || #{mouth := M} <- maps:values(Cs), M > 0]) * 100 div map_size(Cs).
+mouth_values(#world{creatures = Cs}) ->
+    [M || #{mouth := M} <- maps:values(Cs)].
 
 count_lineages(#world{creatures = Cs}) ->
     map_size(maps:from_keys([L || #{lineage := L} <- maps:values(Cs)], [])).
