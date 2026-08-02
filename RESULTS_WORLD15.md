@@ -76,21 +76,58 @@ resolve** produces a niche, and the answer to that is no and was never in doubt.
 The four findings are recorded as failed because that is what the criteria say,
 and none of them is evidence about trophic structure.
 
-## `A.6` generalises, and it now blocks
+## The A.6 explanation was wrong, and re-running with the fix proves it
 
-Five days ago I entered `A.6` after finding that world 14's ground floor is
-exactly zero below a neighbourhood mean of 34, from integer division rather than
-from choice, and filed it as a curiosity about the ground that was not binding.
+**Withdrawn.** I explained this null by saying integer truncation made the trait
+unselectable: `(structure + mouth) div 33` with a drift step of 8, so three
+mutations in four cost nothing. That arithmetic is right **at a fixed body size**
+and a real body is not fixed. Over a body drifting across 300 to 500 the
+truncated lifetime bill runs 11.64, 11.88 and 12.44 units a tick for mouths of 0,
+8 and 27. **The gradient survives truncation.**
 
-**It is not about the ground.** Integer division sits under every cost in this
-world and turns each into a staircase. **Any trait whose mutation step is smaller
-than a tread is invisible to selection however real its cost**, and nothing in
-the register was watching for that. `uptake` has the same step and the same
-divisor; world 4 recorded that it "drifted and never converged" and reasoned
-about gradients in the resource, and this is a second and simpler explanation
-that was available the whole time.
+The fix went in anyway, because carrying the fraction is strictly more correct
+and costs nothing. Re-running this experiment with it changes nothing
+interpretable:
 
-Nothing further should be built on a heritable integer until this is decided.
+| seed | mouth, truncated | mouth, exact |
+|---|---|---|
+| 5 | 90 | **159** |
+| 12 | 119 | **41** |
+| 14 | 318 | **80** |
+| 39 | 27 | **204** |
+| 46 | 9 | **120** |
+
+Up, down, down, up, up. **No direction.** The extremes narrow (9 to 329 becomes
+32 to 204) and survivors fall from 8 to 6, but the trait drifts either way and
+meat stays at 0 to 6%. Exactly what a random walk does when you change its
+increments: a different walk, the same regime.
+
+## So what is the null actually about
+
+**Look at `meat%`: 0, 2, 1, 0, 6, 2.** Almost no energy in these worlds comes
+from creatures at all, whatever size mouth they carry.
+
+That is the simplest available explanation and it has nothing to do with pricing:
+**there is nothing to eat.** Populations run 32 to 85 on 1,261 cells, three to
+seven percent occupancy, so two creatures sharing a cell is a rare event and a
+mouth spends its whole existence waiting for one. An organ cannot be selected for
+by an opportunity that does not arrive.
+
+It also explains the failure of finding 2 without any appeal to arithmetic. Mouths
+were predicted to track density; the densest third here holds 79 creatures, which
+is not dense. The world 14 boards that reached 221 are where the prediction could
+have been tested and this run never got there.
+
+**That is a claim and it is not tested.** It would need density varied
+deliberately rather than left to the seed.
+
+## What `A.6` still is
+
+A real observation about the arithmetic and **not** an explanation for anything
+yet. Costs are quantised, the ground floor really does switch off below a
+neighbourhood mean of 34, and the bill is now carried at full precision because
+that is simply more correct. What it is **not** is the reason a mouth drifts, and
+the register says so.
 
 ## What did work
 
