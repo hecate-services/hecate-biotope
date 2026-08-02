@@ -50,7 +50,29 @@ what they unblock. `R.1` is an hour and prevents the failure that cost world 15.
 | R.1 | **Make `H.10` a gate.** The pre-registration template gains one line: any world adding a heritable trait states its per-mutation cost as a share of measured income and shows it clears ~1%. | It would have saved world 15 entirely, and it costs an hour | BUILD | XS |
 | R.2 | **Fix `H.8`.** A `self` sensor pays for reach that `spatial/1` says is never read. | A straight defect, unambiguous, in the difference between two functions | BUILD | XS |
 | R.3 | **Decide `H.9`.** A hidden node costs the same whatever it reads, which `B.3` objected to and world 13 did not fix. | **This one is about brain complexity directly.** Charging by fan-in makes a big brain properly expensive and a small one cheap, which is the shape every real neural economy has | CLAIM | M |
-| R.4 | **Make the mouth selectable, then re-run world 15.** Sweep the mutation step rather than choosing it. | Not for the trophic split. Because it is the only route to a genuine conditional decision, which is what a hidden node is for | CLAIM | M |
+| R.4 | ~~**Make the mouth selectable, then re-run world 15.**~~ **DROPPED 2026-08-02, both legs gone.** | see below | | |
+
+**Why `R.4` is dropped, and it is not because world 15 is settled.**
+
+**Its stated justification is refuted.** It read *"not for the trophic split,
+because it is the only route to a genuine conditional decision, which is what a
+hidden node is for."* The behavioural test measured **428 of 431 creatures
+already changing whether they want to breed, grow or eat with hunger**
+(`H.12`). Conditional decisions exist, are measured, and did not need a mouth.
+
+**Its premise was already withdrawn by `A.6`.** *"The gradient survives
+truncation... truncation was NOT shown to be what stopped world 15's mouth being
+selected, and that explanation is withdrawn until something measures it."* The
+red check written to prove it passed either way, which `A.6` records as the
+honest failure it was.
+
+**So world 15's null is now UNEXPLAINED rather than explained**, which is a
+worse position than it looked and a reason to leave it alone rather than to
+re-run it. Re-running the same world with the same trait would measure the same
+drift: the mouth moves the bill by 0.24% of income against a threshold near 1%,
+which is `H.10`'s floor and has nothing to do with truncation. Raising the step
+or the price until it clears would be a DIFFERENT experiment from the one this
+row describes, and it should be proposed on its own terms if anyone wants it.
 | R.5 | **`H.7`, price the actuators.** Every organ here is priced and every act is free. **GATE RUN 2026-08-02, `scripts/can_an_act_be_priced.escript`: buildable ONLY with the rate swept well below `neural_cost`.** Charging an output by its wiring at `neural_cost` costs 28.4% of income per output and 94.7% for the complement a creature carries, which bans acting rather than pricing it. `H.10` gained a roof because of this. | Largest unpriced thing left, and the gate has now told us the one way to build it that cannot work | CLAIM | L |
 
 **Phase 1 onward below is unchanged and still wanted.** The join blocker is still
