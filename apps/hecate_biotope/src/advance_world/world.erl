@@ -133,6 +133,9 @@
                   %% body. Since world 13 an organ is charged by weight like any
                   %% other tissue, so the two flat rents this replaced are gone.
                   neural_cost := non_neg_integer(),
+                  %% What being ABLE to act costs, per unit of output wiring.
+                  %% World 18. Zero is world 17.
+                  act_cost := non_neg_integer(),
                   max_sensors := pos_integer(),
                   max_sensor_range := non_neg_integer(),
                   scent_per_tick := non_neg_integer(),
@@ -230,10 +233,9 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 17,
-      line => <<"A sense reports how rich a place is rather than how much is "
-                "in it, so looking further now means seeing wider rather than "
-                "seeing a bigger number.">>}.
+    #{number => 18,
+      line => <<"Being able to act costs something, so a creature that can do "
+                "four things pays more than one that can do none.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -371,6 +373,36 @@ defaults() ->
       %% flat rent of 10 a tick that worlds 2 to 12 charged, so those worlds are a
       %% point on this sweep rather than a different game.
       neural_cost       => 330,
+      %% ==========================================================================
+      %% WHAT AN ACT COSTS TO BE ABLE TO DO, and the one constant world 18 adds
+      %% ==========================================================================
+      %%
+      %% Until now a purpose was free. Every organ in this world was priced and
+      %% every act was not, so a creature carrying `move', `breed', `eat' and
+      %% `grow' paid exactly what one carrying none paid. `H.7', and the largest
+      %% unpriced thing left.
+      %%
+      %% SWEPT, because nothing derives a price for an act, and the sweep spans
+      %% both walls the gate predicted rather than sitting between them:
+      %%
+      %%   0    world 17 exactly, so the old behaviour is inside the comparison
+      %%   ~10  the drift floor: below it a mutation moves the bill by under 1%
+      %%        of what a creature earns and selection cannot see it (`H.10')
+      %%   ~200 the roof: above it the complement a creature actually carries
+      %%        costs most of its income, which does not price acting, it bans it
+      %%
+      %% `scripts/can_an_act_be_priced.escript' measured both before this was
+      %% built, which is what `R.1' exists for. Reusing `neural_cost' at 330 was
+      %% the obvious build and it fails the roof at 94.7% of income.
+      %%
+      %% ⚠ IT SELECTS ON COUNT AND NOT ON WIDTH. An output is `sensors + 1 +
+      %% hidden' wide and that is the body reported back, not a trait, exactly as
+      %% `H.11' found for hidden nodes. What a creature can vary is how many
+      %% purposes it carries. See PREREGISTRATION_WORLD18.md.
+      %%
+      %% CONTROL IS 0 UNTIL THE SWEEP SAYS OTHERWISE, so a fleet running this
+      %% before the result is in runs world 17's economy and not a guess.
+      act_cost          => 0,
       %% Safety valves against a runaway genome making one tick cost as much as
       %% the whole disc. Not model parameters: rent is what should bound a
       %% creature, and when one of these binds it is counted and reported.
@@ -685,8 +717,17 @@ needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
 %% Kept whole so `charge_one/2' can carry the fraction; `upkeep/2' below still
 %% reports the per-tick bill for anything that wants to read it.
 tissue(#{body := Body, brain := Brain, structure := S, mouth := Mouth}, Econ) ->
-    S + Mouth + (body:mass(Body) + brain:hidden_weights(Brain))
-        * maps:get(neural_cost, Econ).
+    S + Mouth
+        + (body:mass(Body) + brain:hidden_weights(Brain))
+              * maps:get(neural_cost, Econ)
+        %% WORLD 18: AN ACT IS TISSUE TOO. Sensors pay by reach and hidden nodes
+        %% pay by wiring, and until now a purpose was free: a creature carrying
+        %% all four paid exactly what one carrying none paid. `H.7'.
+        %%
+        %% Charged by wiring like a hidden node, because an output vector IS
+        %% wiring and the alternative is a flat fee, which is the shape world 13
+        %% deleted from this world and `B.2' and `B.3' both objected to.
+        + brain:output_weights(Brain) * maps:get(act_cost, Econ).
 
 %% (`upkeep/2' is gone: `charge_one/2' owns the bill now, because the fraction
 %% has to be carried across ticks and a per-tick function cannot do that.)
@@ -1543,6 +1584,14 @@ snapshot(#world{econ = Econ} = W) ->
       movers => outputs_with(move, W),
       breeders => outputs_with(breed, W),
       sensor_mean => mean_sensors(W),
+      %% HOW MANY THINGS A CREATURE CAN DO, and WHICH. World 18 prices the
+      %% ability to act, so "how many purposes are carried" is the quantity it
+      %% moves, and a mean alone cannot answer the question it raises: `H.12'
+      %% says the four are not equivalent, because losing `breed' ends a lineage
+      %% in one generation and losing `eat' does not. A count per purpose is what
+      %% tells a price acting on all four apart from one acting on two.
+      purposes_mean => mean_purposes(W),
+      purposes_hist => purpose_census(W),
       %% Whether the body plan is still moving at all.
       sensors_gained => W#world.sensors_gained,
       sensors_lost => W#world.sensors_lost,
@@ -1557,6 +1606,21 @@ snapshot(#world{econ = Econ} = W) ->
 sensor_census(#world{creatures = Cs}) ->
     body:census([{B, brain:attention(Br, length(B))}
                  || #{body := B, brain := Br} <- maps:values(Cs)]).
+
+%% Per purpose, in the fixed order `brain:purposes/0' gives, so two islands and
+%% two ticks are always comparable position by position.
+%% ⚠ THE WORLD IS PASSED THROUGH AND NOT REBUILT. A first version constructed
+%% `#world{creatures = Cs}' to hand to `outputs_with/2', which defaults every
+%% other field to `undefined' and violates its own record's types. Dialyzer read
+%% it as a function with no local return and took `snapshot/1' down with it,
+%% which is the whole reason that gate is in the pipeline.
+purpose_census(W) -> [outputs_with(P, W) || P <- brain:purposes()].
+
+mean_purposes(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_purposes(#world{creatures = Cs}) ->
+    Total = lists:sum([length(brain:carried(Br))
+                       || #{brain := Br} <- maps:values(Cs)]),
+    Total * 100 div map_size(Cs).
 
 outputs_with(_Purpose, #world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 outputs_with(Purpose, #world{creatures = Cs}) ->

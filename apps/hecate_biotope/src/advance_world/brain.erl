@@ -54,6 +54,7 @@
 
 -export([founder/3, inherit/4, evaluate/3, attention/2]).
 -export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
+-export([output_weights/1, carried/1]).
 
 -type purpose() :: move | breed | grow.
 -type output() :: #{inputs := [integer()], hidden := [integer()]}.
@@ -102,6 +103,32 @@ hidden_count(#{hidden := H}) -> length(H).
 %% identical if you only have one of the numbers.
 -spec hidden_weights(brain()) -> non_neg_integer().
 hidden_weights(#{hidden := H}) -> lists:sum([length(V) || V <- H]).
+
+%% @doc How much wiring the OUTPUTS are, which world 18 charges for.
+%%
+%% The same shape `hidden_weights/1' has, and for the same reason: a vector's
+%% cost is what it reads. An output reads every input and every hidden node, so
+%% it is `sensors + 1 + hidden' wide.
+%%
+%% ⚠ WIDTH IS NOT A TRAIT AND THIS CANNOT SELECT FOR NARROW OUTPUTS, exactly as
+%% `H.11' found for hidden nodes. What a creature CAN vary is how many purposes
+%% it carries, through `toggle/4'. World 18 is about that count and says so in
+%% its pre-registration rather than discovering it afterwards.
+%%
+%% Order-free: a sum over `maps:values' cannot depend on the order it gets them
+%% in, which after `G.6' is worth stating rather than assuming.
+-spec output_weights(brain()) -> non_neg_integer().
+output_weights(#{outputs := Os}) ->
+    lists:sum([length(I) + length(H)
+               || #{inputs := I, hidden := H} <- maps:values(Os)]).
+
+%% @doc Which purposes this brain has at all, sorted.
+%%
+%% SORTED, so a census cannot depend on map order. The purposes are atoms and
+%% `G.6' was atom-keyed map iteration reaching the generator; nothing here
+%% reaches the generator, and the habit is cheaper than the audit.
+-spec carried(brain()) -> [purpose()].
+carried(#{outputs := Os}) -> lists:sort(maps:keys(Os)).
 
 -spec has(purpose(), brain()) -> boolean().
 has(Purpose, #{outputs := Os}) -> maps:is_key(Purpose, Os).
