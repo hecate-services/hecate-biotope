@@ -78,7 +78,7 @@ a_port_means_one_listener_test() ->
 %% asserting what is served.
 every_route_is_compilable_test() ->
     Routes = island_ui:routes(),
-    ?assertEqual(4, length(Routes)),
+    ?assertEqual(5, length(Routes)),
     ?assert(lists:keymember("/", 1, Routes)),
     ?assert(lists:keymember("/settings", 1, Routes)),
     %% Compiling is what the supervisor does, and a malformed route only fails
@@ -140,6 +140,51 @@ a_station_name_is_escaped_test() ->
                                                 #{url => <<"<script>x</script>">>}})),
     ?assertEqual(nomatch, binary:match(Html, <<"<script>">>)),
     ?assertNotEqual(nomatch, binary:match(Html, <<"&lt;script&gt;">>)).
+
+%%==============================================================================
+%% The page and the policy it is served under
+%%==============================================================================
+
+%% ⚠ RED BEFORE THE FIX, AND IT COULD NOT HAVE BEEN CAUGHT FROM THE SERVER SIDE.
+%% The policy was `default-src 'none'' with no `connect-src', which governs both
+%% `fetch' and `WebSocket'. Every poll was blocked in the browser: the first one
+%% threw, the loop disabled itself, and the island served a perfectly correct
+%% first frame and then froze. Status 200, nothing in the logs, every number on
+%% the page right. A SCREENSHOT was what caught it.
+%%
+%% So the test reads what the script actually connects to and checks it against
+%% the policy and the routing table together. Three things that must agree and
+%% previously agreed by hand.
+the_policy_permits_what_the_page_does_test() ->
+    Csp = island_page:csp(),
+    Js = island_page:js(),
+    ?assertNotEqual(nomatch, binary:match(Csp, <<"connect-src 'self'">>)),
+    %% The page connects, so the absence of `connect-src` is fatal and not
+    %% merely untidy.
+    ?assertNotEqual(nomatch, binary:match(Js, <<"WebSocket">>)),
+    %% An inline style and an inline script, both of which this page has.
+    ?assertNotEqual(nomatch, binary:match(Csp, <<"style-src 'unsafe-inline'">>)),
+    ?assertNotEqual(nomatch, binary:match(Csp, <<"script-src 'unsafe-inline'">>)),
+    %% And nothing else may load from anywhere: an island runs behind somebody
+    %% else's firewall and a page that phones out breaks there.
+    ?assertNotEqual(nomatch, binary:match(Csp, <<"default-src 'none'">>)).
+
+%% EVERY PATH THE SCRIPT NAMES MUST BE A ROUTE. A page that connects to a URL
+%% nobody serves is the same silent failure as a policy that forbids it, and both
+%% look like a slow world.
+every_path_the_page_uses_is_served_test() ->
+    Js = island_page:js(),
+    Served = [list_to_binary(P) || {P, _M, _O} <- island_ui:routes()],
+    Used = [<<"/live">>],
+    ?assertEqual([], [P || P <- Used, not lists:member(P, Served)]),
+    ?assert(lists:all(fun(P) -> binary:match(Js, P) =/= nomatch end, Used)).
+
+%% THE SOCKET IS THE ONLY THING THE PAGE TALKS TO, which is what makes a paused
+%% or slow island cost nothing. A stray poll would put the fixed interval back.
+the_page_makes_no_repeating_request_test() ->
+    Js = island_page:js(),
+    ?assertEqual(nomatch, binary:match(Js, <<"setInterval">>)),
+    ?assertEqual(nomatch, binary:match(Js, <<"fetch(">>)).
 
 %%==============================================================================
 %% The picture

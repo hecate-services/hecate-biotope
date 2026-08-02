@@ -23,7 +23,7 @@
 %% below interprets nothing and only draws.
 -module(island_page).
 
--export([init/2]).
+-export([init/2, csp/0, js/0]).
 
 init(Req, State) ->
     {ok, cowboy_req:reply(200, headers(), page(), Req), State}.
@@ -32,11 +32,27 @@ headers() ->
     #{<<"content-type">> => <<"text/html; charset=utf-8">>,
       %% The picture changes every tick. Nothing here may be cached.
       <<"cache-control">> => <<"no-store">>,
+      <<"content-security-policy">> => csp()}.
+
+%% @doc The policy this page is served under. Exported to be tested AGAINST THE
+%% SCRIPT ITSELF, because a policy that forbids what the page does is invisible
+%% from this side: the server renders a correct page, returns 200, logs nothing,
+%% and the browser silently refuses every poll.
+-spec csp() -> binary().
+csp() ->
       %% No page on this service loads anything from anywhere, so the strictest
       %% policy that still allows an inline style and script is the correct one.
-      <<"content-security-policy">> =>
-          <<"default-src 'none'; style-src 'unsafe-inline'; "
-            "script-src 'unsafe-inline'; img-src data:">>}.
+      %%
+    %% ⚠ `connect-src' IS NOT OPTIONAL AND ITS ABSENCE IS SILENT. `fetch' falls
+    %% under it, and with only `default-src 'none'' every poll was blocked: the
+    %% first one threw, the loop disabled itself, and the page served a perfectly
+    %% correct FIRST FRAME and then froze. Every number on it was right, so it
+    %% read as a slow world rather than as a broken page, and the only visible
+    %% symptom was a canvas sitting at its default 300 by 150. Nothing in the
+    %% server logs, nothing wrong in the markup, and a SCREENSHOT was what caught
+    %% it. `watch_island_tests' now checks the policy against the script.
+    <<"default-src 'none'; style-src 'unsafe-inline'; "
+      "script-src 'unsafe-inline'; connect-src 'self'">>.
 
 page() ->
     Snap = world_server:snapshot(),
@@ -49,7 +65,10 @@ page() ->
      <<"</h1><p>An island: an open population of creatures whose bodies are "
        "made of organs, and an energy economy that decides which of them get to "
        "reproduce.</p></header><main><div class=\"board\">"
-       "<canvas id=\"disc\" role=\"img\" aria-label=\"the island\"></canvas>"
+       "<canvas id=\"disc\" width=\"560\" height=\"560\" role=\"img\" "
+       "aria-label=\"the island\"></canvas>"
+       "<p id=\"waiting\">screening for a viable seed. Most worlds here die, "
+       "so the island tries several before it shows you one.</p>"
        "<p class=\"legend\">Each dot is a creature, sized by the <strong>body it "
        "has built</strong>, which is what decides every contest here, and "
        "coloured by <strong>how fast it feeds</strong>: pale is gentle, deep is "
@@ -131,8 +150,10 @@ css() ->
       "grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}"
       "@media(max-width:52rem){main{grid-template-columns:1fr}}"
       "#disc{width:100%;height:auto;display:block;background:var(--card);"
+      "aspect-ratio:1;"
       "border:1px solid var(--line);border-radius:12px}"
       ".legend{color:var(--dim);font-size:.85rem;margin:.6rem 0 0}"
+      "#waiting{color:var(--dim);font-size:.85rem;margin:.6rem 0 0;font-style:italic}"
       ".card{background:var(--card);border:1px solid var(--line);"
       "border-radius:12px;padding:1rem 1.1rem;margin:0 0 1rem}"
       ".card h2{margin:0 0 .6rem;font-size:1rem;text-transform:uppercase;"
@@ -163,10 +184,13 @@ css() ->
       "border-radius:999px;background:var(--fg);color:var(--bg);"
       "font-size:.75rem;display:none}">>.
 
-%% Polls the two fragments the island can render on its own, and stops on the
-%% first failure rather than hammering a service that is restarting. Space
-%% pauses, because watching a world and reading it are different activities and
-%% a board that moves under the cursor cannot be read.
+%% @doc The page's own script. Exported so a test can read what it CONNECTS to
+%% and check every target against the routing table and the policy above.
+%%
+%% IT MAKES NO REPEATING REQUEST. The island pushes a frame when it has made
+%% one, so a paused world costs nothing and a fast one drops nothing. All this
+%% does is paint what arrives.
+-spec js() -> binary().
 js() ->
     <<"let on=true,was=new Map(),now=new Map(),d=null,started=0,frame=0;"
       "const el=document.getElementById('disc'),c=el.getContext('2d');"
@@ -212,27 +236,42 @@ js() ->
       "c.strokeStyle=getComputedStyle(el).color;c.lineWidth=1;c.beginPath();"
       "for(let i=0;i<d.rim.length;i+=2){i?c.lineTo(d.rim[i],d.rim[i+1]):"
       "c.moveTo(d.rim[0],d.rim[1]);}c.closePath();c.stroke();c.globalAlpha=1;};"
-      %% A FACT ARRIVES ABOUT ONCE A SECOND AND A CREATURE MOVES ONE CELL, so
-      %% without this the board is a slideshow: everything teleports and nothing
-      %% about which way anything was going survives the jump. Keyed BY ID,
-      %% because births and deaths reshuffle the list every tick.
-      "const animate=()=>{cancelAnimationFrame(frame);const step=()=>{"
-      "const e=Math.min(1,(performance.now()-started)/900);paint(e);"
+      %% A FRAME ARRIVES AND A CREATURE HAS MOVED ONE CELL, so without this the
+      %% board is a slideshow: everything teleports and nothing about which way
+      %% anything was going survives the jump. Keyed BY ID, because births and
+      %% deaths reshuffle the list every tick. The tween is given the gap the
+      %% island actually left, so it finishes as the next frame lands whatever
+      %% the pace is set to.
+      "const animate=gap=>{cancelAnimationFrame(frame);const step=()=>{"
+      "const e=Math.min(1,(performance.now()-started)/gap);paint(e);"
       "if(e<1)frame=requestAnimationFrame(step);};"
       "frame=requestAnimationFrame(step);};"
-      "const swap=async(u,id)=>{const r=await fetch(u);"
-      "if(r.ok)document.getElementById(id).innerHTML=await r.text();};"
-      "const tick=async()=>{if(!on)return;try{"
-      "const r=await fetch('/disc.json');if(!r.ok)return;"
-      "was=now;const n=await r.json();const first=!d;d=n;if(first)fit();"
+      "const board=n=>{was=now;const first=!d;d=n;if(first)fit();"
       "now=new Map();for(let i=0;i<d.creatures.length;i+=5){"
       "now.set(d.creatures[i],[d.creatures[i+1],d.creatures[i+2]]);}"
-      "started=performance.now();animate();await swap('/vitals','vitals');"
-      "}catch(e){on=false;}};"
-      "tick();setInterval(tick,1000);"
+      "const gap=Math.min(2000,Math.max(120,performance.now()-started));"
+      "started=performance.now();if(on)animate(gap);"
+      "const w=document.getElementById('waiting');if(w)w.remove();};"
+      %% RECONNECTS, because an island restarts and a tab left open overnight
+      %% should find it again rather than showing a frozen board for ever. Backs
+      %% off so a genuinely dead island is not hammered.
+      "let wait=500;const open=()=>{"
+      "const s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')"
+      "+location.host+'/live');"
+      "s.onmessage=m=>{const t=m.data[0],b=m.data.slice(1);"
+      "if(t==='d')board(JSON.parse(b));"
+      "else if(b!=='connected')document.getElementById('vitals').innerHTML=b;};"
+      "s.onopen=()=>{wait=500;};"
+      "s.onclose=()=>{setTimeout(open,wait);wait=Math.min(15000,wait*2);};};"
+      "open();"
+      %% Pausing stops the MOTION and not the connection: frames keep arriving
+      %% and the numbers keep moving, because watching a world and reading it are
+      %% different activities and a board that moves under the cursor cannot be
+      %% read.
       "addEventListener('keydown',e=>{if(e.code==='Space'&&"
       "e.target.tagName!=='INPUT'){e.preventDefault();on=!on;"
-      "document.getElementById('paused').style.display=on?'none':'block';}});">>.
+      "document.getElementById('paused').style.display=on?'none':'block';"
+      "if(on)paint(1);}});">>.
 
 num(N) -> integer_to_binary(N).
 

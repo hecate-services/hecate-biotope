@@ -21,6 +21,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, snapshot/0, pace/0, chart/0, status/0, set_pace/1]).
+-export([watch/0]).
 -export([station_due/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          handle_continue/2]).
@@ -60,12 +61,38 @@
                 %% was true for ever. The door was never read once and every
                 %% fact went out without it, on a fleet that was publishing it
                 %% correctly when asked directly.
-                station_at :: integer() | undefined}).
+                station_at :: integer() | undefined,
+                %% WHO IS WATCHING THIS ISLAND FROM A BROWSER. Monitored, so a
+                %% closed tab removes itself: a list of dead pids is a slow leak
+                %% in a process that must run for weeks.
+                watchers = [] :: [pid()]}).
 
 %% How stale the cached door may get. A dropped link shows on the card within
 %% this, which is soon enough for something that changes about never and rare
 %% enough that the extra pool call is not on the per-second path.
 -define(STATION_MS, 15000).
+
+%% ==========================================================================
+%% EVERY READ QUEUES BEHIND SCREENING, SO NONE OF THEM MAY USE THE DEFAULT
+%% ==========================================================================
+%%
+%% Screening runs in `handle_continue', which gen_server processes BEFORE any
+%% message, so a read arriving during it waits for the whole screen. At the
+%% fleet's sixty tries of two thousand ticks that is well past `gen_server:call'
+%% five second default, and the default does not make the caller wait: it makes
+%% the caller CRASH.
+%%
+%% Measured the hard way twice in one day. `ask_fleet_world.sh' reported beam01
+%% as answering nothing while it was screening perfectly well, and
+%% `scripts/watch_locally.escript' died on its own first line with a
+%% `{timeout,{gen_server,call,[world_server,snapshot]}}'. Both look exactly like
+%% a dead island and neither is one.
+%%
+%% GENEROUS AND FINITE RATHER THAN `infinity'. A bounded wait that fails loudly
+%% is what this needs: screening IS bounded, by `screen_tries' times
+%% `screen_ticks', and a genuinely wedged world server must not hold a web
+%% request open for ever.
+-define(READ_TIMEOUT, 120000).
 
 -define(SERVER, ?MODULE).
 
@@ -74,16 +101,16 @@ start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 %% @doc The world as it stands. A read, so it answers during a slot rather than
 %% queueing behind one.
 -spec snapshot() -> map().
-snapshot() -> gen_server:call(?SERVER, snapshot).
+snapshot() -> gen_server:call(?SERVER, snapshot, ?READ_TIMEOUT).
 
 -spec pace() -> world_pace:pace().
-pace() -> gen_server:call(?SERVER, pace).
+pace() -> gen_server:call(?SERVER, pace, ?READ_TIMEOUT).
 
 %% @doc The picture, for anything drawing this world. The same term the mesh
 %% carries, so a page rendered here and a spectator's rendering of a published
 %% fact cannot disagree about what the board looks like.
 -spec chart() -> map().
-chart() -> gen_server:call(?SERVER, chart).
+chart() -> gen_server:call(?SERVER, chart, ?READ_TIMEOUT).
 
 %% @doc What this island is DOING, as against what its world IS. Which run,
 %% how many seeds were rejected getting here, how many facts have gone out and
@@ -91,7 +118,7 @@ chart() -> gen_server:call(?SERVER, chart).
 %% because none of it is a property of a world: a world does not know it is the
 %% third one this service has run.
 -spec status() -> map().
-status() -> gen_server:call(?SERVER, status).
+status() -> gen_server:call(?SERVER, status, ?READ_TIMEOUT).
 
 %% @doc Watch it faster or slower. NOT PHYSICS: no rule reads the pace, so two
 %% islands differing only in this are the same experiment at different speeds,
@@ -100,7 +127,21 @@ status() -> gen_server:call(?SERVER, status).
 %% It does not persist, and the page that calls this says so. There is no disk
 %% here, so the environment wins at the next boot.
 -spec set_pace(world_pace:pace()) -> ok.
-set_pace(Pace) -> gen_server:call(?SERVER, {set_pace, Pace}).
+set_pace(Pace) -> gen_server:call(?SERVER, {set_pace, Pace}, ?READ_TIMEOUT).
+
+%% @doc Send the caller a frame whenever there is one, until it dies.
+%%
+%% PUSHED AND NOT POLLED, for the reason this module already separates its two
+%% timers: the world runs on its own clock and a fixed interval on the other end
+%% is wrong at both extremes. At `chart_ms' of 100 a one-second poll throws away
+%% nine frames in ten; at 5000 it makes five requests per frame and four of them
+%% return the picture the viewer already has. The island knows exactly when a
+%% frame exists, because it is the thing that made it.
+%%
+%% ONE CHART FOR EVERY WATCHER. `world:chart/1' walks the whole board, so a
+%% second viewer must not cost a second walk.
+-spec watch() -> ok | no_frames.
+watch() -> gen_server:call(?SERVER, {watch, self()}, ?READ_TIMEOUT).
 
 %%==============================================================================
 %% gen_server
@@ -115,8 +156,14 @@ set_pace(Pace) -> gen_server:call(?SERVER, {set_pace, Pace}).
 %%
 %% `handle_continue' runs before any other message, so the unscreened world built
 %% here is replaced before a single tick or fact goes out. What it costs is that
-%% `snapshot' blocks for the duration, which nothing in the deployment calls: the
-%% spectator reads facts off the mesh.
+%% every read blocks for the duration.
+%%
+%% ⚠ THAT USED TO SAY "which nothing in the deployment calls: the spectator reads
+%% facts off the mesh", AND IT WAS WRONG TWICE OVER. `ask_fleet_world.sh' calls
+%% `snapshot' over `rpc' and the island's own page calls it every second. Both
+%% got the five second default and CRASHED, which reads as a dead island. See
+%% `?READ_TIMEOUT'. **An assumption about who calls you belongs in a test, not in
+%% a comment**, and this one outlived the deployment it described.
 init([]) ->
     Pace = world_pace:from_env(),
     Reseeds = os:getenv("HECATE_BIOTOPE_SEED") =:= false
@@ -150,6 +197,14 @@ handle_call(status, _From, S) ->
 %% effect on the next fire without help. `chart_ms' of zero schedules NO timer at
 %% all, on purpose, so there is nothing left alive to notice it changed: going
 %% from off to on has to start one.
+%% `no_frames' RATHER THAN `ok' WHEN THE PICTURE IS OFF. `chart_ms' of zero
+%% schedules no timer at all, which is what a headless run wants, and a socket
+%% that waited politely for a frame that can never come would look identical to
+%% a wedged world. The page says so instead.
+handle_call({watch, Pid}, _From, #state{watchers = Ws, pace = P} = S) ->
+    _Ref = erlang:monitor(process, Pid),
+    {reply, frames_expected(maps:get(chart_ms, P)),
+     S#state{watchers = [Pid | Ws]}};
 handle_call({set_pace, New}, _From, #state{pace = Old} = S) ->
     resume_chart(maps:get(chart_ms, Old), maps:get(chart_ms, New)),
     {reply, ok, S#state{pace = New}};
@@ -185,12 +240,28 @@ handle_info(publish, #state{world = W, pace = P, run = Run,
     {noreply, S2};
 
 handle_info(chart, #state{world = W, pace = P} = S) ->
-    Fact = world_facts:world_charted(world:chart(W), P),
+    Chart = world:chart(W),
+    Fact = world_facts:world_charted(Chart, P),
     S1 = record(biotope_mesh:publish(world_facts:topic(chart), Fact), S),
+    %% THE SAME CHART GOES TO THE MESH AND TO THE WATCHERS, computed once. An
+    %% owner's page and a spectator's cannot disagree about the board if they are
+    %% looking at one term.
+    tell(S1#state.watchers, Chart, S1),
     schedule_chart(maps:get(chart_ms, P)),
     {noreply, S1};
 
+handle_info({'DOWN', _Ref, process, Pid, _Why}, #state{watchers = Ws} = S) ->
+    {noreply, S#state{watchers = lists:delete(Pid, Ws)}};
+
 handle_info(_Msg, S) -> {noreply, S}.
+
+frames_expected(0) -> no_frames;
+frames_expected(_Ms) -> ok.
+
+tell([], _Chart, _S) -> ok;
+tell(Watchers, Chart, #state{world = W, pace = P} = S) ->
+    Frame = {biotope_frame, Chart, world:snapshot(W), P, status_of(S)},
+    lists:foreach(fun(Pid) -> Pid ! Frame end, Watchers).
 
 %%==============================================================================
 %% Internals

@@ -34,12 +34,15 @@ listener(Port) ->
                       #{env => #{dispatch => cowboy_router:compile(
                                                [{'_', routes()}])}})].
 
-%% @doc The four things this island serves. Exported to be tested: a route that
+%% @doc The five things this island serves. Exported to be tested: a route that
 %% exists and is never mounted is dead code, and hecate_om shipped exactly that
 %% for long enough that every service reported unhealthy to podman.
 -spec routes() -> [{string(), module(), term()}].
 routes() ->
     [{"/", island_page, []},
+     %% THE LIVE ONE. Frames are pushed, so the page makes no repeating request
+     %% at all and a paused or slow world costs nothing.
+     {"/live", island_socket, []},
      {"/disc.json", island_fragment, disc},
      {"/vitals", island_fragment, vitals},
      {"/settings", island_settings, []}].

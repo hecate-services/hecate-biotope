@@ -1,13 +1,15 @@
 %% @doc The two pieces the page re-fetches while you watch: the board and the
 %% numbers. One handler, told which by its route options.
 %%
-%% FRAGMENTS AND NOT JSON, deliberately. The island already knows how to render
-%% both, and shipping JSON would mean a second renderer in the browser that can
-%% disagree with this one. `I.6' is what a second copy of a truth does: it is
-%% correct when written and silently stops agreeing when the rule changes.
+%% ⚠ THE PAGE DOES NOT USE THESE. It receives both over the socket, pushed when
+%% a frame exists rather than fetched on a guess. These stay because they are the
+%% same two renderers behind a URL, which is what makes the island inspectable
+%% with `curl' and what a page with no WebSocket could fall back to.
 %%
-%% It also means the page works without reimplementing hexagonal geometry in
-%% JavaScript, and that the whole UI is one language.
+%% The board is numbers and the vitals are markup, and both are decided HERE:
+%% where every mark goes, how big it is, what colour it is. Those are statements
+%% about the physics, and a browser that recomputed any of them would be `I.6'
+%% with a second copy of a rule.
 -module(island_fragment).
 
 -export([init/2]).
@@ -15,7 +17,7 @@
 init(Req, disc) ->
     Ceiling = maps:get(ground_ceiling, world:defaults()),
     {ok, reply(<<"application/json">>,
-               json(island_disc:packed(world_server:chart(), Ceiling)),
+               island_json:encode(island_disc:packed(world_server:chart(), Ceiling)),
                Req), disc};
 init(Req, vitals) ->
     {ok, reply(<<"text/html; charset=utf-8">>,
@@ -26,18 +28,3 @@ init(Req, vitals) ->
 reply(Type, Body, Req) ->
     cowboy_req:reply(200, #{<<"content-type">> => Type,
                             <<"cache-control">> => <<"no-store">>}, Body, Req).
-
-%% A JSON WRITER OF EXACTLY ONE SHAPE, and no dependency for it. Everything
-%% `island_disc:packed/2' produces is an integer or a flat list of integers, by
-%% construction, so this is a fold and a comma. Pulling in an encoder to serialise
-%% four arrays of numbers would be the larger of the two mistakes available.
-json(Map) ->
-    [${, lists:join($,, [pair(K, V) || {K, V} <- lists:sort(maps:to_list(Map))]),
-     $}].
-
-pair(Key, Value) -> [$", atom_to_binary(Key), $", $:, value(Value)].
-
-value(N) when is_integer(N) -> integer_to_binary(N);
-value(F) when is_float(F) -> float_to_binary(F, [{decimals, 2}, compact]);
-value(L) when is_list(L) ->
-    [$[, lists:join($,, [value(V) || V <- L]), $]].
