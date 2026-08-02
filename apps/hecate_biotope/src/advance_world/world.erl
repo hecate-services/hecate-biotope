@@ -234,8 +234,18 @@
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
     #{number => 18,
-      line => <<"Being able to act costs something, so a creature that can do "
-                "four things pays more than one that can do none.">>}.
+      %% ⚠ THE LINE MUST BE TRUE AT THE CONTROL, and the first one was not. It
+      %% said "being able to act costs something", which is false at
+      %% `act_cost' of 0, and 0 is the control until the sweep chooses. The
+      %% fleet deploys from main automatically, so that sentence would have
+      %% gone out on the public mesh and the spectator page describing an
+      %% economy no island was running.
+      %%
+      %% A LINE DESCRIBES THE RULE, NOT ONE POINT ON ITS SWEEP. World 13 has
+      %% the same shape and says so: "world 12 is therefore a point on this
+      %% sweep rather than a different world."
+      line => <<"Being able to act is tissue, charged by its wiring, at a "
+                "price this world is sweeping from nothing upward.">>}.
 
 -spec defaults() -> econ().
 defaults() ->

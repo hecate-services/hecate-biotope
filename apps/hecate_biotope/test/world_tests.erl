@@ -677,6 +677,38 @@ fingerprint_is_short_lowercase_hex_test() ->
 %% it to itself. WORLDS.md is written by hand in the same commit as the rules and
 %% knows nothing about this module, so it is an independent witness: if the two
 %% disagree, one of them is stale and a reader is being told the wrong world.
+%% ⚠ THE CONTROL MUST BE THE PREVIOUS WORLD, because the fleet deploys from main
+%% the moment a world is committed and long before its sweep has chosen a value.
+%% World 17 shipped an unswept guess and every island it founded was doomed for
+%% the whole of that world, which RESULTS_WORLD17.md records as the cost of it.
+%%
+%% At `act_cost' of zero, output wiring must contribute NOTHING to the bill, so
+%% an island on world 18 before the sweep lands runs world 17's measured economy
+%% rather than a guess.
+acting_is_free_at_the_control_test() ->
+    ?assertEqual(0, maps:get(act_cost, world:defaults())),
+    %% Two worlds from one seed, differing only in the price of acting. At zero
+    %% they must be the same world; above it they must not be, or the rule is
+    %% not wired to the bill at all.
+    Same = at_act_cost(0),
+    ?assertEqual(Same, at_act_cost(0)),
+    ?assertNotEqual(Same, at_act_cost(66)).
+
+at_act_cost(Cost) ->
+    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5,
+                               act_cost => Cost}), 60),
+    Snap = world:snapshot(W),
+    {maps:get(population, Snap), maps:get(energy_total, Snap),
+     maps:get(dissipated, Snap)}.
+
+%% AND THE LINE MUST NOT CLAIM WHAT THE CONTROL DOES NOT DO. The first version
+%% said acting "costs something", which is false at the control the fleet runs,
+%% and it would have gone out on every published fact.
+the_line_does_not_overclaim_the_control_test() ->
+    #{line := Line} = world:ruleset(),
+    ?assertEqual(nomatch, binary:match(Line, <<"costs something">>)),
+    ?assertNotEqual(nomatch, binary:match(Line, <<"sweep">>)).
+
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),
     ?assertEqual(highest_world_in_worlds_md(), Claimed).
