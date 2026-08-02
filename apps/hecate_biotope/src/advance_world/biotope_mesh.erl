@@ -32,11 +32,61 @@
 %% refused if it did.
 -module(biotope_mesh).
 
--export([publish/2, available/0, publish_realm/1]).
+-export([publish/2, available/0, publish_realm/1, station/0]).
 
 -spec publish(binary(), map()) -> ok | {error, term()}.
 publish(Topic, Fact) when is_map(Fact) ->
     send(Topic, Fact, endpoint()).
+
+%% @doc WHICH DOOR THIS ISLAND REACHES THE MESH THROUGH, read from the live
+%% connection rather than from configuration.
+%%
+%% THE SEED IS NOT THE STATION. `host' is the name this island DIALLED, which is
+%% configuration echoed back and can be a DNS name over any box; `node_id' is the
+%% station's Ed25519 public key, verified during the signed HELLO, and is the only
+%% trustworthy answer to which station actually answered. Both go out, because
+%% they are different claims and a reader is entitled to see them disagree.
+%%
+%% A NAME IS NOT A PLACE. `station-de-frankfurt' was for a long time physically
+%% the Nuremberg box, left misnamed because renaming breaks seeds, and it has
+%% since moved to another network again. Stations are virtual and there are
+%% hundreds of names over a handful of machines, so nothing downstream may render
+%% a city from this. The name is an identity on the mesh and that is all.
+%%
+%% INSULATED LIKE `publish/2'. The mesh is an output and not a dependency, so a
+%% door that cannot be read is an error a caller shrugs at rather than something
+%% that takes the world down.
+-spec station() -> {ok, map()} | {error, term()}.
+station() -> door(endpoint()).
+
+door({error, _} = E) -> E;
+door({ok, Pool, _FleetRealm}) ->
+    try chosen(macula:links(Pool))
+    catch Class:Reason -> {error, {links_failed, Class, Reason}}
+    end.
+
+chosen({error, _} = E) -> E;
+chosen({ok, []}) -> {error, no_links};
+chosen({ok, Links}) -> {ok, described(prefer_connected(Links))}.
+
+%% An island dials one seed, so there is normally one link. If a deployment ever
+%% gives it several, the one that is actually up is the one it is speaking
+%% through, and a down link is still worth reporting when nothing is up.
+prefer_connected(Links) ->
+    hd([L || L <- Links, maps:get(connected, L, false) =:= true] ++ Links).
+
+described(#{host := Host, connected := Connected} = Link) ->
+    #{station_host => host_or_unknown(Host),
+      station_connected => Connected,
+      station_id => key(maps:get(node_id, Link, undefined))}.
+
+host_or_unknown(Host) when is_binary(Host) -> Host;
+host_or_unknown(_) -> <<"unknown">>.
+
+%% Lowercase hex, whole. A reader that wants a short form can take a prefix; one
+%% that wants to verify the key against the mesh needs all of it.
+key(Key) when is_binary(Key) -> string:lowercase(binary:encode_hex(Key));
+key(_) -> <<>>.
 
 send(_Topic, _Fact, {error, _} = E) -> E;
 send(Topic, Fact, {ok, Pool, FleetRealm}) ->

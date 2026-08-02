@@ -32,10 +32,11 @@
 -module(world_facts).
 
 -export([topic/1, namespace/0, island/0]).
--export([world_advanced/2, world_advanced/5, world_charted/2]).
+-export([world_advanced/2, world_advanced/5, world_advanced/6,
+         world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 8).
+-define(FACT_VERSION, 9).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -84,6 +85,23 @@ world_advanced(Snapshot, Pace) -> world_advanced(Snapshot, Pace, 1, undefined, 0
 -spec world_advanced(map(), world_pace:pace(), pos_integer(),
                      non_neg_integer() | undefined, non_neg_integer()) -> map().
 world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected) ->
+    world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, undefined).
+
+%% @doc As above, saying WHICH DOOR this island reaches the mesh through.
+%%
+%% IT TRAVELS ON EVERY FACT rather than in a roster published once, for the same
+%% reason the economy does: a spectator that arrives late would otherwise be
+%% looking at islands it cannot tell apart, and three short strings a second is
+%% not a cost. It also means a link that drops is visible in the next fact rather
+%% than in a caption nobody refreshes.
+%%
+%% `undefined' when the door could not be read, which is not the same as being
+%% disconnected: one says the island cannot see its own link, the other says the
+%% link is down. The fact distinguishes them.
+-spec world_advanced(map(), world_pace:pace(), pos_integer(),
+                     non_neg_integer() | undefined, non_neg_integer(),
+                     map() | undefined) -> map().
+world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
     #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
       absorbed := Absorbed, births_refused := Refused,
@@ -253,7 +271,15 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected) ->
       %% natural ceiling. Published so that never has to be guessed from shape.
       births_refused => Refused,
       ticks_per_second => world_pace:ticks_per_second(Pace)},
-    previously(extinction(Fact, ExtinctAt), PreviousEnd).
+    through(previously(extinction(Fact, ExtinctAt), PreviousEnd), Station).
+
+%% THE DOOR, MERGED WHOLE OR NOT AT ALL. Absent when the island could not read
+%% its own link, which is a different thing from the link being down: one says it
+%% cannot see, the other says nobody answered. A sentinel host of "none" would
+%% collapse the two, and a reader plotting uptime would count blindness as an
+%% outage.
+through(Fact, undefined) -> Fact;
+through(Fact, Station) when is_map(Station) -> maps:merge(Fact, Station).
 
 %% PRESENT ONLY WHEN IT HAPPENED, rather than a sentinel value meaning "not
 %% yet". A tick of -1 or 0 for a living world is the kind of number that gets

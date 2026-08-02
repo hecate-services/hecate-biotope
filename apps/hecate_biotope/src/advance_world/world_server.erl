@@ -44,7 +44,20 @@
                 %% How many candidate seeds were drawn and found dead before
                 %% this one. Published, because a screened fleet is a BIASED
                 %% sample and saying so is the difference between honest and not.
-                rejected = 0 :: non_neg_integer()}).
+                rejected = 0 :: non_neg_integer(),
+                %% WHICH DOOR THIS ISLAND IS ON, and when it was last read.
+                %% Cached rather than read per fact: `macula:links/1' is a call
+                %% on the same pool `publish' calls, so reading it every second
+                %% would double the time a wedged pool can stall the world, and
+                %% the world stalling on its own output is the one thing this
+                %% service is built not to do. A door changes about never.
+                station :: map() | undefined,
+                station_at = 0 :: integer()}).
+
+%% How stale the cached door may get. A dropped link shows on the card within
+%% this, which is soon enough for something that changes about never and rare
+%% enough that the extra pool call is not on the per-second path.
+-define(STATION_MS, 15000).
 
 -define(SERVER, ?MODULE).
 
@@ -112,10 +125,12 @@ handle_info(slot, #state{world = W, pace = P} = S) ->
 
 handle_info(publish, #state{world = W, pace = P, run = Run,
                             previous_end = Was, rejected = Rejected} = S) ->
-    Fact = world_facts:world_advanced(world:snapshot(W), P, Run, Was, Rejected),
-    S1 = record(biotope_mesh:publish(world_facts:topic(world), Fact), S),
+    #state{station = Door} = S1 = refresh_station(S),
+    Fact = world_facts:world_advanced(world:snapshot(W), P, Run, Was, Rejected,
+                                      Door),
+    S2 = record(biotope_mesh:publish(world_facts:topic(world), Fact), S1),
     schedule(publish, maps:get(publish_ms, P)),
-    {noreply, S1};
+    {noreply, S2};
 
 handle_info(chart, #state{world = W, pace = P} = S) ->
     Fact = world_facts:world_charted(world:chart(W), P),
@@ -130,6 +145,21 @@ handle_info(_Msg, S) -> {noreply, S}.
 %%==============================================================================
 
 schedule(Msg, Ms) -> erlang:send_after(Ms, self(), Msg).
+
+%% A DOOR THAT CANNOT BE READ IS FORGOTTEN RATHER THAN REMEMBERED. Keeping the
+%% last good reading would publish a station this island may no longer be on,
+%% which is worse than saying nothing: the fact would assert a live link that is
+%% gone. Absent means "cannot see"; present with `station_connected => false'
+%% means "nobody answered". They are different and the fact keeps them apart.
+refresh_station(#state{station_at = At} = S) ->
+    now_ms(erlang:monotonic_time(millisecond), At, S).
+
+now_ms(Now, At, S) when Now - At < ?STATION_MS -> S;
+now_ms(Now, _At, S) ->
+    S#state{station = read_station(biotope_mesh:station()), station_at = Now}.
+
+read_station({ok, Door}) -> Door;
+read_station({error, _}) -> undefined.
 
 %% ==========================================================================
 %% NOTHING RESEEDS A WORLD. THE ISLAND BEGINS ANOTHER ONE.

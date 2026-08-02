@@ -9,8 +9,11 @@
 -include_lib("eunit/include/eunit.hrl").
 
 fact() ->
-    world_facts:world_advanced(world:snapshot(world:new(#{population => 7})),
-                               world_pace:from_map(#{})).
+    world_facts:world_advanced(snapshot(), pace()).
+
+snapshot() -> world:snapshot(world:new(#{population => 7})).
+
+pace() -> world_pace:from_map(#{}).
 
 topic_is_namespaced_test() ->
     ?assertEqual(<<"biotope/world">>, world_facts:topic(world)).
@@ -78,12 +81,65 @@ carries_totals_rather_than_rates_test() ->
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
 %%
+%% Version 9 named the DOOR: which station this island reaches the mesh through,
+%% read from the live link rather than from configuration.
 %% Version 4 named which world is running, so a fleet mid-rollout could be read.
 %% Version 3 was the one where plants stopped existing.
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(8, V).
+    ?assertEqual(9, V).
+
+%%==============================================================================
+%% Which door the island is on
+%%==============================================================================
+
+door() ->
+    #{station_host => <<"station-de-nuremberg.macula.io">>,
+      station_connected => true,
+      station_id => <<"a1b2c3">>}.
+
+with_door() ->
+    world_facts:world_advanced(snapshot(), pace(), 1, undefined, 0, door()).
+
+%% THE DOOR TRAVELS ON EVERY FACT, for the same reason the economy does: a
+%% spectator arriving late would otherwise be looking at islands it cannot tell
+%% apart, and a link that drops shows up in the next fact rather than in a
+%% caption nobody refreshes.
+carries_the_door_it_dialled_test() ->
+    #{station_host := Host, station_connected := Up, station_id := Id} =
+        with_door(),
+    ?assertEqual(<<"station-de-nuremberg.macula.io">>, Host),
+    ?assertEqual(true, Up),
+    ?assertEqual(<<"a1b2c3">>, Id).
+
+%% ABSENT IS NOT THE SAME AS DOWN. An island that cannot read its own link and
+%% an island whose link is down are different states, and a sentinel host would
+%% collapse them: a reader plotting uptime would count blindness as an outage.
+a_door_that_cannot_be_read_is_absent_rather_than_empty_test() ->
+    F = fact(),
+    ?assertNot(maps:is_key(station_host, F)),
+    ?assertNot(maps:is_key(station_connected, F)),
+    ?assertNot(maps:is_key(station_id, F)).
+
+%% A DOWN LINK IS STILL REPORTED, because "dialling nuremberg and nobody is
+%% answering" is exactly what a spectator most wants to see and is invisible if
+%% the island only speaks when things work.
+a_down_link_is_still_reported_test() ->
+    #{station_connected := Up, station_host := Host} =
+        world_facts:world_advanced(snapshot(), pace(), 1, undefined, 0,
+                                   (door())#{station_connected => false}),
+    ?assertEqual(false, Up),
+    ?assertEqual(<<"station-de-nuremberg.macula.io">>, Host).
+
+%% The door is strings and a boolean, which the wire rules allow; this is here
+%% because it is the first field that is neither a number nor a list of them.
+the_door_obeys_the_wire_rules_test() ->
+    F = with_door(),
+    ?assert(lists:all(fun is_atom/1, maps:keys(F))),
+    ?assertEqual([], [V || V <- maps:values(F), is_tuple(V)]),
+    ?assert(is_binary(maps:get(station_host, F))),
+    ?assert(is_boolean(maps:get(station_connected, F))).
 
 %% THE BOOKS CLOSE, AND NOW THEY CLOSE ON THE WIRE. A spectator holding one fact
 %% has every term of the First Law and can check the arithmetic itself rather

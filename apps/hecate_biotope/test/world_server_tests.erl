@@ -247,10 +247,23 @@ a_drawn_seed_is_screened_for_viability_test_() ->
      end}.
 
 %% Wait for the world to reach a tick, and give up rather than hang.
+%%
+%% A TIMEOUT HERE MEANS BUSY, NOT BROKEN, and that is new since screening moved
+%% out of `init/1'. `start_link' now returns immediately and the screen runs in
+%% `handle_continue', so the first `snapshot' queues behind up to twenty-four
+%% candidate worlds and can exceed the five seconds `gen_server:call' allows
+%% itself. Eunit's `timeout' does not cover that one. Treating it as another
+%% poll is the honest reading: the server is up and is doing the work this test
+%% asked it to do.
 past(_Tick, 0) -> error(too_slow);
 past(Tick, Tries) ->
     timer:sleep(50),
-    reached(world_server:snapshot(), Tick, Tries).
+    reached(peek(), Tick, Tries).
+
+peek() ->
+    try world_server:snapshot()
+    catch exit:{timeout, _} -> #{tick => -1}
+    end.
 
 reached(#{tick := At} = Snap, Tick, _Tries) when At > Tick -> Snap;
 reached(_Snap, Tick, Tries) -> past(Tick, Tries - 1).
