@@ -66,6 +66,11 @@
                       %% creature that cannot kill and lives on the ground alone,
                       %% which is most of what has ever lived here.
                       mouth := non_neg_integer(),
+                      %% THE FRACTION OF ITS UPKEEP NOT YET CHARGED, in
+                      %% numerator units. Never energy: only whole units are ever
+                      %% taken and every one is credited to `dissipated'. See
+                      %% `charge_one/2' and register entry A.6.
+                      owed := non_neg_integer(),
                       energy := integer(),
                       age := non_neg_integer(),
                       born := non_neg_integer(),
@@ -481,6 +486,12 @@ add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatur
                      structure => Structure,
                      born => T, parent => Parent, still => true,
                      lineage => Line, generation => Gen,
+                     %% A NEWBORN OWES NOTHING, which slightly under-charges the
+                     %% very short-lived. At a generation time near forty ticks
+                     %% against a divisor of thirty-three that is a fraction of
+                     %% one tick's bill, and it is the same direction the old
+                     %% truncation erred in rather than a new bias.
+                     owed => 0,
                      from_ground => 0, from_creatures => 0},
                    Traits),
     W#world{next_id = Id + 1, creatures = Cs#{Id => C}, born = B + 1}.
@@ -530,9 +541,36 @@ tick(W, N) ->
 charge(#world{creatures = Cs} = W) ->
     lists:foldl(fun charge_one/2, W, lists:sort(maps:keys(Cs))).
 
+%% ==========================================================================
+%% A.6: THE BILL IS CARRIED AT FULL PRECISION AND ONLY WHOLE UNITS ARE CHARGED
+%% ==========================================================================
+%%
+%% `carrying/2' is an integer division, so a bill of 12.8 was charged as 12 and
+%% the 0.8 was thrown away every tick. That is not a rounding nicety: the drift
+%% step for a heritable integer is 8 and the divisor is 33, so THREE MUTATIONS IN
+%% FOUR CHANGED THE BILL BY NOTHING AT ALL, and a creature carrying a mouth of 27
+%% paid exactly what one carrying none paid. World 15 built a costly organ, ran
+%% forty-eight seeds to twenty thousand ticks, and measured drift, because the
+%% cost it was measuring did not exist at the resolution the trait moved in.
+%%
+%% SO THE FRACTION IS KEPT RATHER THAN DISCARDED. `owed' carries the numerator
+%% forward, whole units are charged as they accumulate, and over enough ticks a
+%% creature pays exactly `(structure + mouth + apparatus) / divisor' a tick with
+%% nothing lost. A mouth of 27 now costs 27 over thirty-three ticks instead of
+%% nothing for ever.
+%%
+%% CONSERVATION IS UNTOUCHED, which is the property that could not be risked.
+%% `owed' is a counter of fractions and never energy: only whole units are ever
+%% taken from a creature and every one of them is credited to `dissipated'. The
+%% books close exactly as before and the existing test proves it at seven
+%% efficiencies.
 charge_one(Id, #world{creatures = Cs, econ = Econ} = W) ->
     C = maps:get(Id, Cs),
-    burn(Id, C, upkeep(C, Econ), W).
+    #{owed := Owed} = C,
+    Accrued = Owed + tissue(C, Econ),
+    Divisor = max(1, maps:get(upkeep_divisor, Econ)),
+    Cost = maps:get(metabolism, Econ) + Accrued div Divisor,
+    burn(Id, C#{owed => Accrued rem Divisor}, Cost, W).
 
 %% @doc Charge a creature and record where the energy went.
 %%
@@ -601,13 +639,15 @@ needed_frame(Short, Eff) -> (Short * 100 + Eff - 1) div Eff.
 %% control because at the divisor of 33 it reproduces the old flat rent of 10 a
 %% tick exactly. World 12 is therefore a point on this sweep rather than a
 %% different world.
-upkeep(#{body := Body, brain := Brain, structure := S, mouth := Mouth}, Econ) ->
-    Apparatus = (body:mass(Body) + brain:hidden_count(Brain))
-        * maps:get(neural_cost, Econ),
-    %% THE MOUTH IS PLAIN TISSUE. Muscle and gut, not neural tissue, so it pays
-    %% the rate a frame pays and not `neural_cost'. No new constant: this is the
-    %% expression that has priced a body since world 5.
-    maps:get(metabolism, Econ) + carrying(S + Mouth + Apparatus, Econ).
+%% WHAT A CREATURE IS MADE OF, in units of tissue, before anything is divided.
+%% Kept whole so `charge_one/2' can carry the fraction; `upkeep/2' below still
+%% reports the per-tick bill for anything that wants to read it.
+tissue(#{body := Body, brain := Brain, structure := S, mouth := Mouth}, Econ) ->
+    S + Mouth + (body:mass(Body) + brain:hidden_count(Brain))
+        * maps:get(neural_cost, Econ).
+
+%% (`upkeep/2' is gone: `charge_one/2' owns the bill now, because the fraction
+%% has to be carried across ticks and a per-tick function cannot do that.)
 
 %% @doc What a transformation delivers, and what it costs to have delivered it.
 %%

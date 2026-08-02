@@ -881,8 +881,14 @@ structure_stops_climbing_where_upkeep_meets_income_test() ->
                            max_age => 1000000, start_energy => 2,
                            upkeep_divisor => 50, founder_uptake => 8},
                          builder(100))),
-    #{structure_max := Early} = world:snapshot(world:tick(W, 300)),
-    #{structure_max := Late} = world:snapshot(world:tick(W, 3000)),
+    %% SAMPLED AFTER IT HAS SETTLED, and A.6 is why the first sample moved. The
+    %% bill is now carried at full precision instead of being truncated down
+    %% every tick, so the climb is slower and the resting point is exact: 399,
+    %% the largest structure whose cost stays strictly under an income of 8,
+    %% where truncation used to leave it fuzzier and arrive sooner. The claim is
+    %% unchanged; only the tick at which it is true.
+    #{structure_max := Early} = world:snapshot(world:tick(W, 1000)),
+    #{structure_max := Late} = world:snapshot(world:tick(W, 5000)),
     ?assert(Early > 100),
     ?assertEqual(Early, Late).
 
@@ -1108,6 +1114,48 @@ a_mouth_costs_upkeep_even_when_it_eats_nothing_test() ->
                     Gone
             end,
     ?assert(Spent(300) > Spent(0)).
+
+%% A.6: A MUTATION SMALLER THAN THE DIVISOR STILL COSTS SOMETHING
+%%
+%% This is what world 15 could not measure and did not know it could not. The
+%% drift step for a heritable integer is 8 and the upkeep divisor is 33, so under
+%% truncation THREE MUTATIONS IN FOUR CHANGED THE BILL BY NOTHING and a creature
+%% carrying a mouth of 27 paid exactly what one carrying none paid. Selection
+%% cannot act on a difference the arithmetic cannot represent, however real the
+%% cost is on paper.
+%%
+%% Measured over enough ticks for the fraction to accumulate, because one tick is
+%% precisely where it is invisible: that is the whole point.
+a_mutation_smaller_than_the_divisor_still_costs_test() ->
+    Spent = fun(Mouth) ->
+                    W = quiet(maps:merge(#{population => 1, radius => 0,
+                                           recolonise_pct => 0,
+                                           ground_growth_pct => 0,
+                                           ground_ceiling => 0, metabolism => 0,
+                                           upkeep_divisor => 33,
+                                           max_age => 1000000,
+                                           founder_mouth => Mouth,
+                                           start_energy => 4000}, inert())),
+                    #{dissipated := Gone} = world:snapshot(world:tick(W, 100)),
+                    Gone
+            end,
+    %% EVERY STEP, not the endpoints. A shrinking body crosses truncation
+    %% boundaries on its own, so a coarse before-and-after leaks a difference
+    %% through even when three quarters of the individual steps are free. What
+    %% truncation cannot produce is a bill that rises at EVERY step of one drift
+    %% unit: it produces plateaus, which is precisely why the trait could not be
+    %% selected.
+    Bills = [Spent(M) || M <- lists:seq(0, 40, 8)],
+    Steps = lists:zip(lists:droplast(Bills), tl(Bills)),
+    ?assertEqual([], [{A, B} || {A, B} <- Steps, B =< A]).
+
+%% AND THE FRACTION IS NOT ENERGY, which is the property that could not be risked
+%% to get the one above. `owed' is a counter and only whole units are ever taken,
+%% so the books close exactly as they did. The sweep across efficiencies at the
+%% top of this file is the real proof; this states the intent where the change is.
+carrying_a_fraction_does_not_create_or_destroy_energy_test() ->
+    W = sealed(#{transfer_efficiency => 100, upkeep_divisor => 7}),
+    ?assertEqual(closed_books(W), closed_books(world:tick(W, 300))).
 
 %%==============================================================================
 %% Speed, and what it costs to be heavy, which is world 12
