@@ -94,7 +94,7 @@ spatial(_Field) -> true.
 -spec unit(field(), map()) -> pos_integer().
 unit(scent, Econ) -> maps:get(scent_per_tick, Econ);
 unit(_Energy, Econ) ->
-    max(1, maps:get(ground_ceiling, Econ) div ?READING_CEILING).
+    max(1, maps:get(ground_ceiling, Econ) div maps:get(sense_scale, Econ)).
 
 %% @doc Scale a raw total into its natural unit, floored and capped.
 %%

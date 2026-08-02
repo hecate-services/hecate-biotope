@@ -121,6 +121,7 @@
 
 -type econ() :: #{transfer_efficiency := pos_integer(),
                   recolonise_pct := non_neg_integer(),
+                  sense_scale := pos_integer(),
                   ground_growth_pct := non_neg_integer(),
                   ground_ceiling := pos_integer(),
                   uptake_mutation := non_neg_integer(),
@@ -280,6 +281,18 @@ defaults() ->
       %%
       %% `ground_growth_pct' is derived by scripts/verify_ground.escript and
       %% recorded there. `recolonise_pct' is derived by nothing and swept.
+      %% HOW MANY STEPS OF THE READING RANGE A FULL CELL SPANS, and the one
+      %% constant world 17 adds. At 1 a full cell reads 1 and everything below it
+      %% reads nothing, which is worlds 2 to 16 and measured 88 to 100% of cells
+      %% reading zero at reach 0. At 63 a full cell fills the range and the
+      %% measurement immediately after building it showed every maximum pinned
+      %% there: blind at the bottom before, blind at the top now.
+      %%
+      %% SWEPT, because nothing derives it and picking the tidy expression is
+      %% what put it at 63 in the first place. The sweep spans both ends and the
+      %% old behaviour is the value 1, so worlds 2 to 16 sit inside the range
+      %% rather than outside the comparison.
+      sense_scale       => 63,
       recolonise_pct    => 3,
       ground_growth_pct => 6,
       ground_ceiling    => 400,
