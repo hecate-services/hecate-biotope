@@ -262,3 +262,49 @@ depth_and_width_are_different_measurements_test() ->
 a_brain_with_no_hidden_layer_is_no_apparatus_test() ->
     ?assertEqual(0, brain:hidden_weights(#{hidden => [], outputs => #{}})).
 
+%%==============================================================================
+%% World 19: you pay for what you use
+%%==============================================================================
+
+%% ⚠ RED AGAINST WORLD 18, which counted row length. This is the whole world in
+%% one assertion: two brains of identical SHAPE cost differently if one of them
+%% has silenced a connection.
+a_silent_weight_is_free_test() ->
+    Loud = #{hidden => [[3, -2, 5]], outputs => #{}},
+    Quiet = #{hidden => [[3, 0, 5]], outputs => #{}},
+    Silent = #{hidden => [[0, 0, 0]], outputs => #{}},
+    ?assertEqual(3, brain:hidden_weights(Loud)),
+    ?assertEqual(2, brain:hidden_weights(Quiet)),
+    ?assertEqual(0, brain:hidden_weights(Silent)),
+    %% The rows are the same LENGTH throughout, which is what world 18 charged
+    %% and what `H.11` says a lineage cannot change.
+    ?assertEqual(3, length(hd(maps:get(hidden, Quiet)))).
+
+%% A SILENT WEIGHT ALSO DOES NOTHING, which is why charging for it was charging
+%% for nothing. If these ever disagree the rule is wrong rather than generous.
+a_silent_weight_changes_no_decision_test() ->
+    Inputs = [7, 11, 13],
+    Loud = #{hidden => [[3, 0, 5]],
+             outputs => #{move => #{inputs => [1, 0, 2], hidden => [4]}}},
+    Padded = #{hidden => [[3, 0, 5]],
+               outputs => #{move => #{inputs => [1, 0, 2], hidden => [4]}}},
+    ?assertEqual(brain:evaluate(Loud, Inputs, #{}),
+                 brain:evaluate(Padded, Inputs, #{})).
+
+%% WORLD 19 APPLIES AT EVERY SITE. Pricing hidden rows and not output rows would
+%% be a law applied at one place, which is the shape `C.6`, `B.7` and `B.8` were.
+an_output_pays_for_what_it_uses_too_test() ->
+    Full = #{outputs => #{move => #{inputs => [1, 2], hidden => [3]}}},
+    Sparse = #{outputs => #{move => #{inputs => [1, 0], hidden => [0]}}},
+    ?assertEqual(3, brain:output_weights(Full)),
+    ?assertEqual(1, brain:output_weights(Sparse)).
+
+%% THE INSTRUMENT THIS WORLD IS ABOUT. A creature with no hidden layer is not
+%% narrow, it is absent, and a census that folded its zero in would report a
+%% world getting narrower every time a node was deleted.
+narrowness_is_not_absence_test() ->
+    ?assertEqual(0, brain:live_per_node(#{hidden => []})),
+    ?assertEqual(300, brain:live_per_node(#{hidden => [[1, 2, 3]]})),
+    ?assertEqual(100, brain:live_per_node(#{hidden => [[1, 0, 0]]})),
+    %% Two nodes, one wide and one narrow, average to the middle.
+    ?assertEqual(200, brain:live_per_node(#{hidden => [[1, 2, 3], [4, 0, 0]]})).

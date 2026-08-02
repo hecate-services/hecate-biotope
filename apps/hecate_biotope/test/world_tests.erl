@@ -471,6 +471,18 @@ equals_do_not_consume_each_other_test() ->
 %% of 33 it reproduces the flat rent of 10 a tick that worlds 2 to 12 charged,
 %% exactly. Those worlds are a point on this sweep rather than a different game,
 %% and if that stops being true the sweep stops being comparable to anything.
+%%
+%% ⚠ AND `B.10` SAYS THAT REASONING IS THE PROBLEM. The flat rent is what world
+%% 13 DELETED as a defect, and calibrating its replacement to reproduce it is
+%% continuity with a deleted rule rather than a criterion. World 19 re-prices the
+%% same equipment by live wiring and sweeps `neural_cost` under it. This test is
+%% kept because the ARITHMETIC it checks is still the arithmetic, and its comment
+%% is now a record of why the number it anchors is under review.
+%%
+%% ⚠ THE FIXTURE MOVED, AND THAT IS WORLD 19 IN ONE LINE. A hidden node used to be
+%% written `[[0]]` here: a row whose only weight is silent, standing in for "a
+%% node" because silence had no meaning and cost was row length. It has meaning
+%% now, so the node has to carry something to be charged for.
 equipment_at_the_control_costs_what_the_old_rent_did_test() ->
     Extra = fun(Sensors, Hidden) ->
                     Bare = equipped([], []),
@@ -482,9 +494,15 @@ equipment_at_the_control_costs_what_the_old_rent_did_test() ->
     ?assertEqual(300, Extra([{ground, 2}], [])),
     %% Charged per sensor, so a generalist pays for each.
     ?assertEqual(200, Extra([{ground, 0}, {creatures, 0}], [])),
-    %% And a hidden node is one unit, like the smallest sensor.
-    ?assertEqual(100, Extra([], [[0]])),
-    ?assertEqual(200, Extra([], [[0], [0]])).
+    %% And a hidden node with one LIVE weight is one unit, like the smallest
+    %% sensor.
+    ?assertEqual(100, Extra([], [[1]])),
+    ?assertEqual(200, Extra([], [[1], [1]])),
+    %% While a node wired to nothing is free, which is the whole of world 19.
+    %% Rows are as long as the input vector, which with no sensors is one: `here`
+    %% is an ordinary input and a row that disagrees crashes `dot/2` rather than
+    %% mispricing anything, which is the better of the two failures.
+    ?assertEqual(0, Extra([], [[0], [0]])).
 
 %% AND THE SWEEP IS MEANINGFUL, which is the whole point of making it one. A
 %% cheaper gram of neural tissue is a cheaper creature, monotonically, so there
@@ -713,11 +731,12 @@ at_act_cost(Cost) ->
 %% `world:ruleset/0' travels on every published fact and onto the spectator page.
 the_line_does_not_overclaim_the_default_test() ->
     #{line := Line} = world:ruleset(),
-    %% At 16 nothing is shed: `eat' and `grow' sit above the control and the
-    %% shedding needs four times the price. The label must not promise it.
-    ?assertEqual(nomatch, binary:match(Line, <<"sheds">>)),
-    ?assertEqual(nomatch, binary:match(Line, <<"cannot afford">>)),
-    ?assertNotEqual(nomatch, binary:match(Line, <<"tissue">>)).
+    %% World 19 claims a creature pays for what it USES. It must not claim that
+    %% brains got narrower, which is the finding and not the rule, and which the
+    %% sweep may refute.
+    ?assertEqual(nomatch, binary:match(Line, <<"narrow">>)),
+    ?assertEqual(nomatch, binary:match(Line, <<"cheaper">>)),
+    ?assertNotEqual(nomatch, binary:match(Line, <<"costs only if">>)).
 
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),

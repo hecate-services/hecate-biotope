@@ -233,7 +233,7 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 18,
+    #{number => 19,
       %% ⚠ THE LINE MUST BE TRUE AT THE VALUE THE FLEET RUNS. A first version
       %% said "being able to act costs something", written while the default was
       %% still 0, and it would have gone out on every published fact describing
@@ -243,9 +243,9 @@ ruleset() ->
       %% True at 16: four purposes cost more than none. It does NOT say a
       %% creature sheds what it cannot afford, because at 16 it does not; that
       %% needs four times the price and RESULTS_WORLD18.md says so.
-      line => <<"Being able to act is tissue, charged by its wiring, so being "
-                "able to do four things costs more than being able to do "
-                "none.">>}.
+      line => <<"A connection costs only if it carries something, so a brain "
+                "pays for what it uses rather than for the shape it was born "
+                "in.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -1621,6 +1621,10 @@ snapshot(#world{econ = Econ} = W) ->
       %% says the four are not equivalent, because losing `breed' ends a lineage
       %% in one generation and losing `eat' does not. A count per purpose is what
       %% tells a price acting on all four apart from one acting on two.
+      %% HOW WIDE A HIDDEN NODE ACTUALLY IS, in live weights per node times a
+      %% hundred. World 19's own finding: `H.11` says a narrow brain cannot be
+      %% expressed, so nothing has ever needed to measure narrowness.
+      hidden_width => mean_width(W),
       purposes_mean => mean_purposes(W),
       purposes_hist => purpose_census(W),
       %% Whether the body plan is still moving at all.
@@ -1646,6 +1650,18 @@ sensor_census(#world{creatures = Cs}) ->
 %% it as a function with no local return and took `snapshot/1' down with it,
 %% which is the whole reason that gate is in the pipeline.
 purpose_census(W) -> [outputs_with(P, W) || P <- brain:purposes()].
+
+mean_width(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+mean_width(#world{creatures = Cs}) ->
+    Widths = [brain:live_per_node(Br) || #{brain := Br} <- maps:values(Cs)],
+    Carrying = [W || W <- Widths, W > 0],
+    mean_of(Carrying).
+
+%% Averaged over the creatures that HAVE a node. A creature with no hidden layer
+%% is not narrow, it is absent, and folding its zero in would report a world
+%% getting narrower every time a node was deleted.
+mean_of([]) -> 0;
+mean_of(L) -> lists:sum(L) div length(L).
 
 mean_purposes(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_purposes(#world{creatures = Cs}) ->

@@ -22,29 +22,50 @@
 -mode(compile).
 
 -define(TICKS, 2000).
--define(SEEDS, 5).
+%% ⚠ RE-USED BY WORLD 19, AND ITS MEANING CHANGED UNDER IT. This measured world
+%% 13's question: at what price does computation start paying for itself. World
+%% 19 makes a weight cost only if it is non-zero, so `neural_cost` now prices
+%% LIVE wiring rather than row length, and the same sweep asks a different
+%% question with the same shape: at what price does computation pay for itself
+%% ONCE A LINEAGE CAN ECONOMISE ON IT.
+%%
+%% `I.6`: an instrument is correct when written and is made wrong by a change to
+%% the thing it measures. This one is not made wrong, it is made sharper, and the
+%% `WIDTH` column below is what world 19 added because `H.11` said narrowness was
+%% inexpressible and so nothing had ever needed to measure it.
+%%
+%% SEEDS ARE A PARAMETER NOW. Five was world 13's and world 17 established that
+%% even 24 could not separate its candidates.
+-define(DEFAULT_SEEDS, 48).
 -define(STEPS, [330, 220, 165, 110, 66, 33, 11, 3, 1]).
 
-main(_) ->
-    io:format("~nticks=~p seeds=~p at 100% efficiency. 330 is worlds 2 to 12.~n~n",
-              [?TICKS, ?SEEDS]),
-    io:format("~s~n", [row(["neural", "dead", "pop", "sens", "brain", "reach",
-                            "life", "meat%", "frame", "lines", "depth"])]),
-    lists:foreach(fun report/1, ?STEPS),
-    io:format("~nsens and brain are per creature, times a hundred. reach is total "
-              "sensor reach~ncarried by the population. dead = seeds extinct of "
-              "~p.~n", [?SEEDS]).
+main(Args) ->
+    Seeds = seeds(Args),
+    io:format("~nticks=~p seeds=~p at 100% efficiency. 330 is the control and is "
+              "under review, `B.10`.~n~n", [?TICKS, Seeds]),
+    io:format("~s~n", [row(["neural", "dead", "pop", "sens", "brain", "WIDTH",
+                            "reach", "life", "meat%", "frame", "lines",
+                            "depth"])]),
+    lists:foreach(fun(N) -> report(N, Seeds) end, ?STEPS),
+    io:format("~nsens and brain are per creature times a hundred. **WIDTH is live "
+              "weights per~nhidden node, times a hundred, over the creatures that "
+              "HAVE one**: the column~nworld 19 exists to move, and `H.11` says "
+              "it could not move before. reach is~ntotal sensor reach carried by "
+              "the population. dead = seeds extinct of ~p.~n", [Seeds]).
 
-report(Neural) ->
-    Rows = in_parallel(fun(Seed) -> run(Seed, Neural) end, lists:seq(1, ?SEEDS)),
+seeds([]) -> ?DEFAULT_SEEDS;
+seeds([S | _]) -> list_to_integer(S).
+
+report(Neural, Seeds) ->
+    Rows = in_parallel(fun(Seed) -> run(Seed, Neural) end, lists:seq(1, Seeds)),
     Dead = length([R || #{population := 0} <- Rows, R <- [1]]),
     io:format("~s~n", [row([Neural, Dead | summarise([R || #{population := P} = R <- Rows, P > 0])])]).
 
-summarise([]) -> ["-", "-", "-", "-", "-", "-", "-", "-", "-"];
+summarise([]) -> lists:duplicate(10, "-");
 summarise(Rows) ->
     Med = fun(K) -> median([maps:get(K, R) || R <- Rows]) end,
-    [Med(population), Med(sensor_mean), Med(hidden_mean), Med(reach),
-     Med(lifespan), Med(from_creatures_pct), Med(structure_max),
+    [Med(population), Med(sensor_mean), Med(hidden_mean), Med(hidden_width),
+     Med(reach), Med(lifespan), Med(from_creatures_pct), Med(structure_max),
      Med(lineages), Med(depth)].
 
 run(Seed, Neural) ->

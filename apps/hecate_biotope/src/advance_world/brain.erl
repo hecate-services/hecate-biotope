@@ -54,7 +54,7 @@
 
 -export([founder/3, inherit/4, evaluate/3, attention/2]).
 -export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
--export([output_weights/1, carried/1]).
+-export([output_weights/1, carried/1, live/1, live_per_node/1]).
 
 -type purpose() :: move | breed | grow.
 -type output() :: #{inputs := [integer()], hidden := [integer()]}.
@@ -101,8 +101,30 @@ hidden_count(#{hidden := H}) -> length(H).
 %% The two must stay separate: charging by weights and reporting by nodes is the
 %% whole point, since a brain getting cheaper and a brain getting simpler look
 %% identical if you only have one of the numbers.
+%% ⚠ WORLD 19: A WEIGHT COSTS ONLY IF IT IS NON-ZERO, and that one word is the
+%% whole world. `dot/2` multiplies by it, so a weight of zero contributes exactly
+%% zero and a creature behaves identically with or without it. Charging for it
+%% was charging for something that does nothing.
+%%
+%% IT MAKES WIDTH A TRAIT, which is `H.11`: a row is `sensors + 1` long by
+%% construction and every structural mutation preserves that, so until now the
+%% only way to make a node cheaper was to drop a sensor. World 16 charged a node
+%% by its wiring in order to select for narrower brains and got wider ones, for
+%% exactly this reason.
+%%
+%% NO NEW MUTATION OPERATOR. Silencing is what the existing weight drift already
+%% does and nothing has ever paid it for doing so: censused before the change,
+%% 3.4% to 15.2% of all weights were already exactly zero with no incentive at
+%% all. NEAT needs innovation numbers to align genomes for crossover; this world
+%% reproduces clonally, so none of that is required.
 -spec hidden_weights(brain()) -> non_neg_integer().
-hidden_weights(#{hidden := H}) -> lists:sum([length(V) || V <- H]).
+hidden_weights(#{hidden := H}) -> lists:sum([live(V) || V <- H]).
+
+%% @doc How many of these weights do anything. Exported to be tested, because
+%% "you pay for what you use" is the entire claim of world 19 and it is one
+%% predicate away from being false.
+-spec live([integer()]) -> non_neg_integer().
+live(Row) -> length([W || W <- Row, W =/= 0]).
 
 %% @doc How much wiring the OUTPUTS are, which world 18 charges for.
 %%
@@ -118,8 +140,12 @@ hidden_weights(#{hidden := H}) -> lists:sum([length(V) || V <- H]).
 %% Order-free: a sum over `maps:values' cannot depend on the order it gets them
 %% in, which after `G.6' is worth stating rather than assuming.
 -spec output_weights(brain()) -> non_neg_integer().
+%% WORLD 19 APPLIES AT EVERY SITE, not only to hidden rows. An output's silent
+%% weight is as free to compute as a hidden node's, and pricing one and not the
+%% other would be a law applied at one site, which is the shape `C.6`, `B.7` and
+%% `B.8` all were.
 output_weights(#{outputs := Os}) ->
-    lists:sum([length(I) + length(H)
+    lists:sum([live(I) + live(H)
                || #{inputs := I, hidden := H} <- maps:values(Os)]).
 
 %% @doc Which purposes this brain has at all, sorted.
@@ -127,6 +153,16 @@ output_weights(#{outputs := Os}) ->
 %% SORTED, so a census cannot depend on map order. The purposes are atoms and
 %% `G.6' was atom-keyed map iteration reaching the generator; nothing here
 %% reaches the generator, and the habit is cheaper than the audit.
+%% @doc How wide the hidden nodes actually are, in live weights, times a hundred.
+%% THE INSTRUMENT WORLD 19 IS ABOUT, and it did not exist: `H.11` says a narrow
+%% brain is inexpressible, so nothing has ever needed to measure narrowness.
+%% Zero when there are no hidden nodes, which is not the same as narrow and the
+%% census must not confuse them.
+-spec live_per_node(brain()) -> non_neg_integer().
+live_per_node(#{hidden := []}) -> 0;
+live_per_node(#{hidden := H}) ->
+    lists:sum([live(V) || V <- H]) * 100 div length(H).
+
 -spec carried(brain()) -> [purpose()].
 carried(#{outputs := Os}) -> lists:sort(maps:keys(Os)).
 
