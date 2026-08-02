@@ -24,6 +24,8 @@ See `H.10` and [RESULTS_WORLD15.md](RESULTS_WORLD15.md).
 | that as a share of earnings | | |
 | the drift threshold, `1 / (2·Ne)` | | Ne estimated from the population |
 | **does it clear the threshold** | | **if no, stop** |
+| what the FULL complement of this organ costs, as a share of income | | **the roof** |
+| **is that well under half** | | **if no, the price is a prohibition, stop** |
 
 **Measured, not assumed.** The last estimate of income here was out by a factor
 of ten, which is what turned a fifty-percent selection differential on paper into
@@ -35,6 +37,14 @@ charged a hidden node by its wiring in order to select for narrower brains, and 
 hidden node always reads every input, so narrowness is not a trait a creature can
 have. The price was selectable and the shape was not, and no amount of data would
 have said so. See `H.11`.
+
+**AND A ROOF, added after running the gate on `R.5` before building it.** A price
+reused from elsewhere can miss in either direction. World 15's mouth moved the
+bill by 0.24% of income and measured drift. Charging an output by its wiring at
+`neural_cost` moves it by 28% per output and **94.7% for the complement a
+creature actually carries**, which does not create a tradeoff, it bans the organ,
+and it would have read as a dramatic result. **Both failures have one cause: a
+rate taken from somewhere else instead of swept.** See `H.10`.
 
 **A trait that arrives WHOLE clears this easily and one that drifts usually does
 not.** A sensor is gained or lost entire at 10 a tick, which is 10% of earnings;

@@ -51,7 +51,7 @@ what they unblock. `R.1` is an hour and prevents the failure that cost world 15.
 | R.2 | **Fix `H.8`.** A `self` sensor pays for reach that `spatial/1` says is never read. | A straight defect, unambiguous, in the difference between two functions | BUILD | XS |
 | R.3 | **Decide `H.9`.** A hidden node costs the same whatever it reads, which `B.3` objected to and world 13 did not fix. | **This one is about brain complexity directly.** Charging by fan-in makes a big brain properly expensive and a small one cheap, which is the shape every real neural economy has | CLAIM | M |
 | R.4 | **Make the mouth selectable, then re-run world 15.** Sweep the mutation step rather than choosing it. | Not for the trophic split. Because it is the only route to a genuine conditional decision, which is what a hidden node is for | CLAIM | M |
-| R.5 | **`H.7`, price the actuators.** Every organ here is priced and every act is free. | Largest unpriced thing left, but least clear what it buys, and by `H.10` it must be priced at a step selection can see | CLAIM | L |
+| R.5 | **`H.7`, price the actuators.** Every organ here is priced and every act is free. **GATE RUN 2026-08-02, `scripts/can_an_act_be_priced.escript`: buildable ONLY with the rate swept well below `neural_cost`.** Charging an output by its wiring at `neural_cost` costs 28.4% of income per output and 94.7% for the complement a creature carries, which bans acting rather than pricing it. `H.10` gained a roof because of this. | Largest unpriced thing left, and the gate has now told us the one way to build it that cannot work | CLAIM | L |
 
 **Phase 1 onward below is unchanged and still wanted.** The join blocker is still
 an hour and still unblocks other people.
