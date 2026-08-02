@@ -98,6 +98,34 @@ survive more, or crowd the good cells and survive less.
 that has ever moved perception a long way is world 14's patchy board, which gave
 it something to see, not a cheaper or clearer instrument.
 
+## FIRST OBSERVATION, AND A DESIGN MISS RECORDED BEFORE THE SWEEP
+
+Re-measured immediately after building it, six seeds at 2,000 ticks:
+
+| | world 16 | **world 17** |
+|---|---|---|
+| `self` reads zero | 35 to 54% | **3%** |
+| ground at reach 0 reads zero | 88 to 100% | **20%** |
+| ground at reach 1 reads zero | 9 to 20% | **0%** |
+| seeds dead of six | 2 | **5** |
+| every maximum reading | 6 to 54 | **63, the ceiling** |
+
+**The mechanism works and the value chosen over-corrects.** Every maximum is
+pinned at 63, so the instruments are now saturated at the top: blind at the
+bottom before, blind at the top now, and informative in neither place at the
+extremes. Five seeds of six died where two did.
+
+**The miss is mine and it is the obvious one.** This project sweeps every
+constant it cannot derive, and I wrote "sweep the resolution rather than pick it"
+before writing a pre-registration that picks it. `ground_ceiling ÷
+reading_ceiling` is one point on a range and there is no argument for it beyond
+tidiness.
+
+**So the unit is swept and this file is amended before any result is claimed
+from it**, which is the one edit a frozen pre-registration may take: adding a
+range, not changing a criterion. The findings above stand unchanged and are
+measured across the sweep.
+
 ## The commitments
 
 1. Rules frozen before the first run. This file is superseded, not edited.
