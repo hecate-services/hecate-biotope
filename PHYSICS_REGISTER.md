@@ -289,6 +289,21 @@ TO it.
 
 ---
 
+## J. What a creature needs besides energy
+
+**A new section, and the fact that it did not exist is the entry.** Every section
+above is about energy: where it enters, what it costs to hold, to act, to
+transfer, and where it goes. The register's own opening line is *"every place
+this world simplifies the behaviour of energy"*. **There is no concept of a
+requirement here at all.** Every cost is a debit against one currency and every
+resource is that same currency somewhere else.
+
+Raf found it, 2026-08-02, after eighteen worlds.
+
+| # | The simplification | Status |
+|---|---|---|
+| J.1 | **A creature has exactly ONE requirement, so the scarcest thing is always the same thing** | **OPEN, and it is the register's own diagnosis of the central null pointing at its own blind spot.** Liebig's Law of the Minimum, 1840: organisms have several independent requirements and the scarcest binds. This world has one, so there is a single optimum, "get more energy", and the register already says what that costs: *"This world has ONE drive... Nothing pulls against anything... So the brains are not being deleted for being too small. They are being deleted because there is nothing to decide."* **A second requirement in a different PLACE is the first proposal here that would give a brain something to decide**: keep eating, or go and drink. It also composes with `H.12`, which found movement cannot depend on hunger because `self` is not spatial and shifts all seven candidate cells alike. **A second resource would be a spatial field**, rankable by the brain that already exists, and the CONDITIONAL, go only when thirsty, needs the nonlinearity of a hidden node, which is `B.10`. **PREMISE MEASURED BEFORE ANY WORLD IS BUILT**, `scripts/what_would_a_waterhole_buy.escript`: gathering a settled population into fewer cells raises the share standing on something strictly smaller from 6.1% to **17.0% at three-fold crowding and 38.5% at ten-fold**, then saturates. The risk was that a crowd is company rather than food, since a meal needs something STRICTLY smaller and `resolve/3` gives the carcass to the largest present; measured size spread within a world is **11.9x, 2356x and 197x**, so populations are nothing like uniform and a crowd is food. **Two caveats on the record**: only 3 of 16 worlds survived and one held 366 creatures against 55 and 88, and the random-arrangement model reads 6.1% where the live fleet reads 0 to 4%, so **real creatures meet LESS than chance** and something already keeps them apart. **Not scheduled ahead of `B.10`**: a correction of a constant nobody chose comes before a new capability, or water is measured in a world whose harshness is an accident. See `D.7`. |
+
 ## I. What the instruments can be trusted to say
 
 **A new section, and it should have existed five failures ago.** Everything above
