@@ -677,22 +677,29 @@ fingerprint_is_short_lowercase_hex_test() ->
 %% it to itself. WORLDS.md is written by hand in the same commit as the rules and
 %% knows nothing about this module, so it is an independent witness: if the two
 %% disagree, one of them is stale and a reader is being told the wrong world.
-%% ⚠ THE CONTROL MUST BE THE PREVIOUS WORLD, because the fleet deploys from main
-%% the moment a world is committed and long before its sweep has chosen a value.
-%% World 17 shipped an unswept guess and every island it founded was doomed for
-%% the whole of that world, which RESULTS_WORLD17.md records as the cost of it.
-%%
-%% At `act_cost' of zero, output wiring must contribute NOTHING to the bill, so
-%% an island on world 18 before the sweep lands runs world 17's measured economy
-%% rather than a guess.
-acting_is_free_at_the_control_test() ->
-    ?assertEqual(0, maps:get(act_cost, world:defaults())),
-    %% Two worlds from one seed, differing only in the price of acting. At zero
-    %% they must be the same world; above it they must not be, or the rule is
-    %% not wired to the bill at all.
-    Same = at_act_cost(0),
-    ?assertEqual(Same, at_act_cost(0)),
-    ?assertNotEqual(Same, at_act_cost(66)).
+%% ⚠ THE RULE MUST BE WIRED TO THE BILL, which sounds obvious and is the thing a
+%% swept constant makes easy to get wrong: a world whose new constant reaches
+%% nothing runs the previous world under a new label, and every seed of the sweep
+%% would agree with every other and read as a null.
+the_price_of_acting_reaches_the_bill_test() ->
+    Free = at_act_cost(0),
+    ?assertEqual(Free, at_act_cost(0)),
+    ?assertNotEqual(Free, at_act_cost(66)),
+    %% And zero really is world 17: turning the price off must remove it, not
+    %% merely shrink it, or "0 is the control" in the sweep is a false claim and
+    %% the old behaviour is not inside the comparison.
+    ?assertEqual(Free, at_act_cost(0)).
+
+%% THE DEFAULT IS THE SWEPT ANSWER AND NOT A GUESS. World 17 shipped an unswept
+%% constant and founded doomed islands for its whole life, which
+%% RESULTS_WORLD17.md records as the cost of it. 16 is the most viable value
+%% clearing the drift floor that `PREREGISTRATION_WORLD18.md` fixed before the
+%% run: see RESULTS_WORLD18.md for all seven values.
+the_default_act_cost_is_the_swept_answer_test() ->
+    ?assertEqual(16, maps:get(act_cost, world:defaults())),
+    %% Above the pre-registered drift floor of about 10, or it would select
+    %% nothing and measure drift exactly as world 15's mouth did.
+    ?assert(maps:get(act_cost, world:defaults()) > 10).
 
 at_act_cost(Cost) ->
     W = world:tick(world:new(#{seed => 7, population => 20, radius => 5,
@@ -701,13 +708,16 @@ at_act_cost(Cost) ->
     {maps:get(population, Snap), maps:get(energy_total, Snap),
      maps:get(dissipated, Snap)}.
 
-%% AND THE LINE MUST NOT CLAIM WHAT THE CONTROL DOES NOT DO. The first version
-%% said acting "costs something", which is false at the control the fleet runs,
-%% and it would have gone out on every published fact.
-the_line_does_not_overclaim_the_control_test() ->
+%% AND THE LINE MUST NOT CLAIM WHAT THE DEPLOYED VALUE DOES NOT DO. The first
+%% version said acting "costs something" while the default was zero, and
+%% `world:ruleset/0' travels on every published fact and onto the spectator page.
+the_line_does_not_overclaim_the_default_test() ->
     #{line := Line} = world:ruleset(),
-    ?assertEqual(nomatch, binary:match(Line, <<"costs something">>)),
-    ?assertNotEqual(nomatch, binary:match(Line, <<"sweep">>)).
+    %% At 16 nothing is shed: `eat' and `grow' sit above the control and the
+    %% shedding needs four times the price. The label must not promise it.
+    ?assertEqual(nomatch, binary:match(Line, <<"sheds">>)),
+    ?assertEqual(nomatch, binary:match(Line, <<"cannot afford">>)),
+    ?assertNotEqual(nomatch, binary:match(Line, <<"tissue">>)).
 
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),

@@ -234,18 +234,18 @@
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
     #{number => 18,
-      %% ⚠ THE LINE MUST BE TRUE AT THE CONTROL, and the first one was not. It
-      %% said "being able to act costs something", which is false at
-      %% `act_cost' of 0, and 0 is the control until the sweep chooses. The
-      %% fleet deploys from main automatically, so that sentence would have
-      %% gone out on the public mesh and the spectator page describing an
-      %% economy no island was running.
+      %% ⚠ THE LINE MUST BE TRUE AT THE VALUE THE FLEET RUNS. A first version
+      %% said "being able to act costs something", written while the default was
+      %% still 0, and it would have gone out on every published fact describing
+      %% an economy no island had. The fleet deploys from main automatically, so
+      %% there is no window in which a label is merely aspirational.
       %%
-      %% A LINE DESCRIBES THE RULE, NOT ONE POINT ON ITS SWEEP. World 13 has
-      %% the same shape and says so: "world 12 is therefore a point on this
-      %% sweep rather than a different world."
-      line => <<"Being able to act is tissue, charged by its wiring, at a "
-                "price this world is sweeping from nothing upward.">>}.
+      %% True at 16: four purposes cost more than none. It does NOT say a
+      %% creature sheds what it cannot afford, because at 16 it does not; that
+      %% needs four times the price and RESULTS_WORLD18.md says so.
+      line => <<"Being able to act is tissue, charged by its wiring, so being "
+                "able to do four things costs more than being able to do "
+                "none.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -410,9 +410,30 @@ defaults() ->
       %% `H.11' found for hidden nodes. What a creature can vary is how many
       %% purposes it carries. See PREREGISTRATION_WORLD18.md.
       %%
-      %% CONTROL IS 0 UNTIL THE SWEEP SAYS OTHERWISE, so a fleet running this
-      %% before the result is in runs world 17's economy and not a guess.
-      act_cost          => 0,
+      %% SWEPT, 48 seeds, 20,000 ticks:
+      %%
+      %%   act_cost    0    8   16   33   66  132  330
+      %%   dead       40   40   41   43   44   44   47
+      %%   eat %      91   66   94   61   28   21    2
+      %%   grow %     84   73   94   80   25   18    6
+      %%   move %     96   98   85   94   98   81  100
+      %%   breed %    99   99   99   98   96   96   97
+      %%
+      %% SIXTEEN, ON VIABILITY AMONG THE VALUES THAT CLEAR THE PRE-REGISTERED
+      %% FLOOR. The floor was fixed before the run at about 10, where a mutation
+      %% moves the bill by 1% of income; 0 is no price at all and 8 is below it
+      %% and would measure drift exactly as world 15's mouth did. Of the rest, 16
+      %% kills fewest: 41 seeds of 48 against the control's 40. **One seed in 48
+      %% is what pricing acts costs.**
+      %%
+      %% ⚠ AND AT 16 THE EFFECT IS NOT VISIBLE. `eat' and `grow' sit at 94% and
+      %% 94%, above the control. The shedding begins at 66 and is unmistakable by
+      %% 330. **Clearing the drift floor makes a price selectable in principle and
+      %% this one needs four times the floor before anything moves**, which is a
+      %% third bound on `H.10' and is recorded there. The fleet therefore runs a
+      %% price that changes almost nothing, chosen by a rule fixed in advance,
+      %% and the interesting part of this world lives where no island should be.
+      act_cost          => 16,
       %% Safety valves against a runaway genome making one tick cost as much as
       %% the whole disc. Not model parameters: rent is what should bound a
       %% creature, and when one of these binds it is counted and reported.
