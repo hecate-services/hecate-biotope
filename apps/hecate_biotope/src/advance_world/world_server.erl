@@ -20,7 +20,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, snapshot/0, pace/0]).
+-export([start_link/0, snapshot/0, pace/0, chart/0, status/0, set_pace/1]).
 -export([station_due/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          handle_continue/2]).
@@ -79,6 +79,29 @@ snapshot() -> gen_server:call(?SERVER, snapshot).
 -spec pace() -> world_pace:pace().
 pace() -> gen_server:call(?SERVER, pace).
 
+%% @doc The picture, for anything drawing this world. The same term the mesh
+%% carries, so a page rendered here and a spectator's rendering of a published
+%% fact cannot disagree about what the board looks like.
+-spec chart() -> map().
+chart() -> gen_server:call(?SERVER, chart).
+
+%% @doc What this island is DOING, as against what its world IS. Which run,
+%% how many seeds were rejected getting here, how many facts have gone out and
+%% how many failed, and which door it is on. None of it is in `world:snapshot/1'
+%% because none of it is a property of a world: a world does not know it is the
+%% third one this service has run.
+-spec status() -> map().
+status() -> gen_server:call(?SERVER, status).
+
+%% @doc Watch it faster or slower. NOT PHYSICS: no rule reads the pace, so two
+%% islands differing only in this are the same experiment at different speeds,
+%% and nothing measured is affected by it.
+%%
+%% It does not persist, and the page that calls this says so. There is no disk
+%% here, so the environment wins at the next boot.
+-spec set_pace(world_pace:pace()) -> ok.
+set_pace(Pace) -> gen_server:call(?SERVER, {set_pace, Pace}).
+
 %%==============================================================================
 %% gen_server
 %%==============================================================================
@@ -118,8 +141,29 @@ handle_call(snapshot, _From, #state{world = W} = S) ->
     {reply, world:snapshot(W), S};
 handle_call(pace, _From, #state{pace = P} = S) ->
     {reply, P, S};
+handle_call(chart, _From, #state{world = W} = S) ->
+    {reply, world:chart(W), S};
+handle_call(status, _From, S) ->
+    {reply, status_of(S), S};
+%% A CHART TURNED BACK ON NEEDS A KICK AND THE OTHER TWO DO NOT. Every timer
+%% re-arms itself from the pace held in state, so a changed `slot_ms' takes
+%% effect on the next fire without help. `chart_ms' of zero schedules NO timer at
+%% all, on purpose, so there is nothing left alive to notice it changed: going
+%% from off to on has to start one.
+handle_call({set_pace, New}, _From, #state{pace = Old} = S) ->
+    resume_chart(maps:get(chart_ms, Old), maps:get(chart_ms, New)),
+    {reply, ok, S#state{pace = New}};
 handle_call(_Msg, _From, S) ->
     {reply, {error, unknown_call}, S}.
+
+resume_chart(0, New) when New > 0 -> schedule_chart(New);
+resume_chart(_Was, _New) -> no_kick.
+
+status_of(#state{run = Run, rejected = Rejected, published = Sent,
+                 publish_errors = Failed, station = Door,
+                 previous_end = Was}) ->
+    #{run => Run, rejected => Rejected, published => Sent,
+      publish_errors => Failed, station => Door, previous_end => Was}.
 
 handle_cast(_Msg, S) -> {noreply, S}.
 

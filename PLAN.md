@@ -112,7 +112,38 @@ time physically in Nuremberg. Offer the identities and say what they are.
 
 | # | Package | Goal it serves | Kind | Size |
 |---|---|---|---|---|
-| 2.1 | **Observe and configure locally.** Name the island, set the pace, choose a station, watch your own disc. `hecate_om` already serves HTTP for `/health`, so this extends a surface rather than adding a server. | An owner who can run an island without reading our config files | BUILD | M |
+| 2.1 | **Observe and configure locally.** ✅ **DONE 2026-08-02.** Name the island, set the pace, watch your own disc, read every constant of the world. `HECATE_BIOTOPE_UI_PORT`, off unless set. | An owner who can run an island without reading our config files | BUILD | M |
+
+**Two things the plan got wrong and the build corrected.**
+
+**It does NOT extend hecate_om's health surface.** hecate_om 0.9.0 compiles a
+fixed dispatch with no way for a service to contribute a route, and adding one is
+a hex release this repo cannot fire. **Separate is better regardless**: podman
+decides whether to restart the container by asking `/health`, and a page painting
+a thousand cells must never make that question slow.
+
+**The station is not configurable and should not have been listed.** It takes
+effect at boot; offering it would mean dropping every mesh link mid-tick and
+calling that a setting. The page shows it, names the variable, and says so.
+
+**The board is PAINTED, not built, which is beam-campus-net's technique.** The
+first version emitted SVG: 1,261 hexagons, 161 KB, every second. The spectator
+had already made and fixed that at larger scale, and its note is the whole
+argument: *the fix is not a smaller diff, it is to stop sending markup for a
+particle field.* Numbers now go over the wire and the canvas paints them. **Page
+169 KB → 9.8 KB, frame 162 KB → 25 KB.**
+
+**And it mirrors the spectator's visual decisions rather than inventing a second
+language**, including two the first version got wrong on its own: size is
+absolute rather than relative to the largest creature in frame, and colour is the
+**feeding rate** rather than the signature. *A signature is a name, and names
+only mean something when there are families to name; a feeding rate is a number.*
+The constants are pinned by tests in both repos.
+
+**The physics are shown in full and settable nowhere**, enforced by an allowlist
+rather than by the form: a `curl` posting `metabolism=0` changes nothing. An
+island running rules its owner tuned is a different experiment whose numbers may
+not be read against another island's.
 
 **The genome browser waits for Phase 4**, because it needs the wire format.
 

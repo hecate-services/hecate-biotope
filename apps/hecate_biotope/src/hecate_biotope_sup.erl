@@ -1,6 +1,15 @@
 %% @doc Supervises this service's own processes.
 %%
-%% ONE CHILD: the world. It owns this node's biotope and keeps it moving.
+%% ONE CHILD ALWAYS: the world. It owns this node's biotope and keeps it moving.
+%% AND OPTIONALLY A SECOND: the island's own web listener, when
+%% `HECATE_BIOTOPE_UI_PORT' is set. Spliced in as a list rather than chosen by a
+%% conditional, so an island with no page has no listener at all rather than one
+%% that starts and refuses connections.
+%%
+%% THE UI IS LISTED AFTER THE WORLD, which matters under `one_for_one' only for
+%% start order: a page that renders before there is a world to render would fail
+%% its first request. The world does not depend on the page in either direction,
+%% and a crashing page must never take a world with it.
 %%
 %% RESTARTING IT LOSES THE WORLD, and that is the honest behaviour rather than an
 %% oversight. Nothing is persisted yet, so a crash means the population that was
@@ -25,4 +34,4 @@ init([]) ->
              start => {world_server, start_link, []},
              restart => permanent,
              shutdown => 5000,
-             type => worker}]}}.
+             type => worker} | island_ui:child_specs()]}}.

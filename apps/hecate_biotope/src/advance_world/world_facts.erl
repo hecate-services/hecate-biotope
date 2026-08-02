@@ -31,7 +31,7 @@
 %% into one.
 -module(world_facts).
 
--export([topic/1, namespace/0, island/0]).
+-export([topic/1, namespace/0, island/0, set_island/1]).
 -export([world_advanced/2, world_advanced/5, world_advanced/6,
          world_charted/2]).
 
@@ -66,6 +66,22 @@ opted_in(_Unset) -> false.
 
 -spec island() -> binary().
 island() -> island_name(os:getenv("HECATE_BIOTOPE_ISLAND")).
+
+%% @doc Rename this island, until it restarts.
+%%
+%% IT WRITES THE SAME ENVIRONMENT VARIABLE `island/0' ALREADY READS, rather than
+%% introducing a second place a name can live. A name held somewhere else would
+%% be a second source of truth that disagrees with the config file the moment
+%% either changes, and every fact this island publishes carries the name.
+%%
+%% SO IT DOES NOT PERSIST, and that is a property of the container rather than of
+%% this function: there is no volume here, so the environment wins at the next
+%% boot. `island_page' says so where the owner can read it, and shows the config
+%% line that would make it permanent.
+-spec set_island(binary()) -> ok.
+set_island(Name) ->
+    true = os:putenv("HECATE_BIOTOPE_ISLAND", binary_to_list(Name)),
+    ok.
 
 island_name(false) -> hostname();
 island_name("") -> hostname();
