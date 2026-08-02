@@ -49,3 +49,16 @@ a_non_hex_tag_of_the_right_length_is_an_error_test() ->
 the_public_realm_is_the_hash_of_its_name_test() ->
     Expected = binary:encode_hex(crypto:hash(sha256, ?PUBLIC_NAME), lowercase),
     ?assertEqual(list_to_binary(?PUBLIC_HEX), Expected).
+
+%% A STRANGER CAN PUBLISH WITH NO FLEET SECRET, which is the join blocker.
+%% `endpoint/0' used to demand the fleet realm and `resolve_realm/1' then threw
+%% it away, so an island outside this fleet failed a check on a value the next
+%% line discards. With the public realm set, nothing about the fleet is needed.
+a_public_realm_needs_no_fleet_realm_test() ->
+    Public = string:copies("ab", 32),
+    true = os:putenv("HECATE_BIOTOPE_REALM", Public),
+    try
+        ?assertMatch({ok, _}, biotope_mesh:publish_realm(undefined))
+    after os:unsetenv("HECATE_BIOTOPE_REALM")
+    end.
+

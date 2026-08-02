@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 10).
+-define(FACT_VERSION, 11).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -57,6 +57,13 @@ ns(Str) -> list_to_binary(string:trim(Str)).
 %% @doc Which island this is. Defaults to the host's name, because a machine
 %% already has an identity and inventing a second one that nobody configures
 %% produces a fleet of islands all called "biotope".
+-spec accepts_migrants() -> boolean().
+accepts_migrants() -> opted_in(os:getenv("HECATE_BIOTOPE_ACCEPTS_MIGRANTS")).
+
+opted_in("1") -> true;
+opted_in("true") -> true;
+opted_in(_Unset) -> false.
+
 -spec island() -> binary().
 island() -> island_name(os:getenv("HECATE_BIOTOPE_ISLAND")).
 
@@ -122,6 +129,13 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
+      %% WHETHER THIS ISLAND WOULD TAKE A MIGRANT, on every fact rather than in a
+      %% separate `island_opened' event. An island that announces itself open and
+      %% then crashes leaves a record saying open for ever; a flag arriving every
+      %% second is self-healing, and an observer derives the transitions from it.
+      %% Nothing sends migrants yet and this defaults to false, which is the
+      %% honest thing for the join page to be able to say.
+      accepts_migrants => accepts_migrants(),
       tick => Tick,
       population => Pop,
       ground_total => GroundTotal,
@@ -322,6 +336,13 @@ world_charted(Chart, Pace) ->
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
+      %% WHETHER THIS ISLAND WOULD TAKE A MIGRANT, on every fact rather than in a
+      %% separate `island_opened' event. An island that announces itself open and
+      %% then crashes leaves a record saying open for ever; a flag arriving every
+      %% second is self-healing, and an observer derives the transitions from it.
+      %% Nothing sends migrants yet and this defaults to false, which is the
+      %% honest thing for the join page to be able to say.
+      accepts_migrants => accepts_migrants(),
       tick => Tick,
       radius => Radius,
       stride => 2,

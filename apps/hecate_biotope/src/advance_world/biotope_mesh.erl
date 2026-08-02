@@ -60,7 +60,7 @@ publish(Topic, Fact) when is_map(Fact) ->
 station() -> door(endpoint()).
 
 door({error, _} = E) -> E;
-door({ok, Pool, _FleetRealm}) ->
+door({ok, Pool}) ->
     try chosen(macula:links(Pool))
     catch Class:Reason -> {error, {links_failed, Class, Reason}}
     end.
@@ -89,8 +89,30 @@ key(Key) when is_binary(Key) -> string:lowercase(binary:encode_hex(Key));
 key(_) -> <<>>.
 
 send(_Topic, _Fact, {error, _} = E) -> E;
-send(Topic, Fact, {ok, Pool, FleetRealm}) ->
-    send_on(Topic, Fact, Pool, resolve_realm(FleetRealm)).
+send(Topic, Fact, {ok, Pool}) ->
+    send_on(Topic, Fact, Pool, realm_for(os:getenv("HECATE_BIOTOPE_REALM"))).
+
+%% ==========================================================================
+%% A STRANGER NEEDS NO SECRET, AND UNTIL NOW THE CODE DEMANDED ONE IT NEVER USED
+%% ==========================================================================
+%%
+%% `endpoint/0' required a pool AND the fleet realm, and then `resolve_realm/1'
+%% threw the fleet realm away and published on `HECATE_BIOTOPE_REALM' instead.
+%% So an island run by somebody outside this fleet, with the public realm set and
+%% no fleet tag to its name, could not publish at all: it failed a check on a
+%% value the next line discards.
+%%
+%% The public realm is the sha256 of a public name and needs no provisioning,
+%% which is the whole point of it, and the macula SDK generates an ephemeral
+%% identity for a client that brings none. So there was nothing else in the way.
+realm_for(false) -> fleet_realm();
+realm_for("") -> fleet_realm();
+realm_for(Hex) -> from_hex(Hex, undefined).
+
+fleet_realm() ->
+    try hecate_om_identity:realm()
+    catch Class:Reason -> {error, {no_realm, Class, Reason}}
+    end.
 
 send_on(_Topic, _Fact, _Pool, {error, _} = E) -> E;
 send_on(Topic, Fact, Pool, {ok, Realm}) ->
@@ -138,11 +160,9 @@ available() -> element(1, endpoint()) =:= ok.
 %% mesh is not there yet" and "the world crashed", which a supervisor exit
 %% collapses into one opaque line.
 endpoint() ->
-    try pool_and_realm(hecate_om_identity:macula_client(),
-                       hecate_om_identity:realm())
+    try pool(hecate_om_identity:macula_client())
     catch Class:Reason -> {error, {no_hecate_om, Class, Reason}}
     end.
 
-pool_and_realm({ok, Pool}, {ok, Realm}) -> {ok, Pool, Realm};
-pool_and_realm({ok, _Pool}, Other) -> {error, {no_realm, Other}};
-pool_and_realm(Other, _Realm) -> {error, {no_macula_client, Other}}.
+pool({ok, Pool}) -> {ok, Pool};
+pool(Other) -> {error, {no_macula_client, Other}}.
