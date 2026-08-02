@@ -40,7 +40,8 @@
 %% apart and something together, which is why world 2 has both or neither.
 -module(body).
 
--export([founder/2, inherit/3, mass/1, fields/0, unit/2, reading/3]).
+-export([founder/2, inherit/3, mass/1, fields/0, unit/2, reading/3,
+         reading/4]).
 -export([census/1, sensor_count/1, reading_ceiling/0, spatial/1]).
 
 -type field() :: creatures | ground | scent | self.
@@ -81,17 +82,46 @@ spatial(_Field) -> true.
 %% freely exchanged: a creature carrying four hundred is worth exactly as much as
 %% a full cell holding four hundred, and a brain should not need different weights
 %% to say so.
+%% AND SINCE WORLD 17 IT IS THE CELL'S CEILING SPREAD OVER THE READING RANGE,
+%% not the whole ceiling. Dividing by what a FULL cell holds meant a cell holding
+%% anything less than a full one read zero, which measured as 88 to 100% of
+%% occupied cells for a reach-0 ground sensor and a third to a half of creatures
+%% for `self'. The instrument was blind across the bottom of its own range, and
+%% the fleet carries reach-0 ground sensors almost exclusively: paying for the
+%% one configuration that reads nothing.
+%%
+%% Derived from two constants that already exist rather than being a third.
 -spec unit(field(), map()) -> pos_integer().
 unit(scent, Econ) -> maps:get(scent_per_tick, Econ);
-unit(_Energy, Econ) -> maps:get(ground_ceiling, Econ).
+unit(_Energy, Econ) ->
+    max(1, maps:get(ground_ceiling, Econ) div ?READING_CEILING).
 
 %% @doc Scale a raw total into its natural unit, floored and capped.
 %%
 %% Floored because a cell can hold a creature about to be reaped and a negative
 %% reading would flip the meaning of every weight applied to it.
 -spec reading(field(), integer(), map()) -> non_neg_integer().
-reading(Field, Raw, Econ) ->
-    max(0, min(?READING_CEILING, Raw div unit(Field, Econ))).
+reading(Field, Raw, Econ) -> reading(Field, Raw, 1, Econ).
+
+%% @doc A READING IS AN INTENSITY, NOT A TOTAL, which is world 17.
+%%
+%% It used to be the SUM over every cell in range divided by a fixed unit, so the
+%% magnitude grew with the area while the scale did not. Measured: a reach-0
+%% ground sensor read zero for 88 to 100% of occupied cells while a reach-1
+%% sensor already peaked at 49 to 54 against a ceiling of 63. Blind at one reach
+%% and full at the next, and reach 2 could only saturate. **One unit cannot serve
+%% every reach.**
+%%
+%% So the sum is divided by how many cells it came from. Every reach now reads on
+%% one scale, and REACH MEANS SOMETHING DIFFERENT: not how much I add up, but how
+%% far I average over. A wide sensor sees a smoother, larger picture and a narrow
+%% one sees exactly where it stands. That is what a sense is, brightness or
+%% concentration rather than integrated photons, and it is the first version of
+%% this that a creature could economise on.
+-spec reading(field(), integer(), pos_integer(), map()) -> non_neg_integer().
+reading(Field, Raw, Cells, Econ) ->
+    max(0, min(?READING_CEILING,
+               (Raw div max(1, Cells)) div unit(Field, Econ))).
 
 %% @doc HOW MUCH APPARATUS THIS BODY IS, in units. Not a price: what it costs is the
 %% world's business and is charged at the same rate as any other tissue since

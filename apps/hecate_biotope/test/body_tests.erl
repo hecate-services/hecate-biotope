@@ -50,12 +50,18 @@ only_self_is_not_measured_over_cells_test() ->
 %% freely exchanged: a creature carrying four hundred is worth exactly as much as
 %% a full cell holding four hundred, and a brain should not need different weights
 %% to say so. Scent is not energy and has its own.
+%% AND SINCE WORLD 17 THAT UNIT IS THE CEILING SPREAD OVER THE READING RANGE.
+%% Dividing by what a FULL cell holds put the whole bottom of the range at zero:
+%% measured, 88 to 100% of occupied cells for a reach-0 ground sensor.
 energy_shares_one_unit_and_scent_has_its_own_test() ->
     E = with(#{ground_ceiling => 400, scent_per_tick => 10}),
-    ?assertEqual(400, body:unit(ground, E)),
-    ?assertEqual(400, body:unit(creatures, E)),
-    ?assertEqual(400, body:unit(self, E)),
-    ?assertEqual(10, body:unit(scent, E)).
+    Fine = 400 div body:reading_ceiling(),
+    ?assertEqual(Fine, body:unit(ground, E)),
+    ?assertEqual(Fine, body:unit(creatures, E)),
+    ?assertEqual(Fine, body:unit(self, E)),
+    ?assertEqual(10, body:unit(scent, E)),
+    %% Scent already resolved properly and is left alone.
+    ?assertNotEqual(body:unit(ground, E), body:unit(scent, E)).
 
 %% WORLD 1 GOT THIS BADLY WRONG and it is very likely why scent sensors went
 %% extinct in every seed. One divisor of twenty for quantities spanning thirty to
@@ -64,9 +70,31 @@ energy_shares_one_unit_and_scent_has_its_own_test() ->
 %% instrument could barely register them.
 a_reading_is_in_its_own_unit_test() ->
     E = with(#{ground_ceiling => 400, scent_per_tick => 10}),
-    ?assertEqual(3, body:reading(ground, 1200, E)),
-    ?assertEqual(3, body:reading(creatures, 1200, E)),
+    %% 1200 over three cells is a full cell each, which is the top of the range.
+    ?assertEqual(body:reading_ceiling(), body:reading(ground, 1200, 3, E)),
+    ?assertEqual(body:reading_ceiling(), body:reading(creatures, 1200, 3, E)),
     ?assertEqual(3, body:reading(scent, 30, E)).
+
+%% WORLD 17: THE SAME GROUND READS THE SAME AT EVERY REACH, which is the whole
+%% change. It used to be a SUM, so a reach-1 sensor over seven cells read seven
+%% times a reach-0 sensor over one, and no single unit could serve both: blind at
+%% reach 0 and saturated at reach 1, measured.
+the_same_richness_reads_the_same_at_any_reach_test() ->
+    E = with(#{ground_ceiling => 400}),
+    Cell = 200,
+    ?assertEqual(body:reading(ground, Cell, 1, E),
+                 body:reading(ground, Cell * 7, 7, E)),
+    ?assertEqual(body:reading(ground, Cell, 1, E),
+                 body:reading(ground, Cell * 19, 19, E)).
+
+%% AND THE BOTTOM OF THE RANGE IS NOW READABLE, which is where a hungry creature
+%% and a poor cell both live. Under world 16 every one of these read zero.
+a_fraction_of_a_cell_is_no_longer_invisible_test() ->
+    E = with(#{ground_ceiling => 400}),
+    Readings = [body:reading(self, Store, 1, E) || Store <- [12, 50, 100, 200]],
+    ?assertEqual([], [R || R <- Readings, R =:= 0]),
+    ?assertEqual(lists:sort(Readings), Readings),
+    ?assertEqual(length(Readings), length(lists:usort(Readings))).
 
 %% Capped generously, because in natural units a wide sensor over full ground
 %% legitimately reaches sixty-odd, and clipping that would hide exactly the

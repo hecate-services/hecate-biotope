@@ -228,10 +228,10 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 16,
-      line => <<"A thought is charged by how much it reads, so a brain that "
-                "combines everything it can see is no longer priced the same as "
-                "one that glances at a single number.">>}.
+    #{number => 17,
+      line => <<"A sense reports how rich a place is rather than how much is "
+                "in it, so looking further now means seeing wider rather than "
+                "seeing a bigger number.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -787,9 +787,12 @@ here(Cell, Cell) -> 1;
 here(_Cell, _At) -> 0.
 
 read({self, _Range}, _Cell, #{energy := E}, _Herd, #world{econ = Econ}) ->
-    body:reading(self, E, Econ);
+    %% NOT SPATIAL, so there is one cell to average over and the reach it may
+    %% carry is read by nothing. See `H.8'.
+    body:reading(self, E, 1, Econ);
 read({Field, Range}, Cell, C, Herd, #world{econ = Econ} = W) ->
-    body:reading(Field, gather(Field, Cell, Range, C, Herd, W), Econ).
+    body:reading(Field, gather(Field, Cell, Range, C, Herd, W),
+                 length(hex:within(Cell, Range, maps:get(radius, Econ))), Econ).
 
 gather(ground, Cell, Range, _C, _Herd, #world{ground = G, econ = Econ}) ->
     ground:within(Cell, Range, maps:get(radius, Econ), G);
