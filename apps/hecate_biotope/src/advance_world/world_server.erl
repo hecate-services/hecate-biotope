@@ -21,6 +21,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, snapshot/0, pace/0]).
+-export([station_due/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          handle_continue/2]).
 
@@ -52,7 +53,14 @@
                 %% the world stalling on its own output is the one thing this
                 %% service is built not to do. A door changes about never.
                 station :: map() | undefined,
-                station_at = 0 :: integer()}).
+                %% `undefined' MEANS NEVER READ, and zero would not.
+                %% `erlang:monotonic_time/1' starts at an arbitrary point which
+                %% on this VM is about minus five hundred and seventy six
+                %% billion, so `Now - 0' is hugely negative and "not stale yet"
+                %% was true for ever. The door was never read once and every
+                %% fact went out without it, on a fleet that was publishing it
+                %% correctly when asked directly.
+                station_at :: integer() | undefined}).
 
 %% How stale the cached door may get. A dropped link shows on the card within
 %% this, which is soon enough for something that changes about never and rare
@@ -152,11 +160,21 @@ schedule(Msg, Ms) -> erlang:send_after(Ms, self(), Msg).
 %% gone. Absent means "cannot see"; present with `station_connected => false'
 %% means "nobody answered". They are different and the fact keeps them apart.
 refresh_station(#state{station_at = At} = S) ->
-    now_ms(erlang:monotonic_time(millisecond), At, S).
+    reread(station_due(erlang:monotonic_time(millisecond), At), S).
 
-now_ms(Now, At, S) when Now - At < ?STATION_MS -> S;
-now_ms(Now, _At, S) ->
-    S#state{station = read_station(biotope_mesh:station()), station_at = Now}.
+reread(false, S) -> S;
+reread(true, S) ->
+    S#state{station = read_station(biotope_mesh:station()),
+            station_at = erlang:monotonic_time(millisecond)}.
+
+%% @doc Whether the door is due to be read again.
+%%
+%% EXPORTED TO BE TESTED, because the bug it encodes is invisible where it is
+%% called. Monotonic time starts wherever the VM decides and is NEGATIVE here, so
+%% any arithmetic against a zero default silently means "never".
+-spec station_due(integer(), integer() | undefined) -> boolean().
+station_due(_Now, undefined) -> true;
+station_due(Now, At) -> Now - At >= ?STATION_MS.
 
 read_station({ok, Door}) -> Door;
 read_station({error, _}) -> undefined.

@@ -282,3 +282,31 @@ a_pinned_seed_is_run_even_when_it_dies_test() ->
                  stop(Pid),
                  ?assertEqual(303, Seed)
              end).
+
+%%==============================================================================
+%% When the door is read again
+%%==============================================================================
+
+%% THE FIRST READ MUST HAPPEN AT A NEGATIVE CLOCK, which is the whole of this.
+%% `erlang:monotonic_time/1' starts wherever the VM decides and on this one that
+%% is about minus five hundred and seventy six billion milliseconds. Against a
+%% zero default the difference is hugely negative, "not stale yet" is true for
+%% ever, and the door is never read once: every fact goes out without it while
+%% the island answers correctly when asked directly. That shipped.
+the_door_is_read_at_least_once_however_the_clock_started_test() ->
+    Now = erlang:monotonic_time(millisecond),
+    ?assert(Now < 0),
+    ?assert(world_server:station_due(Now, undefined)),
+    ?assert(world_server:station_due(0, undefined)),
+    ?assert(world_server:station_due(-576460751876, undefined)).
+
+%% And once read it is not re-read on every fact, because that would put a second
+%% call on the pool onto the per-second path.
+a_door_just_read_is_not_read_again_test() ->
+    Now = erlang:monotonic_time(millisecond),
+    ?assertNot(world_server:station_due(Now, Now)),
+    ?assertNot(world_server:station_due(Now, Now - 1000)).
+
+a_stale_door_is_read_again_test() ->
+    Now = erlang:monotonic_time(millisecond),
+    ?assert(world_server:station_due(Now, Now - 60000)).
