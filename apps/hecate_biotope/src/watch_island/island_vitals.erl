@@ -14,7 +14,30 @@
 
 -spec html(map(), map(), map()) -> iodata().
 html(Snap, Pace, Status) ->
-    [alive(Snap, Status), door(Status), census(Snap), physics(Snap, Pace)].
+    [alive(Snap, Status), narration(narrator:latest()), door(Status),
+     census(Snap), physics(Snap, Pace)].
+
+%% ==========================================================================
+%% WHAT A MODEL MADE OF THE NUMBERS, CLEARLY LABELLED AS SUCH
+%% ==========================================================================
+%%
+%% ⚠ IT SITS APART FROM THE FIGURES AND SAYS WHO WROTE IT. Everything else on
+%% this page is something the island counted. This is a sentence a language model
+%% wrote about those counts, and a reader has to be able to tell the two apart at
+%% a glance without being told twice.
+%%
+%% Absent until the first remark and absent for ever on an island with no model
+%% to ask, which is most of them. Nothing here explains its own absence, because
+%% an island that simply does not narrate is not in an error state.
+narration(none) -> <<>>;
+narration(#{text := Text, model := Model}) ->
+    [<<"<section class=\"card said\"><h2>What a model makes of this</h2><p>">>,
+     esc(Text), <<"</p><p class=\"note\">Written by ">>, esc(Model),
+     <<" from the numbers on this page and nothing else. It was asked to say "
+       "what it SEES and not why: a sentence explaining a cause would be a guess "
+       "nobody measured, and every claim here is meant to name the instrument "
+       "that could refute it. The figures below are what the island counted; "
+       "this paragraph is not.</p></section>">>].
 
 %% ==========================================================================
 %% IS IT ALIVE

@@ -7,6 +7,10 @@
         kernel,
         stdlib,
         crypto,
+        %% ⚠ FOR THE NARRATOR AND NOTHING ELSE. An island with no model to ask
+        %% never opens a socket, but a release that cannot has no way to say so.
+        inets,
+        ssl,
         %% Mesh SDK, realm identity, capabilities, health.
         hecate_om
     ]},

@@ -33,7 +33,7 @@
 
 -export([topic/1, namespace/0, island/0, set_island/1]).
 -export([world_advanced/2, world_advanced/5, world_advanced/6,
-         world_charted/2]).
+         world_charted/2, world_narrated/3]).
 
 -define(DEFAULT_NS, <<"biotope">>).
 -define(FACT_VERSION, 16).
@@ -43,7 +43,12 @@
 %% distinguished.
 -spec topic(atom()) -> binary().
 topic(world) -> leaf(<<"world">>);
-topic(chart) -> leaf(<<"chart">>).
+topic(chart) -> leaf(<<"chart">>);
+%% ITS OWN TOPIC, so a reader chooses whether to hear it. Counts and pictures are
+%% what the island MEASURED; a narration is what a language model SAID about
+%% them, and mixing the two on one topic would make a subscriber take the second
+%% to get the first.
+topic(narration) -> leaf(<<"narration">>).
 
 leaf(Leaf) -> <<(namespace())/binary, "/", Leaf/binary>>.
 
@@ -492,3 +497,33 @@ world_charted(Chart, Pace) ->
       kind_of => KindOf,
       kind_table => KindTable,
       ticks_per_second => world_pace:ticks_per_second(Pace)}.
+
+%% @doc What a model said about this island, and exactly what it was shown.
+%%
+%% ==========================================================================
+%% A REMARK CARRIES ITS OWN EVIDENCE
+%% ==========================================================================
+%%
+%% `derived_from' is the entire brief the model saw: every number, and nothing
+%% else, because `world_brief' hands over nothing else. So any sentence here can
+%% be checked against the figures it was written from, and a reader never has to
+%% take a narrator's word for what the world was doing.
+%%
+%% That is not politeness. This project's method is that a claim names the
+%% instrument that could refute it, and prose from a language model is the one
+%% thing on this wire that could quietly stop doing that. Shipping the evidence
+%% beside the sentence is the smallest arrangement that keeps the discipline.
+%%
+%% ⚠ AND IT IS MARKED AS SPEECH, NOT AS MEASUREMENT. `type' is `world_narrated'
+%% on its own topic with the model's name attached, so nothing downstream can
+%% mistake it for something the island counted. The island counted `derived_from';
+%% a model wrote `text'.
+-spec world_narrated(binary(), binary(), map()) -> map().
+world_narrated(Text, Model, Brief) ->
+    #{type => world_narrated,
+      fact_version => ?FACT_VERSION,
+      island => island(),
+      tick => maps:get(tick, Brief, 0),
+      said_by => Model,
+      text => Text,
+      derived_from => Brief}.

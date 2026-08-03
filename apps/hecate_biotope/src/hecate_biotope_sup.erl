@@ -34,4 +34,5 @@ init([]) ->
              start => {world_server, start_link, []},
              restart => permanent,
              shutdown => 5000,
-             type => worker} | island_ui:child_specs()]}}.
+             type => worker}
+           | island_ui:child_specs() ++ narrator:child_specs()]}}.

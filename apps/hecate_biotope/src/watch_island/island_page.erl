@@ -204,6 +204,8 @@ css() ->
       "justify-self:start}"
       "pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;"
       "padding:.7rem;overflow:auto;font-size:.8rem}"
+      ".said{border-left:3px solid #8B7CE8;}"
+      ".said p{font-size:1.02em;line-height:1.5;}"
       "kbd{font:inherit;font-size:.85em;border:1px solid currentColor;"
       "border-radius:3px;padding:0 .3em;opacity:.8;}"
       "#paused{position:fixed;right:1rem;bottom:1rem;padding:.4rem .7rem;"
