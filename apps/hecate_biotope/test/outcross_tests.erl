@@ -173,6 +173,73 @@ a_child_cannot_exceed_the_safety_valve_test() ->
 %%==============================================================================
 %% Fixtures
 %%==============================================================================
+%% Historical marking, which is what makes two nodes the same node
+%%==============================================================================
+
+%% ⚠ THE CLAIM MARKS EXIST TO MAKE TRUE. Two cousins that both inherited a node
+%% from a common ancestor share its mark, so recombination treats their weights
+%% for it as the SAME weight and mixes them. Before marks, this file's own
+%% comment read: "a hidden node has no name, so it is aligned by index and
+%% nothing else ... perception recombines by organ, computation only by
+%% position."
+%%
+%% Here the shared node sits at DIFFERENT POSITIONS in the two parents, so index
+%% alignment would pair it with the wrong node in both directions.
+a_shared_node_is_recognised_wherever_it_sits_test() ->
+    %% Mother: her own node 9, then the shared node 4.
+    Mother = marked([{ground, 0}], [[1, 0, 0, 0], [2, 0, 0, 0]], [9, 4],
+                    #{move => #{inputs => [1, 0], hidden => [5, 6]}}),
+    %% Father: the shared node 4 first, then his own node 7.
+    Father = marked([{ground, 0}], [[2, 0, 0, 0], [3, 0, 0, 0]], [4, 7],
+                    #{move => #{inputs => [1, 0], hidden => [8, 9]}}),
+    {#{brain := #{marks := Marks, outputs := Os}}, _Rng} =
+        outcross:traits(Mother, Father, econ(), rand:seed_s(exsss, {1, 1, 1})),
+    %% Mark 4 is carried by both, so the child is guaranteed to have it; 7 and 9
+    %% are one parent's alone and are coins.
+    ?assert(lists:member(4, Marks)),
+    ?assertEqual(lists:usort(Marks), Marks),
+    %% AND THE OUTPUT'S WEIGHT FOR IT IS THE HOMOLOGOUS ONE. Mother holds mark 4
+    %% SECOND and weighs it 6; father holds it FIRST and weighs it 8. Whichever
+    %% output the child took, its weight for mark 4 is that parent's weight for
+    %% MARK 4 and not for whatever happened to sit at the same index. Aligning by
+    %% index would have given 5 or 9, which are the weights for two unrelated
+    %% nodes that merely share a position.
+    #{move := #{hidden := Hids}} = Os,
+    Weight = lists:nth(index_of(4, Marks), Hids),
+    ?assert(Weight =:= 6 orelse Weight =:= 8),
+    ?assert(Weight =/= 5 andalso Weight =/= 9).
+
+%% A MARK IS NEVER REUSED, so two nodes grown in different lineages are never
+%% mistaken for one. The counter is per world and monotone.
+marks_are_handed_out_once_and_never_returned_test() ->
+    W = world:tick(world:new(#{seed => 77, population => 40}), 300),
+    All = [brain:marks(maps:get(brain, C))
+           || C <- maps:values(world:creatures(W))],
+    %% Within any one brain a mark appears at most once: a node is one node.
+    lists:foreach(fun(M) -> ?assertEqual(lists:usort(M), lists:sort(M)) end,
+                  All).
+
+%% ⚠ AND THE TWO LISTS STAY THE SAME LENGTH. `marks' runs parallel to `hidden'
+%% rather than being fused into it, which is cheap and is exactly the shape of
+%% bug this project keeps hitting. Only four operations change the node count and
+%% this asserts all four kept step, over a whole live world.
+a_brain_has_exactly_one_mark_per_node_test() ->
+    W = world:tick(world:new(#{seed => 77, population => 40}), 400),
+    lists:foreach(
+      fun(C) ->
+              Brain = maps:get(brain, C),
+              ?assertEqual(length(maps:get(hidden, Brain)),
+                           length(brain:marks(Brain)))
+      end, maps:values(world:creatures(W))).
+
+marked(Body, Hidden, Marks, Outputs) ->
+    #{body => Body,
+      brain => #{hidden => Hidden, marks => Marks, outputs => Outputs},
+      scent => 1, uptake => 10, mouth => 10}.
+
+index_of(X, List) -> length(lists:takewhile(fun(Y) -> Y =/= X end, List)) + 1.
+
+%%==============================================================================
 
 econ() -> world:defaults().
 
@@ -180,10 +247,15 @@ econ() -> world:defaults().
 %% kind the world ever holds.
 a_creature(Rng0) ->
     {Body, Rng1} = body:founder(econ(), Rng0),
-    {Brain, Rng2} = brain:founder(length(Body), econ(), Rng1),
+    {Brain, _Mark, Rng2} = brain:founder(length(Body), 1, econ(), Rng1),
     {#{body => Body, brain => Brain, scent => 7, uptake => 40, mouth => 20},
      Rng2}.
 
+%% A BRAIN CARRIES A MARK PER NODE since historical marking, so a hand-built one
+%% has to as well or it is not a brain this world could have produced. Marks are
+%% handed out here in node order, which is what a founder's are.
 creature(Body, Hidden, Outputs) ->
-    #{body => Body, brain => #{hidden => Hidden, outputs => Outputs},
+    #{body => Body,
+      brain => #{hidden => Hidden, marks => lists:seq(1, length(Hidden)),
+                 outputs => Outputs},
       scent => 1, uptake => 10, mouth => 10}.

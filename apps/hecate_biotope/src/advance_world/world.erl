@@ -229,6 +229,17 @@
                 %% are still turning up. **Cells discovered per thousand ticks
                 %% going to zero is this world's definition of converged**, and
                 %% nothing before this could have said it.
+                %% ⚠ NEAT'S HISTORICAL MARKING, PER WORLD AND NOT PER NODE OF
+                %% AN ETS TABLE. faber keeps innovation numbers in ETS plus
+                %% `counters', which is global mutable state: two worlds sharing
+                %% a VM would share a counter and a world would stop being a
+                %% pure function of its seed. `G.6' cost nineteen worlds of
+                %% results and is not being reintroduced for this.
+                %%
+                %% Monotonic and never reused. A number that came back would
+                %% tell a later recombination that two unrelated nodes were the
+                %% same organ.
+                next_mark = 1 :: pos_integer(),
                 archive = #{} :: #{non_neg_integer() =>
                                        {non_neg_integer(), non_neg_integer()}},
                 extinct_at = undefined :: non_neg_integer() | undefined,
@@ -594,16 +605,16 @@ new(Opts) ->
                     seed = Seed}).
 
 populate(0, _Opts, W) -> W;
-populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
+populate(N, Opts, #world{econ = Econ, rng = Rng0, next_mark = M0} = W) ->
     {At, Rng1} = random_cell(maps:get(radius, Econ), Rng0),
-    {Traits, Rng2} = founder_traits(Econ, Opts, Rng1),
+    {Traits, M1, Rng2} = founder_traits(Econ, Opts, M0, Rng1),
     %% A FOUNDER IS HALF STORE AND HALF STRUCTURE. Splitting the two forces a
     %% starting ratio, and even is the least-informative one: it favours neither
     %% carrying nor building, and mutation and the `grow' output decide the rest.
     Start = maps:get(start_energy, Econ),
     populate(N - 1, Opts,
              add_creature(At, Start div 2, Start - Start div 2, none, Traits,
-                          W#world{rng = Rng2})).
+                          W#world{rng = Rng2, next_mark = M1})).
 
 %% Everything heritable, drawn fresh and SPREAD. The first generation should
 %% already contain every shape of creature the rules allow, so selection has
@@ -612,10 +623,10 @@ populate(N, Opts, #world{econ = Econ, rng = Rng0} = W) ->
 %% Any of it may be GIVEN instead of drawn. That is not a testing hook: it is how
 %% a world is founded with a known creature, which is what a control run needs
 %% and what a transplanted migrant would arrive through.
-founder_traits(Econ, Opts, Rng0) ->
+founder_traits(Econ, Opts, Mark0, Rng0) ->
     {Body, Rng1} = given(founder_body, Opts, fun body:founder/2, Econ, Rng0),
-    {Brain, Rng2} = founder_brain(maps:get(founder_brain, Opts, draw),
-                                  Body, Econ, Rng1),
+    {Brain, Mark1, Rng2} = founder_brain(maps:get(founder_brain, Opts, draw),
+                                         Body, Mark0, Econ, Rng1),
     {Tag, Rng3} = given(founder_scent, Opts, fun scent:founder/2, Econ, Rng2),
     Widest = maps:get(founder_uptake_max, Opts,
                       maps:get(ground_ceiling, Econ)),
@@ -626,7 +637,7 @@ founder_traits(Econ, Opts, Rng0) ->
     %% argument `body:founder/2' makes for a creature that measures nothing.
     {Mouth, Rng5} = given(founder_mouth, Opts, rates_up_to(Widest), Econ, Rng4),
     {#{body => Body, brain => Brain, scent => Tag, uptake => Rate,
-       mouth => Mouth}, Rng5}.
+       mouth => Mouth}, Mark1, Rng5}.
 
 %% Uniform across the range. The default ceiling is DERIVED rather than chosen:
 %% no more than a full cell holds can be taken from it.
@@ -660,10 +671,14 @@ specified(Given, _Draw, _Econ, Rng) -> {Given, Rng}.
 
 %% A brain is sized from the body it will steer, so this one cannot be drawn
 %% without knowing the body first.
-founder_brain(draw, Body, Econ, Rng) ->
-    brain:founder(body:sensor_count(Body), Econ, Rng);
-founder_brain(Given, _Body, _Econ, Rng) ->
-    {Given, Rng}.
+founder_brain(draw, Body, Mark0, Econ, Rng) ->
+    brain:founder(body:sensor_count(Body), Mark0, Econ, Rng);
+%% A GIVEN BRAIN CARRIES NO HISTORY, because it did not happen here: a control
+%% run or a transplanted migrant arrives with nodes this world never grew. They
+%% get fresh marks so they cannot be mistaken for anything already present.
+founder_brain(Given, _Body, Mark0, _Econ, Rng) ->
+    Count = length(maps:get(hidden, Given, [])),
+    {Given#{marks => lists:seq(Mark0, Mark0 + Count - 1)}, Mark0 + Count, Rng}.
 
 add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatures = Cs,
                                                 tick = T, born = B} = W) ->
@@ -1528,14 +1543,15 @@ room(true, Id, Near, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
     Built = Given - Store,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
     {Mate, Rng2} = partner(Id, At, Near, Cs, Econ, Rng1),
-    {Traits, Change, Rng3} = inherit_traits(C, Mate, Econ, Rng2),
+    {Traits, Change, Mark1, Rng3} = inherit_traits(C, Mate, Econ,
+                                                  W#world.next_mark, Rng2),
     %% WHAT THE PARENT GIVES UP IS NOT WHAT THE CHILD RECEIVES. Assembling a
     %% second creature is a transformation and pays like every other one.
     W1 = note_change(Change,
                      note_mate(Mate,
                                W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
                                        dissipated = W#world.dissipated + (Dowry - Given),
-                                       rng = Rng3})),
+                                       next_mark = Mark1, rng = Rng3})),
     add_creature(Where, Store, Built, Id, Traits, W1).
 
 %% ==========================================================================
@@ -1558,12 +1574,53 @@ room(true, Id, Near, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
 %% NOBODY CONSENTS AND NOBODY PAYS. The partner contributes genes and no energy,
 %% and is not asked. Mate choice and a cost of sex are each a second experiment.
 partner(Id, At, Near, Cs, Econ, Rng0) ->
+    Me = maps:get(Id, Cs),
     Reach = [At | hex:neighbours_in(At, maps:get(radius, Econ))],
     %% Sorted, because `G.6' is what happens when a draw takes its order from a
     %% map: nineteen worlds where the same seed gave different worlds.
     Others = lists:sort([P || Cell <- Reach, P <- maps:get(Cell, Near, []),
                               P =/= Id]),
-    drawn(Others, Cs, Rng0).
+    drawn(kin_first(Me, Others, Cs), Cs, Rng0).
+
+%% ==========================================================================
+%% IT BREEDS WITH ITS OWN KIND, WHICH IS HOW A NOVELTY SURVIVES BEING RARE
+%% ==========================================================================
+%%
+%% NEAT protects a new topology by letting it compete only inside its own species
+%% until it has had time to be optimised, because a structural novelty is almost
+%% always worse than the thing it must eventually beat, and dies before it can
+%% get better. **This world has exactly that problem**: a new hidden node arrives
+%% weighted zero everywhere, so it changes nothing and costs rent, and world 19
+%% measured drift removing it faster than selection could find a use.
+%%
+%% World 20 made it worse. Outcrossing across seven cells means a rare lineage
+%% breeds with whatever is locally common and has its genome diluted on the spot.
+%%
+%% THE ECOLOGICAL FORM OF NEAT'S ANSWER, USING A TRAIT THIS WORLD ALREADY HAS.
+%% `scent:strangeness/2' is how unlike two signatures are, and its own
+%% documentation says it "hands the world kin recognition for free, because your
+%% children are at distance zero". A creature therefore breeds with the least
+%% strange partner in reach. Two members of a novel lineage smell alike, so they
+%% find each other, and a novelty gets a few generations among its own before it
+%% has to meet the crowd.
+%%
+%% NO NEW CONSTANT AND NO THRESHOLD. NEAT needs a compatibility distance chosen
+%% by hand; this needs only "the nearest", which is a comparison and not a
+%% number. And it changes NOTHING about who survives: it is a rule about whom you
+%% breed WITH, never about whom you beat.
+kin_first(_C, [], _Cs) -> [];
+kin_first(C, Others, Cs) ->
+    Mine = maps:get(scent, C),
+    Ranked = lists:sort([{scent:strangeness(Mine, maps:get(scent, maps:get(P, Cs))),
+                          P} || P <- Others]),
+    {Nearest, _P} = hd(Ranked),
+    %% ⚠ ALL THE EQUALLY-CLOSE ONES, NOT THE FIRST OF THEM. Signatures are eight
+    %% bits and strangeness runs 0 to 8, so ties are the common case rather than
+    %% the exception. Taking the head of a sorted list would break every tie by
+    %% LOWEST ID, which is the founding order, and `which_founder_wins.escript'
+    %% exists because this project has been suspicious of exactly that dimension
+    %% before. The draw below is over the whole tied set.
+    [P || {S, P} <- Ranked, S =:= Nearest].
 
 drawn([], _Cs, Rng) -> {alone, Rng};
 drawn(Others, Cs, Rng0) ->
@@ -1589,22 +1646,22 @@ note_change(none, W) ->
 %% through exactly the same body mutation, brain topology mutation and weight
 %% nudge that a clone has gone through since world 2. So a difference between
 %% worlds 19 and 20 is recombination and cannot be anything else.
-inherit_traits(Parent, Mate, Econ, Rng0) ->
+inherit_traits(Parent, Mate, Econ, Mark0, Rng0) ->
     {Source, Rng1} = combined(Mate, Parent, Econ, Rng0),
-    mutate_traits(Source, Econ, Rng1).
+    mutate_traits(Source, Econ, Mark0, Rng1).
 
 combined(alone, Parent, _Econ, Rng) -> {Parent, Rng};
 combined(Mate, Parent, Econ, Rng) -> outcross:traits(Parent, Mate, Econ, Rng).
 
-mutate_traits(Parent, Econ, Rng0) ->
+mutate_traits(Parent, Econ, Mark0, Rng0) ->
     #{body := Body, brain := Brain, scent := Tag, uptake := Rate,
       mouth := Mouth} = Parent,
     {ChildBody, Change, Rng1} = body:inherit(Body, Econ, Rng0),
     %% THE CHILD'S OWN SENSOR COUNT, passed rather than recovered: a brain with
     %% no hidden layer and no outputs has no shape to recover one from, and used
     %% to answer zero.
-    {ChildBrain, Rng2} = brain:inherit(Brain, Change, length(ChildBody), Econ,
-                                       Rng1),
+    {ChildBrain, Mark1, Rng2} = brain:inherit(Brain, Change, length(ChildBody),
+                                              Mark0, Econ, Rng1),
     {ChildTag, Rng3} = scent:inherit(Tag, Econ, Rng2),
     {ChildRate, Rng4} = inherit_rate(Rate, Econ, Rng3),
     %% THE SAME DRIFT AS THE GUT AND NO NEW CONSTANT. `uptake_mutation' is
@@ -1614,7 +1671,7 @@ mutate_traits(Parent, Econ, Rng0) ->
     %% feeding, so it governs both.
     {ChildMouth, Rng5} = inherit_rate(Mouth, Econ, Rng4),
     {#{body => ChildBody, brain => ChildBrain, scent => ChildTag,
-       uptake => ChildRate, mouth => ChildMouth}, Change, Rng5}.
+       uptake => ChildRate, mouth => ChildMouth}, Change, Mark1, Rng5}.
 
 %% A small symmetric nudge so a lineage drifts through feeding rates rather than
 %% resampling them.

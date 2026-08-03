@@ -142,17 +142,36 @@ keep(Slot, Acc) -> [Slot | Acc].
 brains(Mother, Father, Slots, A, B, Econ, Rng0) ->
     Ma = maps:get(brain, Mother),
     Fa = maps:get(brain, Father),
-    Ha = maps:get(hidden, Ma),
-    Hb = maps:get(hidden, Fa),
-    Wanted = min(max(length(Ha), length(Hb)), maps:get(max_hidden, Econ)),
-    {Nodes, Rng1} = pick_nodes(1, Wanted, Ha, Hb, [], Rng0),
-    Sides = [{Side, I} || {_Row, Side, I} <- Nodes],
+    %% ⚠ NODES ALIGN BY MARK NOW, NOT BY POSITION, and that is the whole change.
+    %% This file's own comment used to read "a hidden node has no name, so it is
+    %% aligned by index and nothing else ... perception recombines by organ,
+    %% computation only by position." It has a name now: the mark of the mutation
+    %% that grew it, carried by every descendant. Two brains sharing a mark share
+    %% a NODE, and their weights for it are homologous rather than coincidentally
+    %% adjacent.
+    Ma0 = nodes_by_mark(Ma),
+    Fa0 = nodes_by_mark(Fa),
+    {Nodes, Rng1} = pick_nodes(all_marks(Ma0, Fa0), Ma0, Fa0,
+                               maps:get(max_hidden, Econ), [], Rng0),
+    Marks = [Mark || {Mark, _Row, _Side} <- Nodes],
     Hidden = [remap(Row, Slots, side(Side, A, B))
-                  ++ recurrent(Row, Side, Sides, map_size(side(Side, A, B)))
-              || {Row, Side, _I} <- Nodes],
-    {Outputs, Rng2} = pick_outputs(brain:purposes(), Ma, Fa, Slots, A, B, Sides,
-                                   #{}, Rng1),
-    {#{hidden => Hidden, outputs => Outputs}, Rng2}.
+                  ++ recurrent(Row, Side, Marks, Ma0, Fa0,
+                               map_size(side(Side, A, B)))
+              || {_Mark, Row, Side} <- Nodes],
+    {Outputs, Rng2} = pick_outputs(brain:purposes(), Ma, Fa, Slots, A, B, Marks,
+                                   Ma0, Fa0, #{}, Rng1),
+    {#{hidden => Hidden, marks => Marks, outputs => Outputs}, Rng2}.
+
+%% A brain's nodes as `#{Mark => Position}', which is every lookup in this file.
+nodes_by_mark(Brain) ->
+    #{brain => Brain,
+      index => maps:from_list(
+                 lists:zip(brain:marks(Brain),
+                           lists:seq(1, length(maps:get(hidden, Brain)))))}.
+
+%% Sorted, so the child holds its nodes in mark order: oldest first, which makes
+%% a genome readable and, more to the point, makes it deterministic. `G.6'.
+all_marks(#{index := A}, #{index := B}) -> lists:usort(maps:keys(A) ++ maps:keys(B)).
 
 side(mother, A, _B) -> A;
 side(father, _A, B) -> B.
@@ -163,19 +182,32 @@ side(father, _A, B) -> B.
 %% something unrelated. **That is a real limit on how much this can recombine**
 %% and it is worth stating rather than papering over: perception recombines by
 %% organ, computation only by position.
-pick_nodes(I, Wanted, _Ha, _Hb, Acc, Rng) when I > Wanted ->
+pick_nodes([], _A, _B, _Cap, Acc, Rng) -> {lists:reverse(Acc), Rng};
+pick_nodes(_Marks, _A, _B, Cap, Acc, Rng) when length(Acc) >= Cap ->
     {lists:reverse(Acc), Rng};
-pick_nodes(I, Wanted, Ha, Hb, Acc, Rng0) ->
-    {Node, Rng1} = one_node(I, nth(I, Ha), nth(I, Hb), Rng0),
-    pick_nodes(I + 1, Wanted, Ha, Hb, keep(Node, Acc), Rng1).
+pick_nodes([Mark | Rest], A, B, Cap, Acc, Rng0) ->
+    {Node, Rng1} = one_node(Mark, at_mark(Mark, A), at_mark(Mark, B), Rng0),
+    pick_nodes(Rest, A, B, Cap, keep(Node, Acc), Rng1).
 
-one_node(_I, absent, absent, Rng) -> {dropped, Rng};
-one_node(I, RowA, absent, Rng0) -> kept(coin(Rng0), {RowA, mother, I});
-one_node(I, absent, RowB, Rng0) -> kept(coin(Rng0), {RowB, father, I});
-one_node(I, RowA, RowB, Rng0) -> chosen(coin(Rng0), RowA, RowB, I).
+%% ⚠ A MARK BOTH PARENTS CARRY IS ONE NODE THEY BOTH INHERITED, so the child
+%% takes one parent's version of it and is guaranteed to have it. A mark only one
+%% carries is a mutation that happened in one line, and gets a coin. That is
+%% precisely NEAT's matching/disjoint distinction, and it is the reason a
+%% recombined brain is now a mixture of two versions of the same brain rather
+%% than a collision of two unrelated ones.
+one_node(_Mark, absent, absent, Rng) -> {dropped, Rng};
+one_node(Mark, RowA, absent, Rng0) -> kept(coin(Rng0), {Mark, RowA, mother});
+one_node(Mark, absent, RowB, Rng0) -> kept(coin(Rng0), {Mark, RowB, father});
+one_node(Mark, RowA, RowB, Rng0) -> chosen(coin(Rng0), Mark, RowA, RowB).
 
-chosen({mother, Rng}, RowA, _RowB, I) -> {{RowA, mother, I}, Rng};
-chosen({father, Rng}, _RowA, RowB, I) -> {{RowB, father, I}, Rng}.
+chosen({mother, Rng}, Mark, RowA, _RowB) -> {{Mark, RowA, mother}, Rng};
+chosen({father, Rng}, Mark, _RowA, RowB) -> {{Mark, RowB, father}, Rng}.
+
+at_mark(Mark, #{brain := Brain, index := Index}) ->
+    row_at(maps:get(Mark, Index, absent), maps:get(hidden, Brain)).
+
+row_at(absent, _Rows) -> absent;
+row_at(Pos, Rows) -> lists:nth(Pos, Rows).
 
 %% ==========================================================================
 %% What the child can do
@@ -185,12 +217,14 @@ chosen({father, Rng}, _RowA, RowB, I) -> {{RowB, father, I}, Rng}.
 %% enforces and is not the same as a weak one. So a purpose only one parent
 %% carries is a coin, exactly like a sensor only one parent carries: the ability
 %% to eat can spread from the parent that has it, and can also fail to.
-pick_outputs([], _Ma, _Fa, _Slots, _A, _B, _Sides, Acc, Rng) -> {Acc, Rng};
-pick_outputs([P | Rest], Ma, Fa, Slots, A, B, Sides, Acc, Rng0) ->
+pick_outputs([], _Ma, _Fa, _Slots, _A, _B, _Marks, _Ma0, _Fa0, Acc, Rng) ->
+    {Acc, Rng};
+pick_outputs([P | Rest], Ma, Fa, Slots, A, B, Marks, Ma0, Fa0, Acc, Rng0) ->
     {Side, Rng1} = one_output(maps:get(P, outputs_of(Ma), absent),
                               maps:get(P, outputs_of(Fa), absent), Rng0),
-    pick_outputs(Rest, Ma, Fa, Slots, A, B, Sides,
-                 attach(Side, P, Ma, Fa, Slots, A, B, Sides, Acc), Rng1).
+    pick_outputs(Rest, Ma, Fa, Slots, A, B, Marks, Ma0, Fa0,
+                 attach(Side, P, Ma, Fa, Slots, A, B, Marks, Ma0, Fa0, Acc),
+                 Rng1).
 
 one_output(absent, absent, Rng) -> {dropped, Rng};
 one_output(_O, absent, Rng0) -> sided(coin(Rng0), mother);
@@ -200,11 +234,12 @@ one_output(_Oa, _Ob, Rng0) -> coin(Rng0).
 sided({mother, Rng}, Side) -> {Side, Rng};
 sided({father, Rng}, _Side) -> {dropped, Rng}.
 
-attach(dropped, _P, _Ma, _Fa, _Slots, _A, _B, _Sides, Acc) -> Acc;
-attach(Side, P, Ma, Fa, Slots, A, B, Sides, Acc) ->
+attach(dropped, _P, _Ma, _Fa, _Slots, _A, _B, _Marks, _Ma0, _Fa0, Acc) -> Acc;
+attach(Side, P, Ma, Fa, Slots, A, B, Marks, Ma0, Fa0, Acc) ->
     #{inputs := Ins} = maps:get(P, outputs_of(side(Side, Ma, Fa))),
     Acc#{P => #{inputs => remap(Ins, Slots, side(Side, A, B)),
-                hidden => follow_nodes(P, Ma, Fa, Sides)}}.
+                hidden => follow_nodes(P, side(Side, Ma, Fa),
+                                       side(Side, Ma0, Fa0), Marks)}}.
 
 outputs_of(#{outputs := Os}) -> Os.
 
@@ -236,14 +271,23 @@ outputs_of(#{outputs := Os}) -> Os.
 %%
 %% Zero only when the supplying parent had no such output at all, which is the
 %% genuine "it never had a weight for this" case.
-follow_nodes(Purpose, Ma, Fa, Sides) ->
-    [outgoing(Purpose, side(Side, Ma, Fa), I) || {Side, I} <- Sides].
+%% ⚠ AN OUTPUT'S WEIGHT FOR A NODE IS NOW LOOKED UP BY MARK IN THE OUTPUT'S OWN
+%% GENOME, which is what historical marking bought.
+%%
+%% The rule used to be "a node brings its outgoing wiring with it", because a
+%% node had no identity and the only way to keep a weight meaningful was to keep
+%% it with the node that owned it. Now a node HAS an identity: if this output's
+%% parent carries mark M, its weight for M is the homologous weight, whichever
+%% parent the child's copy of that node came from. **That is recombination
+%% actually recombining**, rather than two halves being kept whole beside each
+%% other. Zero only when the output's parent never carried that node at all.
+follow_nodes(Purpose, Brain, #{index := Index}, Marks) ->
+    Out = maps:get(Purpose, outputs_of(Brain), absent),
+    [weight_at(Out, maps:get(Mark, Index, absent)) || Mark <- Marks].
 
-outgoing(Purpose, Brain, I) ->
-    weight_at(maps:get(Purpose, outputs_of(Brain), absent), I).
-
-weight_at(absent, _I) -> 0;
-weight_at(#{hidden := Hids}, I) -> zeroed(nth(I, Hids)).
+weight_at(absent, _Pos) -> 0;
+weight_at(_Out, absent) -> 0;
+weight_at(#{hidden := Hids}, Pos) -> zeroed(nth(Pos, Hids)).
 
 zeroed(absent) -> 0;
 zeroed(W) -> W.
@@ -285,11 +329,17 @@ at(_Vector, _Pos) -> 0.
 %% a node from the other parent at zero: a foreign node is a new organ, and this
 %% file's rule for a new organ is that it arrives unattended and drift decides
 %% whether it is listened to.
-recurrent(Row, Owner, Sides, Sensors) ->
-    [carried(Owner, Side, Row, Sensors, I) || {Side, I} <- Sides].
+%% A RECURRENT WEIGHT IS ALSO LOOKED UP BY MARK, in the genome of the parent the
+%% ROW came from. Row from parent P, reading child node with mark M: P's own
+%% memory weight for M, if P ever carried M, and zero otherwise. Before marks
+%% this could only be "keep it if both ends came from the same parent", because
+%% there was no way to ask whether two nodes were the same node.
+recurrent(Row, Side, Marks, Ma0, Fa0, Sensors) ->
+    #{index := Index} = side(Side, Ma0, Fa0),
+    [carried(Row, Sensors, maps:get(Mark, Index, absent)) || Mark <- Marks].
 
-carried(Owner, Owner, Row, Sensors, I) -> at(Row, Sensors + 1 + I);
-carried(_Owner, _Other, _Row, _Sensors, _I) -> 0.
+carried(_Row, _Sensors, absent) -> 0;
+carried(Row, Sensors, Pos) -> at(Row, Sensors + 1 + Pos).
 
 %% ==========================================================================
 %% Bits

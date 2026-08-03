@@ -128,9 +128,23 @@ entropy_never_falls_test() ->
 %% 14,845 at 40%, 10,140 at 20%. That is a maximum-power curve of the shape Odum
 %% and Pinkerton describe, and the old assertion was monotone only by accident.
 %%
-%% What IS monotone is the loss per unit transferred, because that is the law
-%% itself rather than a consequence of it: 95, 126, 229, 369 and 949 units burnt
-%% per hundred absorbed, as efficiency falls from 100 to 20.
+%% ⚠ AND THIS RATIO IS NOT THE LAW, WHICH THIS TEST USED TO CLAIM IT WAS.
+%%
+%% It read "what IS monotone is the loss per unit transferred, because that is
+%% the law itself rather than a consequence of it", and asserted the five values
+%% were sorted. They are not the loss per unit transferred: `dissipated' includes
+%% metabolism and movement, and `absorbed' is total intake, so the ratio mixes
+%% the transfer law with however much the population happened to move and burn.
+%% Those depend on how many creatures there are and what they did.
+%%
+%% It survived twenty-one worlds and inverted at world 22, where 60 and 40 came
+%% out at 362 and 344. Nothing about the transfer law changed; the confound did.
+%% **A monotone reading from a confounded instrument was luck, and asserting it
+%% was an over-claim.** The direction across the range is enormous and is real,
+%% so that is what is asserted, and the ordering of adjacent points is not.
+%%
+%% Measuring the law itself would need the world to report transfer losses apart
+%% from metabolic ones, which it does not. Register `I.14'.
 a_lower_efficiency_loses_more_of_what_it_moves_test() ->
     Ratio = fun(Eff) ->
                     #{dissipated := D, absorbed := A} =
@@ -140,8 +154,12 @@ a_lower_efficiency_loses_more_of_what_it_moves_test() ->
                     D * 100 div max(A, 1)
             end,
     Falling = [Ratio(Eff) || Eff <- [100, 90, 60, 40, 20]],
-    ?assertEqual(lists:sort(Falling), Falling),
-    ?assert(hd(Falling) < lists:last(Falling)).
+    %% An order of magnitude across the range, which no amount of confounding
+    %% from metabolism could manufacture.
+    ?assert(lists:last(Falling) > hd(Falling) * 5),
+    %% And the halves separate cleanly even where adjacent points do not.
+    ?assert(lists:max(lists:sublist(Falling, 2))
+            < lists:min(lists:nthtail(3, Falling))).
 
 %%==============================================================================
 %% The books

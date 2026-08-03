@@ -48,7 +48,7 @@ an_absent_output_is_simply_not_there_test() ->
 
 %% No hidden state, no clock. Asked twice, answers twice the same.
 valuing_is_a_function_test() ->
-    {Brain, _} = brain:founder(3, econ(), rng()),
+    {Brain, _M, _} = brain:founder(3, 1, econ(), rng()),
     ?assertEqual(brain:evaluate(Brain, [3, 2, 7, 1], [], econ()),
                  brain:evaluate(Brain, [3, 2, 7, 1], [], econ())).
 
@@ -113,7 +113,10 @@ a_hidden_node_is_rectified_test() ->
 %% to ground, drawn to flesh, disinclined to move, and some that cannot reproduce
 %% at all. Selection has something to sort from the first tick.
 founding_brains_vary_in_shape_test() ->
-    {Brains, _} = lists:mapfoldl(fun(_I, R) -> brain:founder(2, econ(), R) end,
+    {Brains, _} = lists:mapfoldl(fun(_I, R) ->
+                                     {B, _M, R1} = brain:founder(2, 1, econ(), R),
+                                     {B, R1}
+                                 end,
                                  rng(), lists:seq(1, 60)),
     Shapes = [{brain:hidden_count(B), brain:has(move, B), brain:has(breed, B)}
               || B <- Brains],
@@ -121,7 +124,8 @@ founding_brains_vary_in_shape_test() ->
 
 founding_weights_are_within_range_test() ->
     Range = maps:get(brain_range, econ()),
-    {Brain, _} = brain:founder(3, with(#{founder_max_hidden => 3}), rng()),
+    {Brain, _M, _} = brain:founder(3, 1, with(#{founder_max_hidden => 3}),
+                                  rng()),
     Weights = lists:append(maps:get(hidden, Brain))
         ++ lists:append([maps:get(inputs, O) ++ maps:get(hidden, O)
                          || O <- maps:values(maps:get(outputs, Brain))]),
@@ -146,7 +150,7 @@ still() -> with(#{brain_mutation => 0, brain_mutation_structural => 1000000}).
 a_gained_sensor_inserts_a_zero_in_every_vector_test() ->
     Parent = #{hidden => [[5, 6, 9]],
                outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
-    {Child, _} = brain:inherit(Parent, {added, 2}, 3, still(), rng()),
+    {Child, _M, _} = brain:inherit(Parent, {added, 2}, 3, 1, still(), rng()),
     ?assertEqual([[5, 0, 6, 9]], maps:get(hidden, Child)),
     ?assertEqual(#{inputs => [1, 0, 2, 3], hidden => [4]},
                  maps:get(move, maps:get(outputs, Child))).
@@ -154,7 +158,7 @@ a_gained_sensor_inserts_a_zero_in_every_vector_test() ->
 a_lost_sensor_removes_its_column_from_every_vector_test() ->
     Parent = #{hidden => [[5, 6, 9]],
                outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
-    {Child, _} = brain:inherit(Parent, {dropped, 2}, 1, still(), rng()),
+    {Child, _M, _} = brain:inherit(Parent, {dropped, 2}, 1, 1, still(), rng()),
     ?assertEqual([[5, 9]], maps:get(hidden, Child)),
     ?assertEqual(#{inputs => [1, 3], hidden => [4]},
                  maps:get(move, maps:get(outputs, Child))).
@@ -170,7 +174,7 @@ a_gained_hidden_node_is_listened_to_by_nobody_test() ->
     Parent = #{hidden => [], outputs => #{move => #{inputs => [1, 2],
                                                     hidden => []}}},
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit(Parent, none, 2, Grows, R) end,
+                      fun(_I, R) -> stepped(Parent, none, 2, Grows, R) end,
                       rng(), lists:seq(1, 60)),
     Grown = [C || C <- Children, brain:hidden_count(C) =:= 1],
     ?assert(length(Grown) > 0),
@@ -205,7 +209,7 @@ every_vector_fits_after_any_change_test() ->
 fits(Parent, Change, Sensors, Econ) ->
     {Children, _} = lists:mapfoldl(
                       fun(_I, R) ->
-                              brain:inherit(Parent, Change, Sensors, Econ, R)
+                              stepped(Parent, Change, Sensors, Econ, R)
                       end,
                       rng(), lists:seq(1, 40)),
     lists:foreach(fun consistent/1, Children).
@@ -238,7 +242,7 @@ outputs_are_gained_and_lost_test() ->
     Parent = #{hidden => [], outputs => #{move => #{inputs => [1],
                                                     hidden => []}}},
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit(Parent, none, 2, Churn, R) end,
+                      fun(_I, R) -> stepped(Parent, none, 2, Churn, R) end,
                       rng(), lists:seq(1, 90)),
     ?assert(lists:any(fun(C) -> not brain:has(move, C) end, Children)),
     ?assert(lists:any(fun(C) -> brain:has(breed, C) end, Children)).
@@ -338,6 +342,14 @@ memory_reaches_behaviour_only_through_a_node_test() ->
              outputs => #{move => #{inputs => [1, 0], hidden => [0]}}},
     ?assertEqual(brain:evaluate(Deaf, [9, 1], [0], econ()),
                  brain:evaluate(Deaf, [9, 1], [60], econ())).
+
+
+%% `brain:inherit/6' threads the world's historical-mark counter as well as the
+%% generator. These tests are about SHAPE, so the counter is dropped here rather
+%% than carried through every one of them.
+stepped(Parent, Change, Sensors, Econ, Rng) ->
+    {Child, _Mark, Rng1} = brain:inherit(Parent, Change, Sensors, 1, Econ, Rng),
+    {Child, Rng1}.
 
 %%==============================================================================
 

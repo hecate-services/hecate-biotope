@@ -52,14 +52,26 @@
 %% the reason the shape after every kind of change is asserted directly.
 -module(brain).
 
--export([founder/3, inherit/5, evaluate/4, attention/2]).
+-export([founder/4, inherit/6, evaluate/4, attention/2]).
 -export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
--export([row_width/2, recall/3]).
+-export([row_width/2, recall/3, marks/1]).
 -export([output_weights/1, carried/1, live/1, live_per_node/1]).
 
 -type purpose() :: move | breed | grow.
 -type output() :: #{inputs := [integer()], hidden := [integer()]}.
--type brain() :: #{hidden := [[integer()]], outputs := #{purpose() => output()}}.
+%% ⚠ `marks' RUNS PARALLEL TO `hidden' AND MUST STAY THAT WAY. It is NEAT's
+%% historical marking: every hidden node gets a number the moment it is grown,
+%% carried by every descendant of that node for ever, and never reused. Two
+%% brains that share a mark share a NODE, descended from one mutation event in
+%% one ancestor, and their weights for it are homologous.
+%%
+%% WHY IT IS NOT FUSED INTO THE ROW. Only four operations change how many nodes a
+%% brain has: founding, growing, pruning and recombination. Four sites is few
+%% enough to keep in step by hand, and a test asserts the two lists are the same
+%% length after every one of them. Fusing would touch forty call sites to protect
+%% four.
+-type brain() :: #{hidden := [[integer()]], marks := [pos_integer()],
+                   outputs := #{purpose() => output()}}.
 -export_type([purpose/0, brain/0]).
 
 %% What a creature can do. THREE SINCE WORLD 6, and the third arrived because
@@ -84,6 +96,11 @@
 %% an output can weigh a hidden node against a sensor without either drowning the
 %% other. A scale constant, and there is no physics that sets it.
 -define(HIDDEN_DIVISOR, 8).
+
+%% @doc The historical mark of each hidden node, in the order the nodes are held.
+-spec marks(brain()) -> [pos_integer()].
+marks(#{marks := M}) -> M;
+marks(#{hidden := H}) -> lists:seq(1, length(H)).
 
 -spec purposes() -> [purpose()].
 purposes() -> ?PURPOSES.
@@ -218,14 +235,21 @@ row_width(Sensors, Hidden) -> Sensors + 1 + Hidden.
 %% drawn to ground, drawn to flesh, repelled by both, disinclined to move, and
 %% some that cannot reproduce at all, so selection has something to sort from the
 %% first tick rather than waiting for mutation to invent variety.
--spec founder(non_neg_integer(), map(), rand:state()) -> {brain(), rand:state()}.
-founder(Sensors, Econ, Rng0) ->
+-spec founder(non_neg_integer(), pos_integer(), map(), rand:state()) ->
+          {brain(), pos_integer(), rand:state()}.
+founder(Sensors, Mark0, Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(maps:get(founder_max_hidden, Econ) + 1, Rng0),
     {Hidden, Rng2} = draw_rows(N - 1, row_width(Sensors, N - 1), Econ, Rng1,
                                []),
     {Outputs, Rng3} = draw_outputs(?PURPOSES, Sensors, length(Hidden), Econ,
                                    Rng2, #{}),
-    {#{hidden => Hidden, outputs => Outputs}, Rng3}.
+    %% EVERY FOUNDER'S NODES ARE DISTINCT EVENTS. Two founders drawn with one
+    %% node each did not inherit that node from anybody, so the nodes are not
+    %% homologous and must not align. Giving them the same mark would tell
+    %% recombination they were the same organ.
+    Marks = lists:seq(Mark0, Mark0 + length(Hidden) - 1),
+    {#{hidden => Hidden, marks => Marks, outputs => Outputs},
+     Mark0 + length(Hidden), Rng3}.
 
 draw_rows(0, _Width, _Econ, Rng, Acc) -> {Acc, Rng};
 draw_rows(N, Width, Econ, Rng0, Acc) ->
@@ -340,11 +364,13 @@ column(I, Vectors) ->
 %% mutations. World 20 made it common, because a child can fail to inherit all
 %% four in a single birth, and that is how it surfaced.
 -spec inherit(brain(), none | {added, pos_integer()} | {dropped, pos_integer()},
-              non_neg_integer(), map(), rand:state()) -> {brain(), rand:state()}.
-inherit(Brain, SensorChange, Sensors, Econ, Rng0) ->
+              non_neg_integer(), pos_integer(), map(), rand:state()) ->
+          {brain(), pos_integer(), rand:state()}.
+inherit(Brain, SensorChange, Sensors, Mark0, Econ, Rng0) ->
     Followed = follow_body(SensorChange, Brain),
-    {Grown, Rng1} = mutate_topology(Followed, Sensors, Econ, Rng0),
-    nudge_all(Grown, Econ, Rng1).
+    {Grown, Mark1, Rng1} = mutate_topology(Followed, Sensors, Mark0, Econ, Rng0),
+    {Nudged, Rng2} = nudge_all(Grown, Econ, Rng1),
+    {Nudged, Mark1, Rng2}.
 
 %% A GAINED SENSOR ARRIVES WEIGHTED AT ZERO in every vector that reads it, rather
 %% than randomly. A random weight makes growing a sensor a large behavioural jump
@@ -375,43 +401,51 @@ remove(Pos, List) ->
 %% One structural change to the brain's own shape per birth, at the same rate the
 %% body changes: grow a hidden node, prune one, or gain or lose the ability to do
 %% something at all.
-mutate_topology(Brain, Sensors, Econ, Rng0) ->
+mutate_topology(Brain, Sensors, Mark0, Econ, Rng0) ->
     {Roll, Rng1} = rand:uniform_s(max(1, maps:get(brain_mutation_structural,
                                                   Econ)), Rng0),
-    topology(Roll, Brain, Sensors, Econ, Rng1).
+    topology(Roll, Brain, Sensors, Mark0, Econ, Rng1).
 
-topology(1, Brain, Sensors, Econ, Rng0) ->
+topology(1, Brain, Sensors, Mark0, Econ, Rng0) ->
     {Kind, Rng1} = rand:uniform_s(3, Rng0),
-    restructure(Kind, Brain, Sensors, Econ, Rng1);
-topology(_NoMutation, Brain, _Sensors, _Econ, Rng) ->
-    {Brain, Rng}.
+    restructure(Kind, Brain, Sensors, Mark0, Econ, Rng1);
+topology(_NoMutation, Brain, _Sensors, Mark0, _Econ, Rng) ->
+    {Brain, Mark0, Rng}.
 
 %% A NEW HIDDEN NODE COMPUTES SOMETHING AND NOTHING LISTENS TO IT. Its own input
 %% weights are drawn, so it is not inert, but every output weighs it at zero, so
 %% the creature behaves exactly as its parent did until drift connects it. Same
 %% argument as a new sensor: the capacity appears first and is adopted later, or
 %% never.
-restructure(1, #{hidden := H, outputs := Os} = Brain, Sensors, Econ, Rng0) ->
+restructure(1, #{hidden := H, outputs := Os} = Brain, Sensors, Mark0, Econ,
+            Rng0) ->
     grow_hidden(length(H) < maps:get(max_hidden, Econ), Brain, H, Os, Sensors,
-                Econ, Rng0);
-restructure(2, #{hidden := []} = Brain, _Sensors, _Econ, Rng) ->
-    {Brain, Rng};
+                Mark0, Econ, Rng0);
+restructure(2, #{hidden := []} = Brain, _Sensors, Mark0, _Econ, Rng) ->
+    {Brain, Mark0, Rng};
 %% ⚠ PRUNING A NODE REMOVES IT FROM THREE PLACES, not two. Its row goes, every
 %% output's weight for it goes, and since world 21 every REMAINING ROW's memory
 %% weight for it goes too. Miss the third and every recurrent weight after the
 %% pruned node reads a different node, silently.
-restructure(2, #{hidden := H, outputs := Os} = Brain, Sensors, _Econ, Rng0) ->
+restructure(2, #{hidden := H, outputs := Os} = Brain, Sensors, Mark0, _Econ,
+            Rng0) ->
     {N, Rng1} = rand:uniform_s(length(H), Rng0),
     Kept = [remove(Sensors + 1 + N, Row) || Row <- remove(N, H)],
-    {Brain#{hidden => Kept,
-            outputs => maps:map(fun(_P, O) -> on_hidden(O, N) end, Os)}, Rng1};
-restructure(3, Brain, Sensors, Econ, Rng0) ->
+    %% A PRUNED NODE'S MARK GOES WITH IT AND IS NEVER REUSED. A number that came
+    %% back would tell a later recombination that two unrelated nodes were the
+    %% same organ, which is the failure historical marking exists to prevent.
+    {Brain#{hidden => Kept, marks => remove(N, marks(Brain)),
+            outputs => maps:map(fun(_P, O) -> on_hidden(O, N) end, Os)},
+     Mark0, Rng1};
+restructure(3, Brain, Sensors, Mark0, Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(length(?PURPOSES), Rng0),
-    toggle(lists:nth(N, ?PURPOSES), Brain, Sensors, Econ, Rng1).
+    {Flipped, Rng2} = toggle(lists:nth(N, ?PURPOSES), Brain, Sensors, Econ,
+                             Rng1),
+    {Flipped, Mark0, Rng2}.
 
-grow_hidden(false, Brain, _H, _Os, _Sensors, _Econ, Rng) ->
-    {Brain, Rng};
-grow_hidden(true, Brain, H, Os, Sensors, Econ, Rng0) ->
+grow_hidden(false, Brain, _H, _Os, _Sensors, Mark0, _Econ, Rng) ->
+    {Brain, Mark0, Rng};
+grow_hidden(true, Brain, H, Os, Sensors, Mark0, Econ, Rng0) ->
     %% EVERY EXISTING NODE GAINS A ZERO for the new one, so nothing already in the
     %% brain listens to it until drift connects them: the same rule as a new
     %% sensor and a new node's outgoing weights. The new node's OWN weights are
@@ -419,9 +453,13 @@ grow_hidden(true, Brain, H, Os, Sensors, Econ, Rng0) ->
     %% inert.
     Deaf = [Row0 ++ [0] || Row0 <- H],
     {Row, Rng1} = draw_row(row_width(Sensors, length(H) + 1), Econ, Rng0),
-    {Brain#{hidden => Deaf ++ [Row],
+    %% THE MARK IS THE EVENT, NOT THE POSITION. This node exists because this
+    %% mutation happened here, now, in this world, and every descendant that
+    %% keeps it keeps the number. That is what lets two cousins recombine their
+    %% versions of it centuries later.
+    {Brain#{hidden => Deaf ++ [Row], marks => marks(Brain) ++ [Mark0],
             outputs => maps:map(fun(_P, O) -> listen_to_nothing(O) end, Os)},
-     Rng1}.
+     Mark0 + 1, Rng1}.
 
 listen_to_nothing(#{hidden := WH} = O) -> O#{hidden => WH ++ [0]}.
 
