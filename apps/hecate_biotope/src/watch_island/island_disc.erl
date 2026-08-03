@@ -137,9 +137,23 @@ creatures(Chart, Box, Cell, Ceiling) ->
     Points = pairs(maps:get(creatures, Chart, [])),
     Frames = maps:get(structures, Chart, []),
     Rates = maps:get(uptakes, Chart, []),
-    Kinds = kind_colours(Chart),
-    [creature(Id, P, F, U, kind_colour(N, Kinds), Box, Cell, Ceiling)
-     || {N, {Id, P, F, U}} <- number(zip4(Ids, Points, Frames, Rates))].
+    %% ⚠ THE COLOUR IS LOOKED UP BY THE CREATURE'S KIND INDEX, NOT BY ITS
+    %% POSITION IN THIS LIST. The first version of this line read the palette at
+    %% the creature's ordinal, so creature 0 wore kind 0's colour, creature 41
+    %% wore kind 41's, and every creature past the number of kinds fell through
+    %% to the fallback grey. On a live board that was 42 coloured dots and 138
+    %% grey ones. **Two parallel lists of different lengths indexed by the same
+    %% number**, which is the exact failure the parallel-list convention on the
+    %% chart exists to prevent, committed one function below the comment
+    %% explaining it.
+    %%
+    %% It survived three tests. Only serving a frame and counting the colours
+    %% found it, because a board where almost everything is one colour satisfies
+    %% "each kind has exactly one colour" perfectly.
+    Colours = kind_colours(Chart),
+    Kinds = maps:get(kind_of, Chart, []),
+    [creature(Id, P, F, U, kind_colour(K, Colours), Box, Cell, Ceiling)
+     || {Id, P, F, U, K} <- zip5(Ids, Points, Frames, Rates, Kinds)].
 
 creature(Id, {Q, R}, Frame, Rate, KindRgb, Box, Cell, Ceiling) ->
     {X, Y} = to_pixel(Q, R, Box),
@@ -160,9 +174,14 @@ creature(Id, {Q, R}, Frame, Rate, KindRgb, Box, Cell, Ceiling) ->
 kind_colours(Chart) ->
     [kind_rgb(K) || K <- records(maps:get(kind_table, Chart, []))].
 
-kind_colour(_N, []) -> 16#888888;
-kind_colour(N, Colours) when N < length(Colours) -> lists:nth(N + 1, Colours);
-kind_colour(_N, _Colours) -> 16#888888.
+%% GREY IS FOR AN ISLAND ON AN OLDER BUILD that sends no kind table at all, and
+%% for nothing else. An index that misses a table which HAS entries is a bug and
+%% not a display case: it means the two lists disagree, and a test asserts grey
+%% never appears on a board whose chart carries kinds.
+kind_colour(_K, []) -> 16#888888;
+kind_colour(K, Colours) when is_integer(K), K >= 0, K < length(Colours) ->
+    lists:nth(K + 1, Colours);
+kind_colour(_K, _Colours) -> 16#888888.
 
 %% One record: nsensors, then field and range pairs, then hidden, then the
 %% purposes. The same reader `world_tests` keeps, because a format with two
@@ -204,7 +223,7 @@ pack(R, G, B) ->
 
 clamp(V) -> max(0, min(255, V * 255 div 100)).
 
-number(Items) -> lists:zip(lists:seq(0, length(Items) - 1), Items).
+
 
 %% @doc THE RADIUS GOES AS THE SQUARE ROOT, so the AREA carries the body rather
 %% than the radius: a circle is read by how much of it there is, and a linear
@@ -268,11 +287,14 @@ pairs(_Ragged) -> [].
 %% asked to draw a chart it did not produce. A missing frame or rate falls back
 %% rather than crashing: zero draws the floor radius and an absent rate draws the
 %% amber every creature used to be.
-zip4([], _P, _F, _U) -> [];
-zip4(_I, [], _F, _U) -> [];
-zip4([Id | Ids], [P | Ps], Frames, Rates) ->
-    [{Id, P, head(Frames, 0), head(Rates, absent)}
-     | zip4(Ids, Ps, tail(Frames), tail(Rates))].
+%% Kinds are carried through the same lenient zip as everything else, so an
+%% island on an older build that sends no `kind_of' draws in feeding colours and
+%% greys rather than failing to draw.
+zip5([], _P, _F, _U, _K) -> [];
+zip5(_I, [], _F, _U, _K) -> [];
+zip5([Id | Ids], [P | Ps], Frames, Rates, Kinds) ->
+    [{Id, P, head(Frames, 0), head(Rates, absent), head(Kinds, none)}
+     | zip5(Ids, Ps, tail(Frames), tail(Rates), tail(Kinds))].
 
 head([], Default) -> Default;
 head([H | _T], _Default) -> H.

@@ -323,17 +323,77 @@ a_kind_colour_is_visible_test() ->
 
 %% Two creatures of one kind get one colour ON THE BOARD, which is the claim the
 %% drawing makes and the only one a viewer can check by eye.
+%%
+%% ⚠ THE FIRST VERSION OF THIS TEST PASSED ON A BROKEN BOARD. It asserted only
+%% that no kind wore two colours, and the bug it was meant to catch painted 138
+%% of 180 creatures the same fallback grey — which satisfies "one colour per
+%% kind" perfectly, because grey is one colour. **A test that only forbids
+%% disagreement is passed by uniformity.** It has to assert the converse too: as
+%% many colours as there are kinds, and no fallback anywhere.
+%% ⚠ AND THE SECOND VERSION PASSED ON THE BROKEN BOARD TOO, for a different
+%% reason: it ran a radius-5 world, which holds ONE TO THREE CREATURES, and every
+%% one of them was its own kind. Colouring by position and colouring by kind are
+%% the same function when no two creatures share a kind, so the world could not
+%% tell them apart however the assertions were written.
+%%
+%% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** Seed 101 at 300 ticks holds
+%% 84 creatures across 10 kinds, so kinds are shared, creatures outnumber them
+%% eight to one, and the fallback fires for anything past the tenth. Verified
+%% RED: with the bug reintroduced this test fails.
 one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    W = world:tick(world:new(#{seed => 101, population => 40}), 300),
     Chart = world:chart(W),
     D = island_disc:packed(Chart, 400),
-    Marks = maps:get(creatures, D),
     Kinds = maps:get(kind_of, Chart),
-    Painted = every(6, 5, Marks),
+    Painted = every(6, 5, maps:get(creatures, D)),
     ?assertEqual(length(Kinds), length(Painted)),
     Pairs = lists:usort(lists:zip(Kinds, Painted)),
     %% One colour per kind: no kind index appears twice with different colours.
-    ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)).
+    ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)),
+    %% AND AS MANY COLOURS AS KINDS. Distinct architectures must be distinct on
+    %% the board or the drawing says less than the census it is drawn from.
+    ?assertEqual(length(lists:usort(Kinds)), length(lists:usort(Painted))),
+    %% AND NOT ONE FALLBACK. Grey means an index missed a table that has
+    %% entries, which is two parallel lists disagreeing rather than a display
+    %% case.
+    ?assertEqual([], [C || C <- Painted, C =:= 16#888888]),
+    %% The fixture itself is asserted, because this test is only worth running on
+    %% a board where kinds are shared and the previous two were not.
+    ?assert(length(Kinds) > 4 * length(lists:usort(Kinds))).
+
+%% THE MAPPING ALONE, ON A CHART BUILT BY HAND, so the claim is checked without
+%% depending on any world evolving a particular shape. Four creatures, two kinds,
+%% in the order 1, 0, 1, 0: colouring by POSITION would give four different
+%% colours and colouring by KIND gives two, alternating.
+%%
+%% ⚠ HAND-BUILT CHARTS ARE HOW `C.6' AND `B.7' HID, which is why this sits beside
+%% the live-world test and does not replace it. A fixture that agrees with the
+%% renderer and not with the island proves only that two of my own functions
+%% agree.
+the_colour_follows_the_kind_and_not_the_position_test() ->
+    D = island_disc:packed(#{radius => 4, ground => [], scent => [],
+                             creatures => [0, 0, 1, 0, 0, 1, 1, 1],
+                             ids => [1, 2, 3, 4],
+                             structures => [40, 40, 40, 40],
+                             uptakes => [1, 1, 1, 1],
+                             kind_of => [1, 0, 1, 0],
+                             kind_table => [1, 1, 0, 0, 1, 0,
+                                            1, 2, 0, 0, 1, 0]}, 400),
+    [A, B, C, E] = every(6, 5, maps:get(creatures, D)),
+    ?assertEqual(A, C),
+    ?assertEqual(B, E),
+    ?assertNotEqual(A, B),
+    ?assertEqual([], [X || X <- [A, B, C, E], X =:= 16#888888]).
+
+%% AN ISLAND ON AN OLDER BUILD SENDS NO KIND TABLE, and grey is what that looks
+%% like. This is the one case the fallback is for, so it is pinned: without it
+%% the assertion above could be satisfied by deleting the fallback and crashing
+%% the page instead.
+an_island_that_sends_no_kinds_still_draws_test() ->
+    D = island_disc:packed(#{radius => 4, ground => [], scent => [],
+                             creatures => [0, 0, 1, 1], ids => [7, 8],
+                             structures => [40, 40], uptakes => [1, 1]}, 400),
+    ?assertEqual([16#888888, 16#888888], every(6, 5, maps:get(creatures, D))).
 
 colour_of(Packed) -> lists:nth(3, maps:get(ground, Packed)).
 
