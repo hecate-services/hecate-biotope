@@ -644,7 +644,7 @@ add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatur
                                                 tick = T, born = B} = W) ->
     {Line, Gen} = descent(Parent, Id, Cs),
     C = maps:merge(#{id => Id, at => At, energy => Energy, age => 0,
-                     structure => Structure,
+                     structure => Structure, memory => blank(Traits),
                      born => T, parent => Parent, still => true,
                      lineage => Line, generation => Gen,
                      %% A NEWBORN OWES NOTHING, which slightly under-charges the
@@ -693,7 +693,45 @@ tick(W, N) ->
     W5 = reap(W4),
     W6 = W5#world{ground = ground:grow(W5#world.ground, W5#world.econ)},
     W7 = fade(W6),
-    tick(W7#world{tick = W7#world.tick + 1}, N - 1).
+    %% ⚠ LAST, AND ONCE. Everything above asks the brain questions, seven of them
+    %% about cells the creature only considered stepping into. This is the single
+    %% place an answer is KEPT, taken from where the creature actually ended up,
+    %% so what it remembers cannot depend on the order its options were weighed.
+    W8 = recall(W7),
+    tick(W8#world{tick = W8#world.tick + 1}, N - 1).
+
+%% ==========================================================================
+%% WHAT A CREATURE CARRIES INTO THE NEXT TICK, WHICH IS WORLD 21
+%% ==========================================================================
+%%
+%% Twenty worlds evaluated a brain as a pure function of the current instant, so
+%% every strategy of the form "I have been hungry for a while", "I came from over
+%% there", "that patch was better than this one" was not unevolved but
+%% INEXPRESSIBLE. No price this project has ever swept could have made one
+%% appear.
+%%
+%% What is carried is exactly what the hidden layer just computed, so memory
+%% costs no new constant, is as large as the brain and no larger, and a creature
+%% with no hidden layer carries none and behaves exactly as it did in world 20.
+%%
+%% `maps:map' is safe here where it would not be elsewhere: this draws no random
+%% numbers, so the order it visits creatures in cannot reach the world. `G.6' is
+%% about folds that feed the generator.
+recall(#world{creatures = Cs} = W) ->
+    Herd = herd(Cs),
+    W#world{creatures = maps:map(fun(_Id, C) -> remembered(C, Herd, W) end, Cs)}.
+
+remembered(#{at := At} = C, Herd, W) ->
+    C#{memory => brain:recall(maps:get(brain, C), inputs(C, At, At, Herd, W),
+                              memory(C))}.
+
+%% A creature born this tick has a memory of the right SHAPE and no content: one
+%% zero per hidden node. The shape has to be right from the first instant,
+%% because a row is `sensors + 1 + nodes' wide by construction and a short memory
+%% would make `dot/2' read a truncated row.
+memory(C) -> maps:get(memory, C, []).
+
+blank(#{brain := Brain}) -> lists:duplicate(brain:hidden_count(Brain), 0).
 
 %% Existing costs energy, and so does carrying the means to measure or the means
 %% to think. THIS IS WHERE CAPABILITY IS PAID FOR: a sensor nothing acts on, or a
@@ -987,7 +1025,7 @@ consider(#world{creatures = Cs, econ = Econ} = W, Id, Energy) ->
     At = maps:get(at, C),
     brain:evaluate(maps:get(brain, C),
                    inputs(C, At, At, herd(Cs1), W#world{creatures = Cs1}),
-                   Econ).
+                   memory(C), Econ).
 
 %% @doc The living creatures, by id. An observable: the individuals themselves,
 %% which every other reader of this module has so far been spared needing.
@@ -998,7 +1036,7 @@ creatures(#world{creatures = Cs}) -> Cs.
 
 value(C, Cell, At, Herd, W) ->
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, Cell, At, Herd, W),
-                             W#world.econ),
+                             memory(C), W#world.econ),
     maps:get(move, Outputs, 0).
 
 %% What a creature perceives of one candidate cell, in sensor order, then `here'.
@@ -1168,7 +1206,7 @@ predator([Id | Rest], Herd, W) -> willing_to_eat(Id, Rest, Herd, W).
 willing_to_eat(Id, Rest, Herd, #world{creatures = Cs, econ = Econ} = W) ->
     #{at := At, mouth := Mouth} = C = maps:get(Id, Cs),
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
-                             Econ),
+                             memory(C), Econ),
     chose(Mouth > 0 andalso maps:get(eat, Outputs, 0) > 0, Id, Rest, Herd, W).
 
 chose(true, Id, _Rest, _Herd, _W) -> Id;
@@ -1327,7 +1365,7 @@ build(#world{creatures = Cs} = W) ->
 build_one(Id, Herd, #world{creatures = Cs, econ = Econ} = W) ->
     #{at := At} = C = maps:get(Id, Cs),
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
-                             Econ),
+                             memory(C), Econ),
     invest(affordable(maps:get(grow, Outputs, 0), maps:get(energy, C)), Id, W).
 
 %% BOTH ENDS CLAMPED AT NOTHING. A creature in debt has nothing to build with, and
@@ -1370,7 +1408,7 @@ breed(#world{creatures = Cs} = W) ->
 breed_one(Id, Herd, Near, #world{creatures = Cs, econ = Econ} = W) ->
     #{at := At, energy := E} = C = maps:get(Id, Cs),
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
-                             Econ),
+                             memory(C), Econ),
     willing(maps:get(breed, Outputs, 0) > 0 andalso E > 1, Id, Near, W).
 
 willing(false, _Id, _Near, W) -> W;

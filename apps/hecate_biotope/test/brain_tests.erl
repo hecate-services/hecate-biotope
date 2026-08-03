@@ -26,22 +26,22 @@ flat(Weights) ->
 %% fleeing needs no rule of its own: it is predation's weight with a minus in
 %% front, and neither word appears in the code.
 a_weight_values_and_its_sign_reverses_test() ->
-    ?assertEqual(#{move => 15}, brain:evaluate(flat([3, 0]), [5, 0], econ())),
-    ?assertEqual(#{move => -15}, brain:evaluate(flat([-3, 0]), [5, 0], econ())).
+    ?assertEqual(#{move => 15}, brain:evaluate(flat([3, 0]), [5, 0], [], econ())),
+    ?assertEqual(#{move => -15}, brain:evaluate(flat([-3, 0]), [5, 0], [], econ())).
 
 %% `here' is an ordinary input rather than a special case, and it is why staying
 %% put is expressible: movement costs and standing still does not, so a creature
 %% that cannot tell where it already is cannot be sedentary on purpose.
 the_here_input_distinguishes_the_cell_it_stands_on_test() ->
     Brain = flat([0, 7]),
-    ?assertEqual(#{move => 7}, brain:evaluate(Brain, [4, 1], econ())),
-    ?assertEqual(#{move => 0}, brain:evaluate(Brain, [4, 0], econ())).
+    ?assertEqual(#{move => 7}, brain:evaluate(Brain, [4, 1], [], econ())),
+    ?assertEqual(#{move => 0}, brain:evaluate(Brain, [4, 0], [], econ())).
 
 %% AN ABSENT OUTPUT IS ABSENT, not zero. A creature with no `move' never moves
 %% and one with no `breed' leaves no descendants, and the world has to be able to
 %% tell that from an output that merely evaluated to nothing.
 an_absent_output_is_simply_not_there_test() ->
-    ?assertEqual(#{}, brain:evaluate(#{hidden => [], outputs => #{}}, [1],
+    ?assertEqual(#{}, brain:evaluate(#{hidden => [], outputs => #{}}, [1], [],
                                      econ())),
     ?assertEqual(false, brain:has(move, #{hidden => [], outputs => #{}})),
     ?assertEqual(true, brain:has(move, flat([0, 0]))).
@@ -49,8 +49,8 @@ an_absent_output_is_simply_not_there_test() ->
 %% No hidden state, no clock. Asked twice, answers twice the same.
 valuing_is_a_function_test() ->
     {Brain, _} = brain:founder(3, econ(), rng()),
-    ?assertEqual(brain:evaluate(Brain, [3, 2, 7, 1], econ()),
-                 brain:evaluate(Brain, [3, 2, 7, 1], econ())).
+    ?assertEqual(brain:evaluate(Brain, [3, 2, 7, 1], [], econ()),
+                 brain:evaluate(Brain, [3, 2, 7, 1], [], econ())).
 
 %%==============================================================================
 %% The hidden layer, and why there is one
@@ -68,8 +68,8 @@ a_constant_input_cannot_change_a_flat_brains_ranking_test() ->
     Rich = flat([1, 0, 0]),
     Careful = flat([1, 5, 0]),
     Gap = fun(B) ->
-                  #{move := A} = brain:evaluate(B, [8, 4, 0], econ()),
-                  #{move := C} = brain:evaluate(B, [2, 4, 0], econ()),
+                  #{move := A} = brain:evaluate(B, [8, 4, 0], [], econ()),
+                  #{move := C} = brain:evaluate(B, [2, 4, 0], [], econ()),
                   A - C
           end,
     ?assertEqual(Gap(Rich), Gap(Careful)).
@@ -88,8 +88,8 @@ a_hidden_node_lets_self_knowledge_change_the_ranking_test() ->
                     outputs => #{move => #{inputs => [0, 0, 0],
                                            hidden => [1]}}},
     Gap = fun(Self) ->
-                  #{move := A} = brain:evaluate(Conditional, [8, Self, 0], econ()),
-                  #{move := C} = brain:evaluate(Conditional, [2, Self, 0], econ()),
+                  #{move := A} = brain:evaluate(Conditional, [8, Self, 0], [], econ()),
+                  #{move := C} = brain:evaluate(Conditional, [2, Self, 0], [], econ()),
                   A - C
           end,
     %% Small, it can tell the two cells apart. Large, both are rectified away and
@@ -102,7 +102,7 @@ a_hidden_node_lets_self_knowledge_change_the_ranking_test() ->
 a_hidden_node_is_rectified_test() ->
     Negative = #{hidden => [[-8, 0]],
                  outputs => #{move => #{inputs => [0, 0], hidden => [1]}}},
-    ?assertEqual(#{move => 0}, brain:evaluate(Negative, [60, 0], econ())).
+    ?assertEqual(#{move => 0}, brain:evaluate(Negative, [60, 0], [], econ())).
 
 %%==============================================================================
 %% Founding
@@ -183,7 +183,12 @@ a_gained_hidden_node_is_listened_to_by_nobody_test() ->
 %% THE INVARIANT THAT MATTERS, stated directly: after any change, every vector
 %% fits what it reads. A mismatch is the only bug here that stays silent.
 every_vector_fits_after_any_change_test() ->
-    Parent = #{hidden => [[1, 2, 3], [4, 5, 6]],
+    %% Two sensors and two nodes, so a hidden row is `sensors + 1 + nodes' = 5
+    %% wide since world 21: two sensor weights, `here', and one weight per node
+    %% for what that node computed last tick. An output still reads inputs and
+    %% this tick's nodes, and deliberately not memory, so its vectors are
+    %% unchanged.
+    Parent = #{hidden => [[1, 2, 3, 1, 0], [4, 5, 6, 0, 1]],
                outputs => #{move => #{inputs => [7, 8, 9], hidden => [1, 2]},
                             breed => #{inputs => [1, 1, 1], hidden => [3, 4]}}},
     Churn = with(#{brain_mutation => 1, brain_mutation_structural => 1}),
@@ -205,11 +210,20 @@ fits(Parent, Change, Sensors, Econ) ->
                       rng(), lists:seq(1, 40)),
     lists:foreach(fun consistent/1, Children).
 
+%% ⚠ HIDDEN ROWS AND OUTPUT VECTORS ARE NO LONGER THE SAME WIDTH, and this
+%% assertion used to say they were. Since world 21 a hidden row also reads what
+%% every node computed last tick, so it is `sensors + 1 + nodes' while an output
+%% stays `sensors + 1'. Outputs deliberately do not read memory: what a creature
+%% remembers can only reach its behaviour by being computed with.
 consistent(#{hidden := Hidden, outputs := Outputs}) ->
-    Widths = lists:usort([length(Row) || Row <- Hidden]
-                         ++ [length(maps:get(inputs, O))
-                             || O <- maps:values(Outputs)]),
-    ?assert(length(Widths) =< 1),
+    Rows = lists:usort([length(Row) || Row <- Hidden]),
+    Ins = lists:usort([length(maps:get(inputs, O))
+                       || O <- maps:values(Outputs)]),
+    ?assert(length(Rows) =< 1),
+    ?assert(length(Ins) =< 1),
+    %% And the two agree about how many nodes there are.
+    ?assert(Rows == [] orelse Ins == []
+            orelse hd(Rows) == hd(Ins) + length(Hidden)),
     lists:foreach(fun(O) ->
                           ?assertEqual(length(Hidden),
                                        length(maps:get(hidden, O)))
@@ -273,6 +287,58 @@ a_brain_with_no_hidden_layer_is_no_apparatus_test() ->
 
 %%==============================================================================
 %% World 19: you pay for what you use
+
+%%==============================================================================
+%% World 21: what it remembers
+%%==============================================================================
+
+%% ⚠ THE WHOLE OF WORLD 21 IN ONE ASSERTION: same readings, different memory,
+%% different decision. Twenty worlds evaluated a brain as a pure function of the
+%% current instant, so this creature was not unevolved, it was INEXPRESSIBLE.
+%%
+%% The node here ignores the sensor and `here' entirely and reads only what it
+%% computed last tick, which is the smallest possible thing that can only be said
+%% with memory.
+what_it_remembers_changes_what_it_does_test() ->
+    Brain = #{hidden => [[0, 0, 4]],
+              outputs => #{move => #{inputs => [0, 0], hidden => [1]}}},
+    ?assertEqual(#{move => 0}, brain:evaluate(Brain, [9, 1], [0], econ())),
+    ?assertEqual(#{move => 5}, brain:evaluate(Brain, [9, 1], [10], econ())).
+
+%% WHAT IS CARRIED IS EXACTLY WHAT THE HIDDEN LAYER JUST COMPUTED. Not a chosen
+%% quantity, not a written register: the activations themselves. That is why
+%% memory needs no constant of its own and is as large as the brain and no
+%% larger.
+what_it_carries_is_what_it_just_computed_test() ->
+    Brain = #{hidden => [[1, 0, 0]], outputs => #{}},
+    ?assertEqual([1], brain:recall(Brain, [8, 1], [0])),
+    %% And it feeds back: a node that reads itself compounds tick over tick.
+    Loop = #{hidden => [[1, 0, 8]], outputs => #{}},
+    First = brain:recall(Loop, [8, 1], [0]),
+    ?assertEqual([1], First),
+    ?assert(hd(brain:recall(Loop, [8, 1], First)) > hd(First)).
+
+%% A CREATURE WITH NO HIDDEN LAYER CARRIES NOTHING AND IS UNCHANGED. World 21 is
+%% a strict extension: memory is the hidden layer's own output, so a creature
+%% without one behaves exactly as it did in world 20. Memory and computation are
+%% worth nothing apart and something together, which is world 2's argument for
+%% proprioception and nonlinearity, one organ further in.
+a_creature_with_no_brain_remembers_nothing_test() ->
+    Brain = #{hidden => [],
+              outputs => #{move => #{inputs => [3, 0], hidden => []}}},
+    ?assertEqual([], brain:recall(Brain, [5, 1], [])),
+    ?assertEqual(#{move => 15}, brain:evaluate(Brain, [5, 1], [], econ())).
+
+%% AND OUTPUTS DO NOT READ MEMORY, deliberately. What a creature remembers can
+%% only reach its behaviour by being computed with, so the claim stays sharp:
+%% memory requires a brain. An output with no hidden weights is deaf to the past
+%% however much of it there is.
+memory_reaches_behaviour_only_through_a_node_test() ->
+    Deaf = #{hidden => [[0, 0, 4]],
+             outputs => #{move => #{inputs => [1, 0], hidden => [0]}}},
+    ?assertEqual(brain:evaluate(Deaf, [9, 1], [0], econ()),
+                 brain:evaluate(Deaf, [9, 1], [60], econ())).
+
 %%==============================================================================
 
 %% ⚠ RED AGAINST WORLD 18, which counted row length. This is the whole world in
@@ -297,8 +363,8 @@ a_silent_weight_changes_no_decision_test() ->
              outputs => #{move => #{inputs => [1, 0, 2], hidden => [4]}}},
     Padded = #{hidden => [[3, 0, 5]],
                outputs => #{move => #{inputs => [1, 0, 2], hidden => [4]}}},
-    ?assertEqual(brain:evaluate(Loud, Inputs, #{}),
-                 brain:evaluate(Padded, Inputs, #{})).
+    ?assertEqual(brain:evaluate(Loud, Inputs, [], #{}),
+                 brain:evaluate(Padded, Inputs, [], #{})).
 
 %% WORLD 19 APPLIES AT EVERY SITE. Pricing hidden rows and not output rows would
 %% be a law applied at one place, which is the shape `C.6`, `B.7` and `B.8` were.

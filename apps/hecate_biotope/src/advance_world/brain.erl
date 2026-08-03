@@ -52,8 +52,9 @@
 %% the reason the shape after every kind of change is asserted directly.
 -module(brain).
 
--export([founder/3, inherit/5, evaluate/3, attention/2]).
+-export([founder/3, inherit/5, evaluate/4, attention/2]).
 -export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
+-export([row_width/2, recall/3]).
 -export([output_weights/1, carried/1, live/1, live_per_node/1]).
 
 -type purpose() :: move | breed | grow.
@@ -175,6 +176,35 @@ has(Purpose, #{outputs := Os}) -> maps:is_key(Purpose, Os).
 width(Sensors, inputs) -> Sensors + 1;
 width(_Sensors, Hidden) -> Hidden.
 
+%% @doc How wide a HIDDEN row is, which is no longer the same as how wide an
+%% output's input vector is.
+%%
+%% ==========================================================================
+%% WORLD 21: A HIDDEN NODE READS WHAT THE HIDDEN LAYER SAID LAST TICK
+%% ==========================================================================
+%%
+%% Layout is `[s1..sN, here, m1..mH]': the sensors, the here-flag, and then one
+%% weight per hidden node for what that node computed on the PREVIOUS tick.
+%%
+%% THAT IS THE WHOLE OF MEMORY AND IT NEEDED NO NEW CONSTANT. The state a
+%% creature carries is exactly the activations it just produced, so the size of
+%% its memory is the size of its brain, and a creature with no hidden layer
+%% carries none and behaves EXACTLY as it did in world 20. Memory and
+%% computation are worth nothing apart and something together, which is the same
+%% shape as world 2's argument for proprioception and nonlinearity.
+%%
+%% WHY IT MATTERS MORE THAN ANY PRICE THIS PROJECT HAS SWEPT. Twenty worlds
+%% evaluated a brain as a pure function of the current instant. Every strategy of
+%% the form "I have been hungry for a while", "I came from over there", "that
+%% patch was better than this one" was not unevolved, it was INEXPRESSIBLE. No
+%% constant could have made one appear.
+%%
+%% Outputs deliberately do NOT read memory. They read the inputs and the hidden
+%% layer, so what a creature remembers can only reach its behaviour by being
+%% computed with, which keeps the claim sharp: memory requires a brain.
+-spec row_width(non_neg_integer(), non_neg_integer()) -> pos_integer().
+row_width(Sensors, Hidden) -> Sensors + 1 + Hidden.
+
 %%==============================================================================
 %% Founding
 %%==============================================================================
@@ -191,7 +221,8 @@ width(_Sensors, Hidden) -> Hidden.
 -spec founder(non_neg_integer(), map(), rand:state()) -> {brain(), rand:state()}.
 founder(Sensors, Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(maps:get(founder_max_hidden, Econ) + 1, Rng0),
-    {Hidden, Rng2} = draw_rows(N - 1, width(Sensors, inputs), Econ, Rng1, []),
+    {Hidden, Rng2} = draw_rows(N - 1, row_width(Sensors, N - 1), Econ, Rng1,
+                               []),
     {Outputs, Rng3} = draw_outputs(?PURPOSES, Sensors, length(Hidden), Econ,
                                    Rng2, #{}),
     {#{hidden => Hidden, outputs => Outputs}, Rng3}.
@@ -233,10 +264,27 @@ maybe_output(1, P, Sensors, Hidden, Econ, Rng0, Acc) ->
 %% optimisation so much as the difference between this world running and not: it
 %% is evaluated for seven candidate cells per creature per tick, and a board that
 %% can hold a forest holds a great many creatures.
--spec evaluate(brain(), [integer()], map()) -> #{purpose() => integer()}.
-evaluate(#{hidden := Hidden, outputs := Outputs}, Inputs, _Econ) ->
-    Acts = [activate(Row, Inputs) || Row <- Hidden],
+%% ⚠ EVALUATION IS STILL A PURE READ AND MUST STAY ONE. A brain is evaluated
+%% about eleven times per creature per tick, seven of them for cells the creature
+%% is only CONSIDERING stepping into. If evaluating updated the memory, then
+%% asking "what do I make of that cell?" would change the creature, and the order
+%% the seven candidates happened to be considered in would decide what it
+%% remembered. So memory is READ here and WRITTEN once a tick, by `recall/3',
+%% from where the creature actually stands.
+-spec evaluate(brain(), [integer()], [integer()], map()) ->
+          #{purpose() => integer()}.
+evaluate(#{hidden := Hidden, outputs := Outputs}, Inputs, Memory, _Econ) ->
+    Acts = [activate(Row, Inputs ++ Memory) || Row <- Hidden],
     maps:map(fun(_P, O) -> fire(O, Inputs, Acts) end, Outputs).
+
+%% @doc What this creature will carry into the next tick: what its hidden layer
+%% made of where it is standing now.
+%%
+%% ONCE PER TICK, AT ONE DEFINED PLACE. Everything else about a tick is a
+%% question put to the brain; this is the only answer it keeps.
+-spec recall(brain(), [integer()], [integer()]) -> [integer()].
+recall(#{hidden := Hidden}, Inputs, Memory) ->
+    [activate(Row, Inputs ++ Memory) || Row <- Hidden].
 
 %% Rectified, then held to the range of an ordinary reading so an output can
 %% weigh a hidden node against a sensor without either drowning the other.
@@ -348,9 +396,14 @@ restructure(1, #{hidden := H, outputs := Os} = Brain, Sensors, Econ, Rng0) ->
                 Econ, Rng0);
 restructure(2, #{hidden := []} = Brain, _Sensors, _Econ, Rng) ->
     {Brain, Rng};
-restructure(2, #{hidden := H, outputs := Os} = Brain, _Sensors, _Econ, Rng0) ->
+%% ⚠ PRUNING A NODE REMOVES IT FROM THREE PLACES, not two. Its row goes, every
+%% output's weight for it goes, and since world 21 every REMAINING ROW's memory
+%% weight for it goes too. Miss the third and every recurrent weight after the
+%% pruned node reads a different node, silently.
+restructure(2, #{hidden := H, outputs := Os} = Brain, Sensors, _Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(length(H), Rng0),
-    {Brain#{hidden => remove(N, H),
+    Kept = [remove(Sensors + 1 + N, Row) || Row <- remove(N, H)],
+    {Brain#{hidden => Kept,
             outputs => maps:map(fun(_P, O) -> on_hidden(O, N) end, Os)}, Rng1};
 restructure(3, Brain, Sensors, Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(length(?PURPOSES), Rng0),
@@ -359,9 +412,14 @@ restructure(3, Brain, Sensors, Econ, Rng0) ->
 grow_hidden(false, Brain, _H, _Os, _Sensors, _Econ, Rng) ->
     {Brain, Rng};
 grow_hidden(true, Brain, H, Os, Sensors, Econ, Rng0) ->
-    Width = width(Sensors, inputs),
-    {Row, Rng1} = draw_row(Width, Econ, Rng0),
-    {Brain#{hidden => H ++ [Row],
+    %% EVERY EXISTING NODE GAINS A ZERO for the new one, so nothing already in the
+    %% brain listens to it until drift connects them: the same rule as a new
+    %% sensor and a new node's outgoing weights. The new node's OWN weights are
+    %% drawn, including what it makes of the rest of the layer, so it is not
+    %% inert.
+    Deaf = [Row0 ++ [0] || Row0 <- H],
+    {Row, Rng1} = draw_row(row_width(Sensors, length(H) + 1), Econ, Rng0),
+    {Brain#{hidden => Deaf ++ [Row],
             outputs => maps:map(fun(_P, O) -> listen_to_nothing(O) end, Os)},
      Rng1}.
 

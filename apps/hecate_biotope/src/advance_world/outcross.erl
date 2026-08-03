@@ -146,14 +146,10 @@ brains(Mother, Father, Slots, A, B, Econ, Rng0) ->
     Hb = maps:get(hidden, Fa),
     Wanted = min(max(length(Ha), length(Hb)), maps:get(max_hidden, Econ)),
     {Nodes, Rng1} = pick_nodes(1, Wanted, Ha, Hb, [], Rng0),
-    Hidden = [remap(Row, Slots, side(Side, A, B)) || {Row, Side, _I} <- Nodes],
-    %% ⚠ THE ORIGINAL INDEX TRAVELS WITH THE NODE. A node may be dropped, so the
-    %% child's third node can be a parent's fourth, and an output's weight for it
-    %% lives at the parent's index and not at the child's. Reading the output
-    %% vector at the child's position would silently pair every weight after a
-    %% drop with the wrong node: the same off-by-one family as `follow_body', and
-    %% the same absence of a crash.
     Sides = [{Side, I} || {_Row, Side, I} <- Nodes],
+    Hidden = [remap(Row, Slots, side(Side, A, B))
+                  ++ recurrent(Row, Side, Sides, map_size(side(Side, A, B)))
+              || {Row, Side, _I} <- Nodes],
     {Outputs, Rng2} = pick_outputs(brain:purposes(), Ma, Fa, Slots, A, B, Sides,
                                    #{}, Rng1),
     {#{hidden => Hidden, outputs => Outputs}, Rng2}.
@@ -261,10 +257,39 @@ zeroed(W) -> W.
 %% vector has and no sensor owns, so it travels untouched.
 remap(Vector, Slots, Owner) ->
     [weight(maps:get({F, Rank}, Owner, absent), Vector)
-     || {F, Rank, _R} <- Slots] ++ [lists:last(Vector)].
+     || {F, Rank, _R} <- Slots] ++ [at(Vector, map_size(Owner) + 1)].
 
 weight(absent, _Vector) -> 0;
 weight({Pos, _Reach}, Vector) -> lists:nth(Pos, Vector).
+
+%% ⚠ `here' IS NO LONGER THE LAST WEIGHT IN A HIDDEN ROW, and this line was
+%% `lists:last/1' until world 21 gave rows a memory block after it. A row now
+%% reads `[s1..sN, here, m1..mH]', so `lists:last' would have taken the weight on
+%% the last hidden node and called it the here-flag: every recombined creature
+%% quietly confusing "am I standing on it" with "what did node H think last
+%% tick". It still works unchanged for an OUTPUT's input vector, which has no
+%% memory block, because there `map_size(Owner) + 1' IS the last position.
+at(Vector, Pos) when Pos >= 1, Pos =< length(Vector) -> lists:nth(Pos, Vector);
+at(_Vector, _Pos) -> 0.
+
+%% ==========================================================================
+%% RECURRENT WEIGHTS RECOMBINE ONLY WITHIN ONE BRAIN
+%% ==========================================================================
+%%
+%% A memory weight is a relationship BETWEEN TWO NODES: what node i makes of what
+%% node j computed last tick. It is only meaningful if both ends are the same
+%% lineage's nodes, because a hidden node has no name and node 2 in one brain
+%% computes something unrelated to node 2 in the other.
+%%
+%% So a row keeps its weight for a node that came from ITS OWN parent, and reads
+%% a node from the other parent at zero: a foreign node is a new organ, and this
+%% file's rule for a new organ is that it arrives unattended and drift decides
+%% whether it is listened to.
+recurrent(Row, Owner, Sides, Sensors) ->
+    [carried(Owner, Side, Row, Sensors, I) || {Side, I} <- Sides].
+
+carried(Owner, Owner, Row, Sensors, I) -> at(Row, Sensors + 1 + I);
+carried(_Owner, _Other, _Row, _Sensors, _I) -> 0.
 
 %% ==========================================================================
 %% Bits

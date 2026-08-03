@@ -341,14 +341,16 @@ a_kind_colour_is_visible_test() ->
 %%
 %% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** It needs a board where kinds
 %% are SHARED, so the assertion below states the ratio it needs and the fixture
-%% has to earn it. Seed 3 at 600 ticks holds 96 creatures across 16 kinds.
+%% has to earn it. Seed 55 at 800 ticks holds 114 creatures across 14 kinds.
 %%
-%% ⚠ AND THE GUARD HAS ALREADY EARNED ITS KEEP. The fixture was seed 101 at 300
-%% ticks until world 20, which changed the world enough that the same seed came
-%% to hold five creatures of five kinds. Every assertion above would have passed
-%% on it, vacuously, and the guard is the only thing that noticed.
+%% ⚠ AND THE GUARD HAS EARNED ITS KEEP TWICE. The fixture was seed 101 until
+%% world 20 and seed 3 until world 21, and each time the new world left that seed
+%% holding a handful of creatures each of its own kind. Every assertion above
+%% would have passed on it, vacuously, and the guard is the only thing that
+%% noticed. **A world change invalidates every fixture chosen by running the
+%% world**, which is a cost of testing against the real thing and worth paying.
 one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 3, population => 40}), 600),
+    W = world:tick(world:new(#{seed => 55, population => 40}), 800),
     Chart = world:chart(W),
     D = island_disc:packed(Chart, 400),
     Kinds = maps:get(kind_of, Chart),

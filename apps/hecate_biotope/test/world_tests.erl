@@ -496,13 +496,16 @@ equipment_at_the_control_costs_what_the_old_rent_did_test() ->
     ?assertEqual(200, Extra([{ground, 0}, {creatures, 0}], [])),
     %% And a hidden node with one LIVE weight is one unit, like the smallest
     %% sensor.
-    ?assertEqual(100, Extra([], [[1]])),
-    ?assertEqual(200, Extra([], [[1], [1]])),
+    %% With no sensors a row is `here' plus one weight per node, so a lone node
+    %% is two wide and a pair are three each.
+    ?assertEqual(100, Extra([], [[1, 0]])),
+    ?assertEqual(200, Extra([], [[1, 0, 0], [1, 0, 0]])),
     %% While a node wired to nothing is free, which is the whole of world 19.
-    %% Rows are as long as the input vector, which with no sensors is one: `here`
-    %% is an ordinary input and a row that disagrees crashes `dot/2` rather than
-    %% mispricing anything, which is the better of the two failures.
-    ?assertEqual(0, Extra([], [[0], [0]])).
+    %% Rows are as long as the input vector, which with no sensors and two nodes
+    %% is three: `here' plus one memory weight per node. A row that disagrees
+    %% crashes `dot/2' rather than mispricing anything, which is the better of
+    %% the two failures.
+    ?assertEqual(0, Extra([], [[0, 0, 0], [0, 0, 0]])).
 
 %% AND THE SWEEP IS MEANINGFUL, which is the whole point of making it one. A
 %% cheaper gram of neural tissue is a cheaper creature, monotonically, so there
@@ -1102,7 +1105,9 @@ crowded() ->
 a_wider_brain_costs_more_to_carry_test() ->
     Spent = fun(Sensors, Nodes) ->
                     Body = [{ground, 0} || _ <- lists:seq(1, Sensors)],
-                    Row = lists:duplicate(Sensors + 1, 1),
+                    %% `sensors + 1 + nodes' since world 21: a row reads the
+                    %% sensors, `here', and what every node computed last tick.
+                    Row = lists:duplicate(Sensors + 1 + Nodes, 1),
                     W = quiet(maps:merge(#{population => 1, radius => 0,
                                            recolonise_pct => 0,
                                            ground_growth_pct => 0,
@@ -1125,8 +1130,13 @@ a_wider_brain_costs_more_to_carry_test() ->
     %% it burns everything in every arm and reads identical.
     Narrow = Spent(1, 1) - Spent(1, 0),
     Wide = Spent(3, 1) - Spent(3, 0),
-    ?assertEqual(80, Narrow),
-    ?assertEqual(160, Wide).
+    %% ⚠ A NODE COSTS MORE SINCE WORLD 21 AND THAT IS THE PRICE OF MEMORY. A row
+    %% gained one live weight per node, so a single node on one sensor went from
+    %% two weights to three and from 80 to 120, and on three sensors from four to
+    %% five and from 160 to 200. Nothing here is priced by a new constant:
+    %% `neural_cost' charges live wiring and memory is wiring.
+    ?assertEqual(120, Narrow),
+    ?assertEqual(200, Wide).
 
 %% AND THE CENSUS KEEPS THEM APART. `hidden_mean' counts nodes and
 %% `hidden_inputs_mean' says how wide they are, because a brain getting cheaper
@@ -1136,11 +1146,12 @@ the_census_reports_depth_and_width_separately_test() ->
                            ground_growth_pct => 0, metabolism => 0,
                            max_age => 100000, founder_body => [],
                            founder_brain =>
-                               #{hidden => [[1, 1, 1]], outputs => #{}},
+                               %% No sensors and one node: `0 + 1 + 1'.
+                               #{hidden => [[1, 1]], outputs => #{}},
                            start_energy => 400}, #{})),
     #{hidden_mean := Nodes, hidden_inputs_mean := Width} = world:snapshot(W),
     ?assertEqual(100, Nodes),
-    ?assertEqual(300, Width).
+    ?assertEqual(200, Width).
 
 %%==============================================================================
 %% World 15: a mouth is tissue, and eating is a decision
@@ -1353,7 +1364,7 @@ the_wire_codes_for_fields_and_purposes_are_fixed_test() ->
 %% structure, and a length that disagrees with `ids` would slide colours across
 %% the board the way matching by position slid marks before `ids` existed.
 every_creature_has_a_kind_index_test() ->
-    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    W = world:tick(world:new(#{seed => 3, population => 20, radius => 5}), 200),
     #{ids := Ids, kind_of := Kinds} = world:chart(W),
     ?assertEqual(length(Ids), length(Kinds)),
     ?assert(lists:all(fun(K) -> K >= 0 end, Kinds)),
@@ -1365,7 +1376,7 @@ every_creature_has_a_kind_index_test() ->
 %% creatures share five to twenty-seven body plans, so a genome per head would
 %% send the same twenty structures a hundred times.
 the_kind_table_is_decodable_test() ->
-    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    W = world:tick(world:new(#{seed => 3, population => 20, radius => 5}), 200),
     #{kind_table := Table} = world:chart(W),
     #{kinds := Count} = world:snapshot(W),
     Decoded = decode_kinds(Table),

@@ -53,8 +53,10 @@ check_pair(Seed) ->
 consistent(#{body := Body, brain := #{hidden := Hidden, outputs := Outputs}}) ->
     Inputs = length(Body) + 1,
     Nodes = length(Hidden),
-    %% Every hidden row reads every input and nothing else.
-    [?assertEqual(Inputs, length(Row)) || Row <- Hidden],
+    %% A hidden row reads every input AND every node's last-tick activation:
+    %% `sensors + 1 + nodes' since world 21. An output reads inputs and this
+    %% tick's nodes, and deliberately not memory.
+    [?assertEqual(Inputs + Nodes, length(Row)) || Row <- Hidden],
     %% Every output reads every input AND every hidden node.
     lists:foreach(fun(#{inputs := Ins, hidden := Hids}) ->
                           ?assertEqual(Inputs, length(Ins)),
@@ -95,7 +97,7 @@ nodes_of(#{brain := #{hidden := H}}) -> length(H).
 %% explains: a child's is, and a parent's need not be.
 two_identical_parents_make_a_copy_test() ->
     A = creature([{creatures, 1}, {ground, 0}, {scent, 2}],
-                 [[1, 2, 3, 4], [5, 6, 7, 8]],
+                 [[1, 2, 3, 4, 5, 6], [5, 6, 7, 8, 9, 1]],
                  #{move => #{inputs => [1, 1, 1, 1], hidden => [2, 3]},
                    eat => #{inputs => [4, 0, 4, 0], hidden => [0, 1]}}),
     {Child, _Rng} = outcross:traits(A, A, econ(), rand:seed_s(exsss, {5, 5, 5})),
@@ -114,14 +116,15 @@ two_identical_parents_make_a_copy_test() ->
 %% which was permuted to match.
 a_childs_sensors_come_out_in_a_canonical_order_test() ->
     Jumbled = creature([{scent, 1}, {ground, 0}],
-                       [[7, 3, 9]],
+                       [[7, 3, 9, 4]],
                        #{move => #{inputs => [7, 3, 9], hidden => [1]}}),
     {#{body := Body, brain := #{hidden := [Row]}}, _Rng} =
         outcross:traits(Jumbled, Jumbled, econ(), rand:seed_s(exsss, {2, 2, 2})),
     ?assertEqual([{ground, 0}, {scent, 1}], Body),
     %% The ground weight was second and is now first, carried with its sensor.
-    %% The `here' weight is last and belongs to no sensor, so it does not move.
-    ?assertEqual([3, 7, 9], Row).
+    %% `here' belongs to no sensor so it does not move, and the memory weight for
+    %% the single node follows it.
+    ?assertEqual([3, 7, 9, 4], Row).
 
 %% A WEIGHT FOR AN ORGAN THE PARENT NEVER HAD IS ZERO, not random and not
 %% borrowed. The same rule `brain:follow_body/2' uses when mutation grows a
@@ -129,10 +132,11 @@ a_childs_sensors_come_out_in_a_canonical_order_test() ->
 a_borrowed_organ_arrives_unattended_test() ->
     %% One parent measures the ground and nothing else; the other measures scent
     %% and nothing else, with a weight of 5 on it.
-    A = creature([{ground, 0}], [[3, 9]], #{move => #{inputs => [3, 9],
-                                                      hidden => [1]}}),
-    B = creature([{scent, 0}], [[5, 9]], #{move => #{inputs => [5, 9],
-                                                     hidden => [1]}}),
+    %% One sensor, one node, so a hidden row is [sensor, here, memory].
+    A = creature([{ground, 0}], [[3, 9, 2]], #{move => #{inputs => [3, 9],
+                                                        hidden => [1]}}),
+    B = creature([{scent, 0}], [[5, 9, 2]], #{move => #{inputs => [5, 9],
+                                                       hidden => [1]}}),
     {#{body := Body, brain := #{outputs := Os}}, _Rng} =
         outcross:traits(A, B, econ(), rand:seed_s(exsss, {1, 2, 3})),
     #{move := #{inputs := Ins}} = Os,
