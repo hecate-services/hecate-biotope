@@ -4,6 +4,70 @@
 `PREREGISTRATION_WORLD19.md`, frozen before the rules.
 `scripts/sweep_neural.escript`, 48 seeds, **20,000 ticks**.
 
+## ⚠ RE-RUN 2026-08-03: THE CAP WAS BINDING AND THE SWEEP WAS RE-RUN
+
+**`max_sensors` was 8 and 18 to 22% of the population sat at it**, so the sensor
+column below was partly a ceiling. `B.11`. The cap is now **12**, chosen by a rule
+fixed before the numbers (the smallest leaving under 5% at it), and the whole
+sweep was re-run at 48 seeds and 20,000 ticks. `AT-CAP` is **0 at every price**
+now, so the sweep certifies its own sensor column rather than leaving a reader to
+wonder.
+
+| `neural_cost` | dead/48 | sensors | hidden nodes | WIDTH |
+|---|---|---|---|---|
+| | old → new | old → new | old → new | old → new |
+| 330 control | 41 → **41** | 2.03 → **2.03** | 0.02 → **0.02** | 3.00 → **3.00** |
+| 220 | 39 → **39** | 1.97 → **1.97** | 0.04 → **0.04** | 3.00 → **3.00** |
+| 165 | 33 → **33** | 2.91 → **2.91** | 0.03 → **0.03** | 3.00 → **3.00** |
+| 110 | 33 → **33** | 2.59 → **2.59** | 0.05 → **0.05** | 2.90 → **2.90** |
+| 66 | 33 → **33** | 3.86 → 3.60 | 0.05 → 0.07 | 4.00 → **4.00** |
+| 33 | 29 → **29** | 4.56 → **4.56** | 0.06 → 0.14 | 4.66 → 4.62 |
+| **11** | **24 → 24** | 4.94 → 4.74 | 0.53 → 0.41 | 5.54 → 5.00 |
+| 3 | 29 → **29** | 4.85 → 5.64 | 0.30 → 0.60 | 5.53 → 6.00 |
+| 1 | 28 → **28** | 5.90 → 5.34 | 1.11 → 0.98 | 6.20 → 5.93 |
+
+### 1. THE HEADLINE IS UNTOUCHED, AT EVERY PRICE
+
+**Deaths are identical in all nine rows: 41, 39, 33, 33, 33, 29, 24, 29, 28.**
+Not close, identical. `neural_cost` 11 is still the best value on viability at 24
+of 48, still against 41 at the control, and `B.10` stands exactly as written. The
+one criterion this project allows for setting a constant did not move at all.
+
+### 2. THE FOUR MOST EXPENSIVE ROWS ARE BYTE-IDENTICAL, WHICH IS THE CHECK
+
+330 through 110 reproduce the old run in every column. That is what a
+non-binding valve looks like and it is the reason to believe the rest: **a
+creature that cannot afford eight sensors never meets the cap**, so those rows
+could not have changed, and if they had, something other than the cap would have
+been different between the runs.
+
+### 3. THE HIDDEN-NODE RESPONSE BECAME MONOTONE
+
+Old: 0.02, 0.04, 0.03, 0.05, 0.05, 0.06, **0.53, 0.30**, 1.11 — a fall from 11 to
+3 in the middle of a rising trend. New: 0.02, 0.04, 0.03, 0.05, 0.07, 0.14,
+**0.41, 0.60, 0.98** — rising throughout the cheap half. The reversal was an
+artefact of the cap: sensors and nodes compete for the same tissue budget, so a
+population pinned at eight sensors was spending on perception it could not
+economise on.
+
+### 4. THE SENSOR SLOPE SURVIVES AND IS NOISIER THAN IT LOOKED
+
+2.03 at the control to 5.34 at the cheapest, so "sensors respond to the price of
+tissue" holds. But it is **no longer monotone at the cheap end**: 5.64 at
+`neural_cost` 3 against 5.34 at 1. The old run's smooth climb to 5.90 was partly
+the ceiling doing the smoothing, and the honest reading is that below about 11
+the sensor count stops being an ordered response to price.
+
+**AND ONE NUMBER QUOTED ELSEWHERE IS WITHDRAWN.** "5.90 sensors at `neural_cost`
+1" appears in `B.10` and in the text below. It is **5.34** under a valve that is
+not binding, and the 5.90 was measured with a fifth of the population pinned at
+the cap.
+
+Everything below this line is the original write-up, at `max_sensors` 8, kept
+because the correction is only legible against it.
+
+---
+
 ## THE HEADLINE
 
 **Width became expressible and selection did not use it. The price was the thing

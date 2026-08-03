@@ -462,7 +462,31 @@ defaults() ->
       %% Safety valves against a runaway genome making one tick cost as much as
       %% the whole disc. Not model parameters: rent is what should bound a
       %% creature, and when one of these binds it is counted and reported.
-      max_sensors       => 8,
+      %%
+      %% ⚠ `max_sensors' WAS 8 AND 8 WAS BINDING, measured 2026-08-03: 18 to 22%
+      %% of the population sat AT it at 20,000 ticks, so the sentence above was
+      %% false for six worlds and world 19's sensor column was a ceiling rather
+      %% than a response to price. Nothing counted it and nothing reported it,
+      %% because the counting was never written.
+      %%
+      %% 12 BY A RULE FIXED BEFORE THE NUMBERS: the smallest cap leaving under 5%
+      %% of the population at it. Smallest, because a cap set to infinity is not
+      %% a braver experiment, it is an unbounded one.
+      %%
+      %% **12, 16 and 24 give the identical world** in every column measured, so
+      %% no lineage ever tries to exceed 12 and the valve has genuinely stopped
+      %% deciding. It is also CHEAPER to run: 399 ms per thousand ticks against
+      %% 466 at 8, because the pile of eight-sensor creatures the old cap
+      %% sustained cost more to read than the population that replaces it.
+      %%
+      %% AND IT WAS NOT ONLY CENSORING THE MEASUREMENT. `body:grow/3' declines
+      %% the mutation at the cap, so a creature that would have grown another
+      %% sensor never grew it AND NEVER PAID FOR IT. The valve was a subsidy
+      %% against a mutation the lineage could not afford, which is why lifting it
+      %% LOWERS the sensor mean, from 5.10 to 4.60, rather than raising it.
+      %% Deaths are unchanged at 14 of 32 seeds, so nothing about survival turned
+      %% on this.
+      max_sensors       => 12,
       max_sensor_range  => 4,
       max_hidden        => 6,
       founder_max_hidden => 2,

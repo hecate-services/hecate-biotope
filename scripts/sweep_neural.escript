@@ -44,11 +44,14 @@ main(Args) ->
     Ticks = ticks(Args),
     io:format("~nticks=~p seeds=~p at 100% efficiency. 330 is the control and is "
               "under review, `B.10`.~n~n", [Ticks, Seeds]),
-    io:format("~s~n", [row(["neural", "dead", "pop", "sens", "brain", "WIDTH",
-                            "reach", "life", "meat%", "frame", "lines",
+    io:format("~s~n", [row(["neural", "dead", "pop", "sens", "AT-CAP", "brain",
+                            "WIDTH", "reach", "life", "meat%", "frame", "lines",
                             "depth"])]),
     lists:foreach(fun(N) -> report(N, Seeds, Ticks) end, ?STEPS),
-    io:format("~nsens and brain are per creature times a hundred. **WIDTH is live "
+    io:format("~nsens and brain are per creature times a hundred. **AT-CAP is the "
+              "share of~nthe population sitting at `max_sensors`**, and a row "
+              "where it is not near zero~nhas a sensor column that is a CEILING "
+              "rather than a measurement. **WIDTH is live "
               "weights per~nhidden node, times a hundred, over the creatures that "
               "HAVE one**: the column~nworld 19 exists to move, and `H.11` says "
               "it could not move before. reach is~ntotal sensor reach carried by "
@@ -70,12 +73,33 @@ report(Neural, Seeds, Ticks) ->
     Dead = length([R || #{population := 0} <- Rows, R <- [1]]),
     io:format("~s~n", [row([Neural, Dead | summarise([R || #{population := P} = R <- Rows, P > 0])])]).
 
-summarise([]) -> lists:duplicate(10, "-");
+summarise([]) -> lists:duplicate(11, "-");
 summarise(Rows) ->
     Med = fun(K) -> median([maps:get(K, R) || R <- Rows]) end,
-    [Med(population), Med(sensor_mean), Med(hidden_mean), Med(hidden_width),
-     Med(reach), Med(lifespan), Med(from_creatures_pct), Med(structure_max),
-     Med(lineages), Med(depth)].
+    [Med(population), Med(sensor_mean), at_cap(Rows), Med(hidden_mean),
+     Med(hidden_width), Med(reach), Med(lifespan), Med(from_creatures_pct),
+     Med(structure_max), Med(lineages), Med(depth)].
+
+%% ⚠ WHETHER THIS ROW'S SENSOR COLUMN IS A MEASUREMENT OR A CEILING, and it took
+%% six worlds to think of printing it. The 20,000-tick run of this sweep read
+%% sensors rising 2.03 to 5.90 as the price fell and that was reported as a
+%% response to price; a later census found 22% of the population sitting AT
+%% `max_sensors' 8, so the cheap end was measuring the valve.
+%%
+%% FREE, FROM A NUMBER THE SNAPSHOT ALREADY CARRIED. `sensor_hist' has one bar
+%% per count up to the cap and its LAST bar catches everything at or above it, so
+%% the share is a division. Nothing had to be computed; it had to be looked at.
+%%
+%% A mean well under a cap is exactly what a piled-up distribution looks like
+%% when the pile is a fifth of the population, which is why the mean beside this
+%% cannot be read without it.
+at_cap(Rows) ->
+    Shares = [share_at_cap(R) || R <- Rows],
+    median(Shares).
+
+share_at_cap(#{sensor_hist := Hist, population := Pop}) when Pop > 0 ->
+    lists:last(Hist) * 100 div Pop;
+share_at_cap(_Row) -> 0.
 
 run(Seed, Neural, Ticks) ->
     S = world:snapshot(advance(world:new(#{seed => Seed, population => 40,
