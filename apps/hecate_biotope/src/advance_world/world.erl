@@ -276,7 +276,7 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 19,
+    #{number => 22,
       %% ⚠ THE LINE MUST BE TRUE AT THE VALUE THE FLEET RUNS. A first version
       %% said "being able to act costs something", written while the default was
       %% still 0, and it would have gone out on every published fact describing
@@ -286,9 +286,10 @@ ruleset() ->
       %% True at 16: four purposes cost more than none. It does NOT say a
       %% creature sheds what it cannot afford, because at 16 it does not; that
       %% needs four times the price and RESULTS_WORLD18.md says so.
-      line => <<"A connection costs only if it carries something, so a brain "
-                "pays for what it uses rather than for the shape it was born "
-                "in.">>}.
+      line => <<"A creature carries what it just thought into the next tick, "
+                "its hidden nodes have names so two lineages can recombine "
+                "their versions of the same one, and it breeds with whoever "
+                "smells most like itself.">>}.
 
 -spec defaults() -> econ().
 defaults() ->

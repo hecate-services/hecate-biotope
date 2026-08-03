@@ -752,12 +752,13 @@ at_act_cost(Cost) ->
 %% `world:ruleset/0' travels on every published fact and onto the spectator page.
 the_line_does_not_overclaim_the_default_test() ->
     #{line := Line} = world:ruleset(),
-    %% World 19 claims a creature pays for what it USES. It must not claim that
-    %% brains got narrower, which is the finding and not the rule, and which the
-    %% sweep may refute.
-    ?assertEqual(nomatch, binary:match(Line, <<"narrow">>)),
-    ?assertEqual(nomatch, binary:match(Line, <<"cheaper">>)),
-    ?assertNotEqual(nomatch, binary:match(Line, <<"costs only if">>)).
+    %% World 22 states three RULES: memory is carried, nodes have names, and a
+    %% creature breeds with its own kind. It must not claim any of the findings,
+    %% which the measurements may refute and two of them already have.
+    ?assertEqual(nomatch, binary:match(Line, <<"diver">>)),
+    ?assertEqual(nomatch, binary:match(Line, <<"better">>)),
+    ?assertEqual(nomatch, binary:match(Line, <<"protect">>)),
+    ?assertNotEqual(nomatch, binary:match(Line, <<"next tick">>)).
 
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),
@@ -1365,6 +1366,7 @@ a_walk_terminates_test() ->
 
 %%==============================================================================
 %% What kind each creature is, on the wire
+
 %%==============================================================================
 
 %% ⚠ THE TWO ORDERS THE WIRE DEPENDS ON, PINNED. `kind_table` encodes a sensor's
