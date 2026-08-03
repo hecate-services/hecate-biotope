@@ -37,6 +37,8 @@
 -behaviour(gen_server).
 
 -export([start_link/0, child_specs/0, latest/0]).
+%% Exported to be tested: see the clock note on `spoke_at'.
+-export([rested/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
 %% How often it LOOKS, which is not how often it speaks. Cheap: a snapshot and a
@@ -49,8 +51,21 @@
 %% a reader who looks away and comes back has missed nothing.
 -define(QUIET_MS, 300000).
 
+%% ⚠ `spoke_at' STARTS AS `never' AND NOT AS ZERO, and zero is why the first
+%% three islands to run this said nothing at all.
+%%
+%% `erlang:monotonic_time/1' has an ARBITRARY ORIGIN. It is not milliseconds
+%% since anything; on a fresh BEAM it is typically a large NEGATIVE number, and
+%% the fleet measured -576,460,594,619. So `Now - 0 > QUIET_MS' was
+%% `-576460594619 > 300000', false, and would have stayed false for nineteen
+%% years. The narrator started, looked every thirty seconds, decided it had
+%% spoken too recently, and never said a word.
+%%
+%% **It failed as silence, which is this slice's word for "the model had nothing
+%% to say"**, so nothing anywhere reported a fault. A separate atom for "has
+%% never spoken" cannot be mistaken for a timestamp by arithmetic.
 -record(state, {said = none :: none | map(),
-                spoke_at = 0 :: integer(),
+                spoke_at = never :: never | integer(),
                 text = none :: none | binary(),
                 model = none :: none | binary(),
                 brief = none :: none | map(),
@@ -97,6 +112,13 @@ handle_info({said, _Brief, silent}, S) ->
 handle_info({said, Brief, {ok, Text, Model}}, #state{remarks = N} = S) ->
     Fact = world_facts:world_narrated(Text, Model, Brief),
     biotope_mesh:publish(world_facts:topic(narration), Fact),
+    %% ⚠ LOGGED, BECAUSE THERE WAS NO WAY TO TELL THIS WORKING FROM BROKEN. A
+    %% narrator that succeeds writes a fact and says nothing on the console, and
+    %% one that fails is silent by design, so an island that had never spoken
+    %% looked exactly like an island with nothing to remark on. The sentence
+    %% itself is the operational signal.
+    logger:info("biotope: narrated at tick ~p via ~s: ~ts",
+                [maps:get(tick, Brief, 0), Model, Text]),
     {noreply, S#state{text = Text, model = Model, brief = Brief,
                       remarks = N + 1}};
 handle_info(_Msg, S) ->
@@ -109,8 +131,11 @@ handle_info(_Msg, S) ->
 %% this only ever reads from it.
 consider(Brief, #state{said = Said, spoke_at = At} = S) ->
     Now = erlang:monotonic_time(millisecond),
-    asked(world_brief:changed_enough(Said, Brief) andalso Now - At > ?QUIET_MS,
+    asked(world_brief:changed_enough(Said, Brief) andalso rested(At, Now),
           Brief, Now, S).
+
+rested(never, _Now) -> true;
+rested(At, Now) -> Now - At > ?QUIET_MS.
 
 asked(false, _Brief, _Now, S) -> S;
 asked(true, Brief, Now, S) ->

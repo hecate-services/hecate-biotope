@@ -156,6 +156,37 @@ restore(Name, Value) -> os:putenv(Name, Value).
 %%==============================================================================
 %% Fixtures
 %%==============================================================================
+%% The clock
+%%==============================================================================
+
+%% ⚠ THE BUG THAT MADE THREE ISLANDS SILENT, pinned so it cannot return.
+%%
+%% `erlang:monotonic_time/1' has an ARBITRARY origin. It is not milliseconds
+%% since anything, and on a fresh BEAM it is typically a large negative number:
+%% the fleet measured -576,460,594,619. A `spoke_at' field starting at 0 made the
+%% quiet-period test `-576460594619 - 0 > 300000', which is false and would have
+%% stayed false for nineteen years. The narrator started, looked every thirty
+%% seconds, decided each time that it had spoken too recently, and never said a
+%% word on any island.
+%%
+%% It failed AS SILENCE, which is this slice's word for "the model had nothing to
+%% say", so nothing reported a fault anywhere. This asserts the property that
+%% matters: a narrator that has never spoken is never too recent to speak,
+%% whatever the clock happens to read.
+a_narrator_that_has_never_spoken_is_never_too_recent_test() ->
+    ?assert(narrator:rested(never, erlang:monotonic_time(millisecond))),
+    ?assert(narrator:rested(never, -576460594619)),
+    ?assert(narrator:rested(never, 0)).
+
+%% And once it has spoken, the quiet period is measured as a DIFFERENCE, which is
+%% the only thing a monotonic clock promises.
+having_just_spoken_it_waits_test() ->
+    Now = erlang:monotonic_time(millisecond),
+    ?assertNot(narrator:rested(Now, Now)),
+    ?assertNot(narrator:rested(Now - 1000, Now)),
+    ?assert(narrator:rested(Now - 600000, Now)).
+
+%%==============================================================================
 
 snapshot() ->
     world:snapshot(world:tick(world:new(#{seed => 77, population => 20,
