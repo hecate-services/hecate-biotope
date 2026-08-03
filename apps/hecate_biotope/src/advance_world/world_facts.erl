@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 12).
+-define(FACT_VERSION, 13).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -130,6 +130,7 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       absorbed := Absorbed, births_refused := Refused,
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId, seed := Seed,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
+      kinds := Kinds, kind_max_pct := KindMax,
       sensors := Sensors, sensor_mean := SensorMean,
       sensor_hist := SensorHist, hidden_hist := HiddenHist,
       uptake_hist := UptakeHist,
@@ -227,6 +228,12 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       %% devoted to it. `sensor_mean' is sensors per creature, times a hundred,
       %% because everything on this wire is an integer.
       sensors => Sensors,
+      %% HOW MANY KINDS OF CREATURE, as against how many ancestors. `lineages`
+      %% counts founders and can only fall; this counts distinct architectures,
+      %% which is what `G.1` means by a KIND as opposed to a founding. A world
+      %% reading one lineage routinely carries twenty of these.
+      kinds => Kinds,
+      kind_max_pct => KindMax,
       sensor_mean => SensorMean,
       %% THE SHAPE OF THE POPULATION AND NOT ITS AVERAGE. How many creatures
       %% carry none, one, two and so on. A mean of 0.01 reads as "nearly none"

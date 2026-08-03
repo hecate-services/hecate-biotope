@@ -81,6 +81,12 @@ carries_totals_rather_than_rates_test() ->
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
 %%
+%% Version 13 named the KINDS: how many distinct architectures are alive, as
+%% against how many ancestors. `lineages` counts founders and can only fall, and
+%% `G.1` warns in its own words that a founding is ANCESTRY AND NOT A KIND, yet
+%% eighteen worlds read its 1 as a monoculture. Measured, a world reading one
+%% lineage routinely carries five to twenty-seven body plans at once.
+%%
 %% Version 9 named the DOOR: which station this island reaches the mesh through,
 %% read from the live link rather than from configuration.
 %% Version 4 named which world is running, so a fleet mid-rollout could be read.
@@ -88,7 +94,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(12, V).
+    ?assertEqual(13, V).
 
 %%==============================================================================
 %% Which door the island is on

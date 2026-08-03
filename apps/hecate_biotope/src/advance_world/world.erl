@@ -1650,6 +1650,27 @@ snapshot(#world{econ = Econ} = W) ->
       %% hundred. World 19's own finding: `H.11` says a narrow brain cannot be
       %% expressed, so nothing has ever needed to measure narrowness.
       hidden_width => mean_width(W),
+      %% ==========================================================================
+      %% HOW MANY KINDS OF CREATURE ARE ALIVE, as against how many ancestors
+      %% ==========================================================================
+      %%
+      %% `lineages' counts founders with surviving descendants. It can only fall,
+      %% it has read 1 since world 9, and `G.1' warns in its own words that **a
+      %% founding is ANCESTRY AND NOT A KIND**. Eighteen worlds reported that 1 as
+      %% a monoculture.
+      %%
+      %% A KIND is what a creature IS: its sorted body, how many hidden nodes it
+      %% carries, and which purposes it has. Weights and scalars are variation
+      %% WITHIN a kind, the way allele frequencies are within a species; topology
+      %% is the kind. Measured at 5,000 ticks, worlds reading `lineages' of 1
+      %% carry **5 to 27 distinct architectures**, with the commonest holding 20
+      %% to 80 percent.
+      %%
+      %% Sorted on both axes so a kind cannot depend on map or list order. `G.6'.
+      kinds => count_kinds(W),
+      %% What share of the living the commonest architecture holds, so a world of
+      %% twenty kinds where one holds 95% is not read as a world of twenty kinds.
+      kind_max_pct => biggest_kind(W),
       purposes_mean => mean_purposes(W),
       purposes_hist => purpose_census(W),
       %% Whether the body plan is still moving at all.
@@ -1675,6 +1696,28 @@ sensor_census(#world{creatures = Cs}) ->
 %% it as a function with no local return and took `snapshot/1' down with it,
 %% which is the whole reason that gate is in the pipeline.
 purpose_census(W) -> [outputs_with(P, W) || P <- brain:purposes()].
+
+count_kinds(#world{creatures = Cs}) -> map_size(kind_tally(Cs)).
+
+biggest_kind(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+biggest_kind(#world{creatures = Cs}) ->
+    Counts = maps:values(kind_tally(Cs)),
+    lists:max([0 | Counts]) * 100 div map_size(Cs).
+
+%% Named rather than nested, because a fun inside `maps:update_with' inside a
+%% fold is three levels and elvis holds this repo to two.
+kind_tally(Cs) -> lists:foldl(fun tally_kind/2, #{}, maps:values(Cs)).
+
+tally_kind(C, Acc) -> maps:update_with(kind_of(C), fun bump/1, 1, Acc).
+
+bump(N) -> N + 1.
+
+%% THE BODY SORTED, THE PURPOSES SORTED, AND THE HIDDEN LAYER AS A COUNT. Two
+%% creatures of one kind differ only in weights and scalars, which drift
+%% continuously and would make every creature unique if they counted.
+kind_of(#{body := Body, brain := Brain}) ->
+    {lists:sort(Body), length(maps:get(hidden, Brain)),
+     lists:sort(maps:keys(maps:get(outputs, Brain)))}.
 
 mean_width(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
 mean_width(#world{creatures = Cs}) ->

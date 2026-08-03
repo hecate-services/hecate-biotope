@@ -94,9 +94,21 @@ door_note(_Failed, _Sent) ->
 %% WHAT THE POPULATION IS MADE OF
 %% ==========================================================================
 census(Snap) ->
-    [<<"<section class=\"card\"><h2>The population</h2><dl>">>,
+    [<<"<section class=\"card\"><h2>What is alive</h2><dl>">>,
+     %% ⚠ KINDS BEFORE ANYTHING ELSE, because this is what the project is about
+     %% and it has never been on a page. `lineages` counts ancestors and can only
+     %% fall; a world reading ONE lineage routinely carries twenty distinct
+     %% architectures. `G.1`: "a founding is ANCESTRY AND NOT A KIND".
+     item(<<"kinds of creature">>, num(maps:get(kinds, Snap, 0))),
+     item(<<"commonest kind holds">>,
+          [num(maps:get(kind_max_pct, Snap, 0)), <<"%">>]),
+     item(<<"founding lines left">>, num(maps:get(lineages, Snap, 0))),
+     item(<<"generations deep">>, num(maps:get(depth, Snap, 0))),
      item(<<"sensors each">>, hundredths(maps:get(sensor_mean, Snap, 0))),
      item(<<"hidden nodes each">>, hundredths(maps:get(hidden_mean, Snap, 0))),
+     %% Live weights per node, world 19. A brain getting cheaper and a brain
+     %% getting simpler are indistinguishable from the node count alone.
+     item(<<"live wires per node">>, hundredths(maps:get(hidden_width, Snap, 0))),
      item(<<"energy in creatures">>, num(maps:get(energy_total, Snap, 0))),
      item(<<"energy in the ground">>, num(maps:get(ground_total, Snap, 0))),
      item(<<"how patchy the ground is">>, num(maps:get(ground_spread, Snap, 0))),
