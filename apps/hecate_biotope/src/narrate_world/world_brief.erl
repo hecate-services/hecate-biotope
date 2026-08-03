@@ -65,10 +65,36 @@ get(Key, Snap) -> maps:get(Key, Snap, 0).
 %%
 %% Written here rather than in the module that talks to a model, because what a
 %% narrator may see is a decision about this project and not about an API.
+%%
+%% ⚠ THE HUNDREDTHS ARE SPELLED OUT HERE AND KEPT AS INTEGERS ON THE WIRE.
+%%
+%% This world's census reports means times a hundred, because everything on the
+%% mesh is an integer. Handing a model `sensors_each_x100: 242` and expecting it
+%% to divide is asking it to do arithmetic it is bad at, on the one kind of
+%% number a reader is least able to sanity-check.
+%%
+%% Measured: a 7B model read that field and wrote "each creature has 16 hidden
+%% nodes and 242 sensors", which is a hundred times the truth and was stated
+%% flatly. **A hosted 70B got it right, so it looked like a question of model
+%% quality and was in fact a question of how the number was presented.** The fact
+%% still carries the integers; only what the model READS is scaled.
 -spec lines(map()) -> iodata().
 lines(Brief) ->
-    [[atom_to_list(K), ": ", integer_to_list(V), "\n"]
-     || {K, V} <- lists:sort(maps:to_list(Brief)), is_integer(V)].
+    [line(K, V) || {K, V} <- lists:sort(maps:to_list(Brief)), is_integer(V)].
+
+line(Key, Value) -> shown(atom_to_list(Key), Value).
+
+shown(Name, Value) ->
+    hundredths(lists:suffix("_x100", Name), Name, Value).
+
+hundredths(false, Name, Value) ->
+    [Name, ": ", integer_to_list(Value), "\n"];
+hundredths(true, Name, Value) ->
+    [lists:sublist(Name, length(Name) - 5), ": ",
+     integer_to_list(Value div 100), ".", pad(Value rem 100), "\n"].
+
+pad(N) when N < 10 -> ["0", integer_to_list(N)];
+pad(N) -> integer_to_list(N).
 
 %% @doc Has the world done anything since the last time we spoke about it?
 %%

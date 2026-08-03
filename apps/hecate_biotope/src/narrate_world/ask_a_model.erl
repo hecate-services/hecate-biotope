@@ -35,12 +35,35 @@
 %% Both providers speak the OpenAI chat shape, so the default fits either and
 %% the URL is the only thing that has to change.
 -define(DEFAULT_URL, "https://api.melious.ai/v1/chat/completions").
--define(DEFAULT_MODEL, "mistral-small-latest").
--define(TIMEOUT_MS, 20000).
+%% ⚠ A MODEL NAME THAT WAS VERIFIED TO EXIST, which the first one was not. The
+%% default was `mistral-small-latest' and Melious answers that with a 404 and
+%% `model_not_found', which this module turns into `silent' exactly as it does an
+%% expired key or an unreachable host. **An island shipped with a default that
+%% could only ever be quiet**, and quiet is indistinguishable from working here
+%% by design.
+-define(DEFAULT_MODEL, "mistral-small-3.2-24b-instruct").
+%% ⚠ GENEROUS, BECAUSE A LOCAL MODEL IS NOT A CLOUD MODEL. A 7B running on a
+%% machine in the same room takes about twenty seconds for this many tokens
+%% where a hosted 70B takes two. The first attempt at pointing this at Ollama
+%% timed out at exactly 20,000ms and reported `silent', which is this module's
+%% word for "the model had nothing to say" and was in fact "I hung up on it".
+%%
+%% Nothing waits on this: the call runs in its own process and the world ticks on
+%% regardless, so a slow answer costs nothing and a missed one costs a sentence.
+%% Overridable because whoever points it at their own hardware knows better than
+%% this constant does.
+-define(DEFAULT_TIMEOUT_MS, 90000).
 
-%% Short on purpose. A narrator that writes paragraphs is a narrator nobody
-%% reads, and a long answer has more room to wander into explaining.
--define(MAX_TOKENS, 160).
+%% ⚠ SHORT, AND THE LENGTH IS NOT WHAT KEEPS IT SHORT. Told to "write two or
+%% three sentences", both 7B models enumerated the entire brief and were cut off
+%% mid-word at the token limit; a hosted 70B picked out the one striking figure
+%% and stopped. **The instruction that worked was not a length but a TASK**: pick
+%% the three most striking figures and say only those. Choosing is a different
+%% job from summarising, and a small model can do the first if you ask for it.
+%%
+%% The limit is still here as a backstop, and set high enough that hitting it is
+%% a symptom rather than the mechanism.
+-define(MAX_TOKENS, 220).
 
 %% ==========================================================================
 %% THE INSTRUCTION, AND THE ONE RULE IT ENFORCES
@@ -58,12 +81,25 @@
 %% The prompt is one half of that. The other half is `world_brief', which hands
 %% over nothing but numbers, so there is very little to build a cause out of even
 %% if the instruction is ignored.
+%%
+%% ⚠ AND IT GIVES VOCABULARY, NEVER A CONCLUSION. An earlier version helpfully
+%% explained "when new ways in the last thousand ticks is zero, the world has
+%% stopped finding new ways to make a living." A 7B model then wrote exactly that
+%% sentence on a world whose figure was FOUR, twice, confidently, about the single
+%% most important number in the brief.
+%%
+%% **An if-then handed to a small model is an invitation to fire the THEN without
+%% checking the IF.** A hosted 70B did not take the bait, which made it look like
+%% a question of model quality when it was a question of what the prompt taught.
+%% Definitions only now, and an explicit instruction not to recite them.
 -define(SYSTEM,
         <<"You are a narrator for a live artificial-life world. A spectator is "
           "looking at a page of numbers and wants to know what they are seeing.\n"
           "\n"
-          "Write two or three short sentences of plain English. No headings, no "
-          "lists, no markdown, no numbers-in-brackets.\n"
+          "PICK THE THREE MOST STRIKING FIGURES AND SAY ONLY THOSE. You are not "
+          "summarising the list; you are choosing what a person would notice. "
+          "Exactly three short sentences of plain English, then stop. No "
+          "headings, no lists, no markdown.\n"
           "\n"
           "SAY WHAT THE NUMBERS SAY. Do not say why anything happened. Do not "
           "guess at causes, motives, strategies or trends. If a number is "
@@ -73,11 +109,10 @@
           "Never invent a number you were not given. Never mention a creature, "
           "organ or behaviour that is not in the figures.\n"
           "\n"
-          "Useful things to know: a 'kind' is what a creature is built like. A "
-          "'way of living' is what it actually does. Creatures with no hidden "
-          "nodes cannot act on their own state at all. When new ways found in "
-          "the last thousand ticks is zero, the world has stopped finding new "
-          "ways to make a living.">>).
+          "Vocabulary, not conclusions: a 'kind' is what a creature is built "
+          "like. A 'way of living' is what it actually does. "
+          "new_ways_last_1000_ticks counts ways of living first seen recently. "
+          "Read every figure off the list; do not recite these definitions.">>).
 
 %% @doc Whether an island has been given what it needs to narrate.
 -spec configured() -> boolean().
@@ -120,7 +155,16 @@ post(Key, Model, Prompt) ->
     Headers = [{"authorization", "Bearer " ++ Key}],
     answered(httpc:request(post,
                            {Url, Headers, "application/json", Body},
-                           [{timeout, ?TIMEOUT_MS}], [{body_format, binary}])).
+                           [{timeout, timeout()}], [{body_format, binary}])).
+
+timeout() ->
+    milliseconds(os:getenv("HECATE_BIOTOPE_NARRATOR_TIMEOUT_MS")).
+
+milliseconds(false) -> ?DEFAULT_TIMEOUT_MS;
+milliseconds(Value) -> parsed(string:to_integer(Value)).
+
+parsed({Ms, ""}) when Ms > 0 -> Ms;
+parsed(_Unparseable) -> ?DEFAULT_TIMEOUT_MS.
 
 answered({ok, {{_V, 200, _R}, _H, Body}}) -> first_choice(Body);
 answered(_Anything) -> silent.
