@@ -1894,6 +1894,7 @@ econ_id(Econ) ->
                           signatures := [integer()], uptakes := [integer()],
                           ground := [integer()],
                           scent := [integer()],
+                          kind_of := [integer()], kind_table := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
 chart(#world{creatures = Cs, ground = G, scent = Scent,
              econ = Econ, tick = Tick}) ->
@@ -1932,12 +1933,65 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
       %% The ground as position and amount, at a stride of three. Only cells
       %% holding something are sent: an empty cell is one a spectator draws bare,
       %% and on a grazed board most of them are.
+      %% ==========================================================================
+      %% WHAT KIND EACH CREATURE IS, AND WHAT THE KINDS ARE
+      %% ==========================================================================
+      %%
+      %% ONE INDEX PER CREATURE AND THE ARCHITECTURES SENT ONCE. A hundred
+      %% creatures share five to twenty-seven body plans, so sending a genome per
+      %% head would send the same twenty structures a hundred times. The kind IS
+      %% the shared structure; that is what makes it worth being a thing.
+      %%
+      %% `kind_of' runs parallel to `ids', `energies' and the rest, so a viewer
+      %% colours by architecture the same way it sizes by structure. `kind_table'
+      %% is one record per distinct kind, in the same index order.
+      %%
+      %% ⚠ FLAT INTEGERS AND LENGTH PREFIXES, no tuples and no nesting, because
+      %% the wire rules in `world_facts' forbid both and a genome is the first
+      %% thing here that is not a fixed-width record. A kind reads:
+      %%
+      %%     nsensors, field, range, field, range, ..., nhidden, npurposes, p, ...
+      %%
+      %% `field' and `p' are indexes into `body:fields/0' and `brain:purposes/0',
+      %% which are fixed lists. **A test pins both orders**: reordering either
+      %% would silently change the meaning of every kind table ever published,
+      %% which is `I.6' with a wire between it and the reader.
+      kind_of => kind_indexes(Cs, Ids),
+      kind_table => kind_table(Cs),
       ground => flatten_ground(G),
       scent => flatten_scent(Scent),
       radius => maps:get(radius, Econ),
       tick => Tick}.
 
 flatten_hexes(Hexes) -> lists:append([[Q, R] || {Q, R} <- Hexes]).
+
+%% The distinct kinds present, in a fixed order, so an index means the same thing
+%% in `kind_of' and in `kind_table'. Sorted rather than map order: `G.6'.
+kinds_present(Cs) ->
+    lists:usort([kind_of(C) || C <- maps:values(Cs)]).
+
+kind_indexes(Cs, Ids) ->
+    Present = kinds_present(Cs),
+    [index_of(kind_of(maps:get(Id, Cs)), Present) || Id <- Ids].
+
+index_of(Kind, Present) -> position(Kind, Present, 0).
+
+position(Kind, [Kind | _Rest], N) -> N;
+position(Kind, [_Other | Rest], N) -> position(Kind, Rest, N + 1);
+position(_Kind, [], _N) -> -1.
+
+kind_table(Cs) ->
+    lists:append([encode_kind(K) || K <- kinds_present(Cs)]).
+
+encode_kind({Body, Hidden, Purposes}) ->
+    [length(Body)]
+        ++ lists:append([[field_code(F), R] || {F, R} <- Body])
+        ++ [Hidden, length(Purposes)]
+        ++ [purpose_code(P) || P <- Purposes].
+
+field_code(Field) -> position(Field, body:fields(), 0).
+
+purpose_code(Purpose) -> position(Purpose, brain:purposes(), 0).
 
 flatten_ground(G) ->
     lists:append([[Q, R, E] || {{Q, R}, E} <- lists:sort(maps:to_list(G)),

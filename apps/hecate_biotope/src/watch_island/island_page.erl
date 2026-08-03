@@ -71,11 +71,27 @@ page() ->
        "so the island tries several before it shows you one.</p>"
        "<p class=\"legend\">Each dot is a creature, sized by the <strong>body it "
        "has built</strong>, which is what decides every contest here, and "
-       "coloured by <strong>how fast it feeds</strong>: pale is gentle, deep is "
-       "voracious. Feeding slower than the ground recovers holds a cell for "
-       "good; feeding harder strips it and forces a move. The green is energy in "
-       "the ground and <strong>rose is a cell something died in</strong>. Violet "
-       "is a scent trail.</p></div><div id=\"vitals\">">>,
+       "coloured by <strong id=\"colouring\">feeding rate</strong> &mdash; "
+       "<kbd>K</kbd> switches. Pale is gentle feeding and deep is voracious: "
+       "feeding slower than the ground recovers holds a cell for good, feeding "
+       "harder strips it and forces a move. The green is energy in the ground "
+       "and <strong>rose is a cell something died in</strong>. Violet is a scent "
+       "trail.</p>"
+       %% ⚠ WHAT THIS IS ACTUALLY ABOUT, ON THE PAGE. Every version of this
+       %% legend before now described an ecology and never once said the word
+       %% brain, on a page whose entire subject is whether brains evolve. A
+       %% spectator could watch for an hour and not learn what was being asked.
+       "<p class=\"legend\">Press <kbd>K</kbd> and the dots colour by "
+       "<strong>kind</strong> instead. A kind is a <strong>body plan and a "
+       "brain</strong>: which of the four things there are to measure this "
+       "creature has sensors for, how many hidden nodes it thinks with, and "
+       "which of the four things there are to do it can do at all. Nothing "
+       "assigns these. A founder is drawn at random and every birth can add a "
+       "sensor, drop one, widen its reach, grow a node or gain and lose a "
+       "purpose, so <strong>a colour shared by two dots means two creatures "
+       "built the same way</strong>. One colour spreading across the disc is a "
+       "kind winning. Many colours holding is a world that has not decided."
+       "</p></div><div id=\"vitals\">">>,
      island_vitals:html(Snap, Pace, Status),
      <<"</div></main><footer>">>, settings(Pace),
      <<"</footer><div id=\"paused\" role=\"status\">paused &middot; space to "
@@ -180,6 +196,8 @@ css() ->
       "justify-self:start}"
       "pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;"
       "padding:.7rem;overflow:auto;font-size:.8rem}"
+      "kbd{font:inherit;font-size:.85em;border:1px solid currentColor;"
+      "border-radius:3px;padding:0 .3em;opacity:.8;}"
       "#paused{position:fixed;right:1rem;bottom:1rem;padding:.4rem .7rem;"
       "border-radius:999px;background:var(--fg);color:var(--bg);"
       "font-size:.75rem;display:none}">>.
@@ -192,7 +210,7 @@ css() ->
 %% does is paint what arrives.
 -spec js() -> binary().
 js() ->
-    <<"let on=true,was=new Map(),now=new Map(),d=null,started=0,frame=0;"
+    <<"let on=true,kinds=false,was=new Map(),now=new Map(),d=null,started=0,frame=0;"
       "const el=document.getElementById('disc'),c=el.getContext('2d');"
       "const css=v=>'#'+v.toString(16).padStart(6,'0');"
       %% RETINA, or the whole thing looks soft. A canvas has real pixels where
@@ -219,8 +237,8 @@ js() ->
       %% anything. The glow separates an object from the field it stands on,
       %% which one shared primitive could never do.
       "c.globalAlpha=1;"
-      "for(let i=0;i<d.creatures.length;i+=5){const id=d.creatures[i],"
-      "col=css(d.creatures[i+4]),r=d.creatures[i+3],"
+      "for(let i=0;i<d.creatures.length;i+=6){const id=d.creatures[i],"
+      "col=css(d.creatures[i+(kinds?5:4)]),r=d.creatures[i+3],"
       "tx=d.creatures[i+1],ty=d.creatures[i+2],f=was.get(id);"
       %% A STREAK IS THE TWEEN PATH DRAWN, so movement and its history are one
       %% thing. Only for a mark that was here last frame: something just born
@@ -247,7 +265,7 @@ js() ->
       "if(e<1)frame=requestAnimationFrame(step);};"
       "frame=requestAnimationFrame(step);};"
       "const board=n=>{was=now;const first=!d;d=n;if(first)fit();"
-      "now=new Map();for(let i=0;i<d.creatures.length;i+=5){"
+      "now=new Map();for(let i=0;i<d.creatures.length;i+=6){"
       "now.set(d.creatures[i],[d.creatures[i+1],d.creatures[i+2]]);}"
       "const gap=Math.min(2000,Math.max(120,performance.now()-started));"
       "started=performance.now();if(on)animate(gap);"
@@ -268,10 +286,17 @@ js() ->
       %% and the numbers keep moving, because watching a world and reading it are
       %% different activities and a board that moves under the cursor cannot be
       %% read.
-      "addEventListener('keydown',e=>{if(e.code==='Space'&&"
-      "e.target.tagName!=='INPUT'){e.preventDefault();on=!on;"
+      "addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;"
+      "if(e.code==='Space'){e.preventDefault();on=!on;"
       "document.getElementById('paused').style.display=on?'none':'block';"
-      "if(on)paint(1);}});">>.
+      "if(on)paint(1);}"
+      %% ⚠ K REPAINTS, IT DOES NOT REFETCH. Both colourings arrive in every
+      %% frame, so switching is a decision about which of six numbers to read and
+      %% costs nothing. A toggle that asked the island for a different picture
+      %% would be a second view of one world and could disagree with the first.
+      "else if(e.key==='k'||e.key==='K'){kinds=!kinds;"
+      "document.getElementById('colouring').textContent="
+      "kinds?'kind':'feeding rate';paint(1);}});">>.
 
 num(N) -> integer_to_binary(N).
 

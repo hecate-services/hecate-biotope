@@ -1333,3 +1333,72 @@ a_walk_terminates_test() ->
     #{tick := T, population := P} = world:snapshot(world:tick(W, 20)),
     ?assertEqual(20, T),
     ?assert(P > 0).
+
+%%==============================================================================
+%% What kind each creature is, on the wire
+%%==============================================================================
+
+%% ⚠ THE TWO ORDERS THE WIRE DEPENDS ON, PINNED. `kind_table` encodes a sensor's
+%% field and an actuator's purpose as INDEXES into `body:fields/0` and
+%% `brain:purposes/0`. Reordering either list would silently change the meaning
+%% of every kind table ever published, and nothing downstream could tell: a
+%% reader would draw a scent sensor where a ground sensor is. `I.6` with a wire
+%% between the instrument and the rule.
+the_wire_codes_for_fields_and_purposes_are_fixed_test() ->
+    ?assertEqual([creatures, ground, scent, self], body:fields()),
+    ?assertEqual([move, breed, grow, eat], brain:purposes()).
+
+%% ONE INDEX PER CREATURE, PARALLEL TO `ids`, like every other per-creature array
+%% on the chart. A viewer colours by architecture the same way it sizes by
+%% structure, and a length that disagrees with `ids` would slide colours across
+%% the board the way matching by position slid marks before `ids` existed.
+every_creature_has_a_kind_index_test() ->
+    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    #{ids := Ids, kind_of := Kinds} = world:chart(W),
+    ?assertEqual(length(Ids), length(Kinds)),
+    ?assert(lists:all(fun(K) -> K >= 0 end, Kinds)),
+    %% Every index points at a kind that is actually in the table.
+    #{kinds := Count} = world:snapshot(W),
+    ?assert(lists:max(Kinds) < Count).
+
+%% THE ARCHITECTURES ARE SENT ONCE AND THE HEADS POINT AT THEM. A hundred
+%% creatures share five to twenty-seven body plans, so a genome per head would
+%% send the same twenty structures a hundred times.
+the_kind_table_is_decodable_test() ->
+    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    #{kind_table := Table} = world:chart(W),
+    #{kinds := Count} = world:snapshot(W),
+    Decoded = decode_kinds(Table),
+    ?assertEqual(Count, length(Decoded)),
+    %% Flat integers only: no tuples, no floats, nothing nested. The wire rules
+    %% in `world_facts` forbid all three and a genome is the first thing here
+    %% that is not a fixed-width record.
+    ?assert(lists:all(fun is_integer/1, Table)),
+    %% Every sensor names a field that exists and every purpose a purpose.
+    Fields = length(body:fields()),
+    Purposes = length(brain:purposes()),
+    ?assert(lists:all(fun({Sensors, _H, Ps}) ->
+                              lists:all(fun({F, _R}) -> F < Fields end, Sensors)
+                                  andalso lists:all(fun(P) -> P < Purposes end, Ps)
+                      end, Decoded)).
+
+%% A world with nothing in it encodes to nothing rather than to a malformed
+%% record. Every seed here dies eventually and the chart is drawn either way.
+an_empty_world_has_no_kinds_test() ->
+    W = world:tick(quiet(#{recolonise_pct => 0, ground_growth_pct => 0,
+                           ground_ceiling => 0, metabolism => 30,
+                           start_energy => 20}), 5),
+    #{kind_of := Kinds, kind_table := Table} = world:chart(W),
+    ?assertEqual([], Kinds),
+    ?assertEqual([], Table).
+
+%% The reader a viewer would write, kept here so the format has exactly one
+%% definition on each side and a change to either breaks this test.
+decode_kinds([]) -> [];
+decode_kinds([NSensors | Rest]) ->
+    {Flat, [Hidden, NPurposes | Rest1]} = lists:split(NSensors * 2, Rest),
+    {Ps, Rest2} = lists:split(NPurposes, Rest1),
+    [{pairs_of(Flat), Hidden, Ps} | decode_kinds(Rest2)].
+
+pairs_of([]) -> [];
+pairs_of([F, R | Rest]) -> [{F, R} | pairs_of(Rest)].

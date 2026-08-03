@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 13).
+-define(FACT_VERSION, 14).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -356,7 +356,7 @@ world_charted(Chart, Pace) ->
     #{creatures := Creatures, ids := Ids, energies := Energies,
       structures := Structures, signatures := Signatures,
       uptakes := Uptakes, ground := Ground, scent := Scent, radius := Radius,
-      tick := Tick} = Chart,
+      kind_of := KindOf, kind_table := KindTable, tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
@@ -420,4 +420,37 @@ world_charted(Chart, Pace) ->
       %% against.
       scent => Scent,
       scent_stride => 3,
+      %% ==================================================================
+      %% WHAT EACH CREATURE IS, WHICH IS THE SUBJECT OF THE WHOLE PROJECT
+      %% ==================================================================
+      %%
+      %% Fourteen facts have gone out carrying where every creature is, how big
+      %% it is and how fast it feeds, and NOT ONE has carried what any of them
+      %% was built like. This is a neuroevolution experiment and its published
+      %% record described an ecology.
+      %%
+      %% A KIND IS A BODY PLAN AND A BRAIN: which fields it has sensors for and
+      %% at what reach, how many hidden nodes it computes with, and which
+      %% purposes it can act on. `G.8': `lineages' counts ANCESTORS and worlds
+      %% reading one lineage carry five to twenty-seven distinct architectures,
+      %% so ancestry has never been able to answer "how many kinds of creature
+      %% are there", and it is the question.
+      %%
+      %% ⚠ THE ARCHITECTURES GO ONCE AND THE HEADS POINT AT THEM. A genome per
+      %% creature would send the same twenty structures a hundred times. So
+      %% `kind_of' is one index per creature parallel to `ids', and `kind_table'
+      %% holds each architecture present, once, as flat integers:
+      %%
+      %%   NSensors, Field, Reach, ..., NHidden, NPurposes, Purpose, ...
+      %%
+      %% FIELD AND PURPOSE ARE INDEXES INTO `body:fields/0' AND
+      %% `brain:purposes/0', and a test pins both orders. Reordering either list
+      %% would silently change the meaning of every kind table ever published and
+      %% a reader would draw a scent sensor where a ground sensor is. That is
+      %% `I.6' with a wire between the instrument and the rule.
+      %%
+      %% Flat integers because the wire rules allow nothing else: no tuples, no
+      %% floats, no atoms as values.
+      kind_of => KindOf,
+      kind_table => KindTable,
       ticks_per_second => world_pace:ticks_per_second(Pace)}.

@@ -246,7 +246,10 @@ the_packed_strides_are_the_painters_contract_test() ->
     D = island_disc:packed(world:chart(W), 400),
     ?assertEqual(0, length(maps:get(ground, D)) rem 4),
     ?assertEqual(0, length(maps:get(trails, D)) rem 3),
-    ?assertEqual(0, length(maps:get(creatures, D)) rem 5),
+    %% SIX SINCE KINDS: id, x, y, radius, feeding colour, kind colour. Both
+    %% colourings travel together so pressing K is a repaint rather than a
+    %% refetch, and the painter reads `i+4' or `i+5' off one array.
+    ?assertEqual(0, length(maps:get(creatures, D)) rem 6),
     ?assertEqual(12, length(maps:get(rim, D))),
     ?assert(maps:get(cell, D) > 0).
 
@@ -288,7 +291,49 @@ a_short_chart_does_not_crash_the_page_test() ->
     D = island_disc:packed(#{radius => 4, ground => [],
                              creatures => [0, 0, 1, 1], ids => [7, 8],
                              structures => [], uptakes => [], scent => []}, 400),
-    ?assertEqual(10, length(maps:get(creatures, D))).
+    ?assertEqual(12, length(maps:get(creatures, D))).
+
+%%==============================================================================
+%% Colouring by kind
+%%==============================================================================
+
+%% ⚠ A KIND'S COLOUR COMES FROM THE ARCHITECTURE AND NOT FROM ITS INDEX, and this
+%% test is the whole reason the code does the more expensive thing. `kind_of' is
+%% an index into a SORTED table of the kinds present, so one creature dying can
+%% shift every index above it by one. A colour taken from the index would repaint
+%% the entire board for a change to a single creature, and a viewer would read
+%% that as the population turning over.
+a_kinds_colour_survives_another_kind_dying_test() ->
+    A = [1, 1, 0, 0, 1, 0],
+    B = [1, 2, 0, 0, 1, 0],
+    ?assertEqual(island_disc:kind_rgb(A), island_disc:kind_rgb(A)),
+    ?assertNotEqual(island_disc:kind_rgb(A), island_disc:kind_rgb(B)),
+    %% Same architecture, therefore same colour, whatever else is in the world.
+    ?assertEqual(island_disc:kind_rgb(B), island_disc:kind_rgb([1, 2, 0, 0, 1, 0])).
+
+%% Every colour is a real colour: in range, and neither black nor white, both of
+%% which would vanish against the ground or the glow.
+a_kind_colour_is_visible_test() ->
+    Colours = [island_disc:kind_rgb([N, 1, 0, 0, 1, 0]) || N <- lists:seq(1, 60)],
+    ?assert(lists:all(fun(C) -> C >= 0 andalso C =< 16#FFFFFF end, Colours)),
+    ?assert(lists:all(fun(C) -> C > 16#101010 end, Colours)),
+    %% And they are not all one colour: sixty architectures should not read as a
+    %% single population.
+    ?assert(length(lists:usort(Colours)) > 30).
+
+%% Two creatures of one kind get one colour ON THE BOARD, which is the claim the
+%% drawing makes and the only one a viewer can check by eye.
+one_kind_is_one_colour_on_the_board_test() ->
+    W = world:tick(world:new(#{seed => 7, population => 20, radius => 5}), 200),
+    Chart = world:chart(W),
+    D = island_disc:packed(Chart, 400),
+    Marks = maps:get(creatures, D),
+    Kinds = maps:get(kind_of, Chart),
+    Painted = every(6, 5, Marks),
+    ?assertEqual(length(Kinds), length(Painted)),
+    Pairs = lists:usort(lists:zip(Kinds, Painted)),
+    %% One colour per kind: no kind index appears twice with different colours.
+    ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)).
 
 colour_of(Packed) -> lists:nth(3, maps:get(ground, Packed)).
 

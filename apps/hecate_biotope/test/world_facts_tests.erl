@@ -81,6 +81,13 @@ carries_totals_rather_than_rates_test() ->
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
 %%
+%% Version 14 SENT THE ARCHITECTURES THEMSELVES, on the chart. Version 13 could
+%% say a world held nineteen kinds and could not say what any of them was. This
+%% one carries the body plan and brain of each: which of the four fields it has
+%% sensors for and at what reach, how many hidden nodes, which of the four
+%% purposes it can act on. Sent ONCE per architecture with an index per creature,
+%% because a hundred creatures share a couple of dozen structures.
+%%
 %% Version 13 named the KINDS: how many distinct architectures are alive, as
 %% against how many ancestors. `lineages` counts founders and can only fall, and
 %% `G.1` warns in its own words that a founding is ANCESTRY AND NOT A KIND, yet
@@ -94,7 +101,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(13, V).
+    ?assertEqual(14, V).
 
 %%==============================================================================
 %% Which door the island is on
@@ -183,6 +190,36 @@ chart() ->
     world_facts:world_charted(world:chart(world:new(#{population => 7,
                                                      radius => 5})),
                               world_pace:from_map(#{})).
+
+%% ⚠ THE CHART HAS NEVER HAD A WIRE-RULES TEST OF ITS OWN, and everything on it
+%% until now was a fixed-width record of integers where breaking a rule was hard.
+%% The kind table is not: it is a variable-length encoding of a structure, which
+%% is the first thing here that a careless change could turn into a list of
+%% tuples or a nested list. A CBOR wire that rejects a frame drops the whole
+%% picture, so this is checked on the chart and not only on the world fact.
+the_chart_obeys_the_wire_rules_test() ->
+    F = chart(),
+    ?assert(lists:all(fun is_atom/1, maps:keys(F))),
+    ?assertEqual([], [V || V <- maps:values(F), is_tuple(V)]),
+    %% Every list on the chart is flat integers, the kind table included.
+    Lists = [V || V <- maps:values(F), is_list(V), not is_binary(V)],
+    ?assert(lists:all(fun(L) -> lists:all(fun is_integer/1, L) end, Lists)).
+
+%% WHAT EACH CREATURE IS, WHICH IS THE POINT OF THE EXPERIMENT AND WAS NOT ON THE
+%% WIRE FOR FOURTEEN VERSIONS. `kinds` could say a world held nineteen
+%% architectures and nothing could say what any one of them was.
+the_chart_says_what_each_creature_is_built_like_test() ->
+    #{ids := Ids, kind_of := KindOf, kind_table := Table} = chart(),
+    %% One index per creature, parallel to `ids' like every other per-creature
+    %% list here. A length that disagreed would attribute architectures to the
+    %% wrong creatures, silently, which is what the parallel-list convention on
+    %% this fact exists to prevent.
+    ?assertEqual(length(Ids), length(KindOf)),
+    ?assert(lists:all(fun is_integer/1, Table)),
+    %% The architectures go once and the heads point at them: a founding
+    %% population of 7 draws at most 7 kinds and the table is far shorter than
+    %% seven genomes would be.
+    ?assert(lists:max(KindOf) < 7).
 
 chart_topic_is_its_own_test() ->
     ?assertEqual(<<"biotope/chart">>, world_facts:topic(chart)),

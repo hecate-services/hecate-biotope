@@ -41,7 +41,7 @@
 %%   less.
 -module(island_disc).
 
--export([packed/2, box/2, feeding_rgb/2, radius_for/2]).
+-export([packed/2, box/2, feeding_rgb/2, radius_for/2, kind_rgb/1]).
 
 %% The board is drawn into a square of this many pixels. The canvas scales it to
 %% whatever width the page has, so this is resolution and not layout.
@@ -82,7 +82,13 @@ packed(Chart, Ceiling) ->
       ground => flat([soil(M, Box, Ceiling) || M <- marks(maps:get(ground, Chart, []))]),
       %% [x, y, alpha%]
       trails => flat([trail(M, Box) || M <- marks(maps:get(scent, Chart, []))]),
-      %% [id, x, y, radius, rgb]
+      %% [id, x, y, radius, rgb_feeding, rgb_kind]
+      %%
+      %% BOTH COLOURINGS TRAVEL IN ONE FRAME, so switching between them is
+      %% instant and costs no round trip. They answer different questions and
+      %% neither replaces the other: feeding rate is a QUANTITY every island
+      %% shares a scale for, and kind is an IDENTITY that only means something
+      %% within one world.
       creatures => flat(creatures(Chart, Box, Cell, Ceiling)),
       %% [x, y] around the edge, so the board reads as an object with a rim
       %% rather than as a drawing that happens to stop.
@@ -131,12 +137,74 @@ creatures(Chart, Box, Cell, Ceiling) ->
     Points = pairs(maps:get(creatures, Chart, [])),
     Frames = maps:get(structures, Chart, []),
     Rates = maps:get(uptakes, Chart, []),
-    [creature(Id, P, F, U, Box, Cell, Ceiling)
-     || {Id, P, F, U} <- zip4(Ids, Points, Frames, Rates)].
+    Kinds = kind_colours(Chart),
+    [creature(Id, P, F, U, kind_colour(N, Kinds), Box, Cell, Ceiling)
+     || {N, {Id, P, F, U}} <- number(zip4(Ids, Points, Frames, Rates))].
 
-creature(Id, {Q, R}, Frame, Rate, Box, Cell, Ceiling) ->
+creature(Id, {Q, R}, Frame, Rate, KindRgb, Box, Cell, Ceiling) ->
     {X, Y} = to_pixel(Q, R, Box),
-    [Id, X, Y, radius_for(Cell, Frame), feeding_rgb(Rate, Ceiling)].
+    [Id, X, Y, radius_for(Cell, Frame), feeding_rgb(Rate, Ceiling), KindRgb].
+
+%% ==========================================================================
+%% A KIND'S COLOUR COMES FROM WHAT IT IS, NOT FROM WHERE IT SITS IN THE TABLE
+%% ==========================================================================
+%%
+%% `kind_of` is an INDEX into `kind_table`, and the table holds the kinds
+%% present, sorted. So the moment a kind appears or dies every index after it
+%% shifts, and a colour taken from the index would repaint the entire board for
+%% a change to one creature.
+%%
+%% Hashing the ARCHITECTURE instead gives a kind the same colour for the life of
+%% a world, and the same colour in two worlds that evolve the same body plan,
+%% which is the comparison worth being able to make by eye.
+kind_colours(Chart) ->
+    [kind_rgb(K) || K <- records(maps:get(kind_table, Chart, []))].
+
+kind_colour(_N, []) -> 16#888888;
+kind_colour(N, Colours) when N < length(Colours) -> lists:nth(N + 1, Colours);
+kind_colour(_N, _Colours) -> 16#888888.
+
+%% One record: nsensors, then field and range pairs, then hidden, then the
+%% purposes. The same reader `world_tests` keeps, because a format with two
+%% definitions has none.
+records([]) -> [];
+records([NSensors | Rest]) ->
+    {Sensors, [Hidden, NPurposes | Rest1]} = lists:split(NSensors * 2, Rest),
+    {Purposes, Rest2} = lists:split(NPurposes, Rest1),
+    [[NSensors | Sensors] ++ [Hidden | Purposes] | records(Rest2)].
+
+%% @doc A kind as a colour. Exported to be tested: "two creatures of one
+%% architecture get one colour, and two architectures rarely collide" is the
+%% whole claim this drawing makes about kinds.
+%%
+%% COSMETIC AND NOT PHYSICS, which is why a hash is acceptable here where `G.6`
+%% would forbid one: nothing reads a colour back, so a collision costs a reader a
+%% moment's confusion rather than costing a world its determinism.
+-spec kind_rgb([integer()]) -> non_neg_integer().
+kind_rgb(Record) ->
+    hsl(erlang:phash2(Record, 360), 62, 56).
+
+%% Saturation and lightness fixed so every kind reads at the same weight against
+%% the ground and the eye sorts them by hue alone.
+hsl(H, S, L) ->
+    C = (100 - abs(2 * L - 100)) * S,
+    X = C * (100 - abs(((H * 100 div 60) rem 200) - 100)) div 10000,
+    M = L * 100 - C div 2,
+    rgb(H div 60, C div 100, X div 1, M div 100).
+
+rgb(0, C, X, M) -> pack(C + M, X + M, M);
+rgb(1, C, X, M) -> pack(X + M, C + M, M);
+rgb(2, C, X, M) -> pack(M, C + M, X + M);
+rgb(3, C, X, M) -> pack(M, X + M, C + M);
+rgb(4, C, X, M) -> pack(X + M, M, C + M);
+rgb(_5, C, X, M) -> pack(C + M, M, X + M).
+
+pack(R, G, B) ->
+    clamp(R) * 16#10000 + clamp(G) * 16#100 + clamp(B).
+
+clamp(V) -> max(0, min(255, V * 255 div 100)).
+
+number(Items) -> lists:zip(lists:seq(0, length(Items) - 1), Items).
 
 %% @doc THE RADIUS GOES AS THE SQUARE ROOT, so the AREA carries the body rather
 %% than the radius: a circle is read by how much of it there is, and a linear
