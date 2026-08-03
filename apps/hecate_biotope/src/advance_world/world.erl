@@ -199,6 +199,13 @@
                 %% alone cannot tell those apart.
                 sensors_gained = 0 :: non_neg_integer(),
                 sensors_lost = 0 :: non_neg_integer(),
+                %% HOW MANY BIRTHS HAD TWO PARENTS, world 20. Outcrossing is
+                %% FACULTATIVE: a creature that breeds with nobody in reach
+                %% clones itself exactly as it did for nineteen worlds. So the
+                %% treatment is applied by the board rather than by a constant,
+                %% and this counter is the dose. Without it a null result cannot
+                %% be told from a rule that never fired.
+                outcrossed = 0 :: non_neg_integer(),
                 extinct_at = undefined :: non_neg_integer() | undefined,
                 %% THE NUMBER THIS WHOLE WORLD UNFOLDED FROM, carried so it can be
                 %% published. A world is a pure function of it, proven by
@@ -1352,20 +1359,25 @@ invest(Amount, Id, #world{creatures = Cs, econ = Econ} = W) ->
 %% does not exist yet for anybody else.
 breed(#world{creatures = Cs} = W) ->
     Herd = herd(Cs),
-    lists:foldl(fun(Id, Acc) -> breed_one(Id, Herd, Acc) end, W,
+    %% WHO IS WHERE, GATHERED ONCE, for the same reason the flesh is: a creature
+    %% must not find a mate among the children its neighbours had earlier in this
+    %% same fold. The board a creature breeds against is the board everyone else
+    %% bred against.
+    Near = occupancy(Cs),
+    lists:foldl(fun(Id, Acc) -> breed_one(Id, Herd, Near, Acc) end, W,
                 lists:sort(maps:keys(Cs))).
 
-breed_one(Id, Herd, #world{creatures = Cs, econ = Econ} = W) ->
+breed_one(Id, Herd, Near, #world{creatures = Cs, econ = Econ} = W) ->
     #{at := At, energy := E} = C = maps:get(Id, Cs),
     Outputs = brain:evaluate(maps:get(brain, C), inputs(C, At, At, Herd, W),
                              Econ),
-    willing(maps:get(breed, Outputs, 0) > 0 andalso E > 1, Id, W).
+    willing(maps:get(breed, Outputs, 0) > 0 andalso E > 1, Id, Near, W).
 
-willing(false, _Id, W) -> W;
-willing(true, Id, #world{creatures = Cs, econ = Econ} = W) ->
-    room(map_size(Cs) < maps:get(max_creatures, Econ), Id, W).
+willing(false, _Id, _Near, W) -> W;
+willing(true, Id, Near, #world{creatures = Cs, econ = Econ} = W) ->
+    room(map_size(Cs) < maps:get(max_creatures, Econ), Id, Near, W).
 
-room(false, _Id, #world{births_refused = R} = W) ->
+room(false, _Id, _Near, #world{births_refused = R} = W) ->
     W#world{births_refused = R + 1};
 %% A PARENT DOES NOT DISMANTLE ITS OWN BODY TO MAKE A CHILD, and until world 9 it
 %% did: half the frame went with half the store.
@@ -1387,7 +1399,7 @@ room(false, _Id, #world{births_refused = R} = W) ->
 %% what a reproductive buffer is in Kooijman's Dynamic Energy Budget theory. NO
 %% NEW CONSTANT: the dowry is still half the store, and the child is founded from
 %% it by the same split that founds a founder from `start_energy'.
-room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
+room(true, Id, Near, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
     #{at := At, energy := E} = C = maps:get(Id, Cs),
     Dowry = E div 2,
     Eff = maps:get(transfer_efficiency, Econ),
@@ -1399,14 +1411,51 @@ room(true, Id, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
     Store = Given div 2,
     Built = Given - Store,
     {Where, Rng1} = pick(hex:neighbours_in(At, maps:get(radius, Econ)), Rng0),
-    {Traits, Change, Rng2} = inherit_traits(C, Econ, Rng1),
+    {Mate, Rng2} = partner(Id, At, Near, Cs, Econ, Rng1),
+    {Traits, Change, Rng3} = inherit_traits(C, Mate, Econ, Rng2),
     %% WHAT THE PARENT GIVES UP IS NOT WHAT THE CHILD RECEIVES. Assembling a
     %% second creature is a transformation and pays like every other one.
     W1 = note_change(Change,
-                     W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
-                             dissipated = W#world.dissipated + (Dowry - Given),
-                             rng = Rng2}),
+                     note_mate(Mate,
+                               W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
+                                       dissipated = W#world.dissipated + (Dowry - Given),
+                                       rng = Rng3})),
     add_creature(Where, Store, Built, Id, Traits, W1).
+
+%% ==========================================================================
+%% WHO ELSE IS IN REACH, WHICH IS WORLD 20
+%% ==========================================================================
+%%
+%% THE SEVEN CELLS A CREATURE CAN STEP INTO: its own and the six around it. Not a
+%% new notion of nearness, but the one the world already has, the same
+%% neighbourhood `where/7' chooses a move from and `body:reading/4' averages a
+%% sensor over.
+%%
+%% ⚠ THE RADIUS WAS MEASURED, NOT CHOSEN. `scripts/is_anyone_in_reach.escript',
+%% run before any of this was written: a creature shares its CELL with another
+%% for 10% of its ticks and has someone in the seven cells for 55%. At a mean
+%% life near nine ticks, co-location alone is about ONE encounter per lifetime,
+%% which is `D.7' exactly ("nought to one chances in an entire life") and would
+%% have made outcrossing fire so rarely that the result could not be told from
+%% drift. Co-location is the narrower rule and it was rejected on the number.
+%%
+%% NOBODY CONSENTS AND NOBODY PAYS. The partner contributes genes and no energy,
+%% and is not asked. Mate choice and a cost of sex are each a second experiment.
+partner(Id, At, Near, Cs, Econ, Rng0) ->
+    Reach = [At | hex:neighbours_in(At, maps:get(radius, Econ))],
+    %% Sorted, because `G.6' is what happens when a draw takes its order from a
+    %% map: nineteen worlds where the same seed gave different worlds.
+    Others = lists:sort([P || Cell <- Reach, P <- maps:get(Cell, Near, []),
+                              P =/= Id]),
+    drawn(Others, Cs, Rng0).
+
+drawn([], _Cs, Rng) -> {alone, Rng};
+drawn(Others, Cs, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(Others), Rng0),
+    {maps:get(lists:nth(N, Others), Cs), Rng1}.
+
+note_mate(alone, W) -> W;
+note_mate(_Mate, #world{outcrossed = N} = W) -> W#world{outcrossed = N + 1}.
 
 note_change({added, _Pos}, #world{sensors_gained = G} = W) ->
     W#world{sensors_gained = G + 1};
@@ -1419,11 +1468,27 @@ note_change(none, W) ->
 %% STEP: a weight vector out of order with the sensor list is the one bug here
 %% that does not crash, because every weight past the change point quietly starts
 %% valuing a different measurement.
-inherit_traits(Parent, Econ, Rng0) ->
+%% ⚠ RECOMBINATION HAPPENS FIRST AND MUTATION IS UNCHANGED. World 20 adds a way
+%% for two genomes to become one and takes nothing away: the blended traits go
+%% through exactly the same body mutation, brain topology mutation and weight
+%% nudge that a clone has gone through since world 2. So a difference between
+%% worlds 19 and 20 is recombination and cannot be anything else.
+inherit_traits(Parent, Mate, Econ, Rng0) ->
+    {Source, Rng1} = combined(Mate, Parent, Econ, Rng0),
+    mutate_traits(Source, Econ, Rng1).
+
+combined(alone, Parent, _Econ, Rng) -> {Parent, Rng};
+combined(Mate, Parent, Econ, Rng) -> outcross:traits(Parent, Mate, Econ, Rng).
+
+mutate_traits(Parent, Econ, Rng0) ->
     #{body := Body, brain := Brain, scent := Tag, uptake := Rate,
       mouth := Mouth} = Parent,
     {ChildBody, Change, Rng1} = body:inherit(Body, Econ, Rng0),
-    {ChildBrain, Rng2} = brain:inherit(Brain, Change, Econ, Rng1),
+    %% THE CHILD'S OWN SENSOR COUNT, passed rather than recovered: a brain with
+    %% no hidden layer and no outputs has no shape to recover one from, and used
+    %% to answer zero.
+    {ChildBrain, Rng2} = brain:inherit(Brain, Change, length(ChildBody), Econ,
+                                       Rng1),
     {ChildTag, Rng3} = scent:inherit(Tag, Econ, Rng2),
     {ChildRate, Rng4} = inherit_rate(Rate, Econ, Rng3),
     %% THE SAME DRIFT AS THE GUT AND NO NEW CONSTANT. `uptake_mutation' is
@@ -1528,6 +1593,11 @@ snapshot(#world{econ = Econ} = W) ->
       consumed => W#world.consumed,
       absorbed => W#world.absorbed,
       births_refused => W#world.births_refused,
+      %% THE DOSE, AND A NULL IS UNREADABLE WITHOUT IT. Outcrossing is
+      %% facultative: it fires only when somebody is in reach, so "recombination
+      %% changed nothing" and "recombination almost never happened" look
+      %% identical in every other column.
+      outcrossed => W#world.outcrossed,
       energy_total => total_energy(W),
       %% STRUCTURE REPORTED APART FROM STORE, because a mean of the two added
       %% together is exactly the conflation world 6 exists to undo.
@@ -1919,6 +1989,7 @@ econ_id(Econ) ->
                           ground := [integer()],
                           scent := [integer()],
                           kind_of := [integer()], kind_table := [integer()],
+                          senses := [integer()], nodes := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
 chart(#world{creatures = Cs, ground = G, scent = Scent,
              econ = Econ, tick = Tick}) ->
@@ -1980,6 +2051,12 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
       %% which are fixed lists. **A test pins both orders**: reordering either
       %% would silently change the meaning of every kind table ever published,
       %% which is `I.6' with a wire between it and the reader.
+      %% WHAT EACH CREATURE IS MADE OF, per creature, so a mark can show its
+      %% traits and not only its size. Sensors and hidden nodes are the two
+      %% things that define it and neither was ever drawable.
+      senses => [length(maps:get(body, maps:get(Id, Cs))) || Id <- Ids],
+      nodes => [brain:hidden_count(maps:get(brain, maps:get(Id, Cs)))
+                || Id <- Ids],
       kind_of => kind_indexes(Cs, Ids),
       kind_table => kind_table(Cs),
       ground => flatten_ground(G),

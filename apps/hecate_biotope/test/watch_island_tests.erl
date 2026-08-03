@@ -249,7 +249,10 @@ the_packed_strides_are_the_painters_contract_test() ->
     %% SIX SINCE KINDS: id, x, y, radius, feeding colour, kind colour. Both
     %% colourings travel together so pressing K is a repaint rather than a
     %% refetch, and the painter reads `i+4' or `i+5' off one array.
-    ?assertEqual(0, length(maps:get(creatures, D)) rem 6),
+    %% EIGHT SINCE THE BULLSEYE: id, x, y, radius, feeding colour, kind colour,
+    %% senses, hidden nodes. A creature is not one quantity and a mark that shows
+    %% one is throwing the rest away.
+    ?assertEqual(0, length(maps:get(creatures, D)) rem 8),
     ?assertEqual(12, length(maps:get(rim, D))),
     ?assert(maps:get(cell, D) > 0).
 
@@ -291,7 +294,7 @@ a_short_chart_does_not_crash_the_page_test() ->
     D = island_disc:packed(#{radius => 4, ground => [],
                              creatures => [0, 0, 1, 1], ids => [7, 8],
                              structures => [], uptakes => [], scent => []}, 400),
-    ?assertEqual(12, length(maps:get(creatures, D))).
+    ?assertEqual(16, length(maps:get(creatures, D))).
 
 %%==============================================================================
 %% Colouring by kind
@@ -336,16 +339,20 @@ a_kind_colour_is_visible_test() ->
 %% the same function when no two creatures share a kind, so the world could not
 %% tell them apart however the assertions were written.
 %%
-%% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** Seed 101 at 300 ticks holds
-%% 84 creatures across 10 kinds, so kinds are shared, creatures outnumber them
-%% eight to one, and the fallback fires for anything past the tenth. Verified
-%% RED: with the bug reintroduced this test fails.
+%% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** It needs a board where kinds
+%% are SHARED, so the assertion below states the ratio it needs and the fixture
+%% has to earn it. Seed 3 at 600 ticks holds 96 creatures across 16 kinds.
+%%
+%% ⚠ AND THE GUARD HAS ALREADY EARNED ITS KEEP. The fixture was seed 101 at 300
+%% ticks until world 20, which changed the world enough that the same seed came
+%% to hold five creatures of five kinds. Every assertion above would have passed
+%% on it, vacuously, and the guard is the only thing that noticed.
 one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 101, population => 40}), 300),
+    W = world:tick(world:new(#{seed => 3, population => 40}), 600),
     Chart = world:chart(W),
     D = island_disc:packed(Chart, 400),
     Kinds = maps:get(kind_of, Chart),
-    Painted = every(6, 5, maps:get(creatures, D)),
+    Painted = every(8, 5, maps:get(creatures, D)),
     ?assertEqual(length(Kinds), length(Painted)),
     Pairs = lists:usort(lists:zip(Kinds, Painted)),
     %% One colour per kind: no kind index appears twice with different colours.
@@ -379,7 +386,7 @@ the_colour_follows_the_kind_and_not_the_position_test() ->
                              kind_of => [1, 0, 1, 0],
                              kind_table => [1, 1, 0, 0, 1, 0,
                                             1, 2, 0, 0, 1, 0]}, 400),
-    [A, B, C, E] = every(6, 5, maps:get(creatures, D)),
+    [A, B, C, E] = every(8, 5, maps:get(creatures, D)),
     ?assertEqual(A, C),
     ?assertEqual(B, E),
     ?assertNotEqual(A, B),
@@ -393,7 +400,7 @@ an_island_that_sends_no_kinds_still_draws_test() ->
     D = island_disc:packed(#{radius => 4, ground => [], scent => [],
                              creatures => [0, 0, 1, 1], ids => [7, 8],
                              structures => [40, 40], uptakes => [1, 1]}, 400),
-    ?assertEqual([16#888888, 16#888888], every(6, 5, maps:get(creatures, D))).
+    ?assertEqual([16#888888, 16#888888], every(8, 5, maps:get(creatures, D))).
 
 colour_of(Packed) -> lists:nth(3, maps:get(ground, Packed)).
 

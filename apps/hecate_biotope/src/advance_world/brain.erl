@@ -52,7 +52,7 @@
 %% the reason the shape after every kind of change is asserted directly.
 -module(brain).
 
--export([founder/3, inherit/4, evaluate/3, attention/2]).
+-export([founder/3, inherit/5, evaluate/3, attention/2]).
 -export([purposes/0, hidden_count/1, hidden_weights/1, has/2, width/2]).
 -export([output_weights/1, carried/1, live/1, live_per_node/1]).
 
@@ -272,11 +272,30 @@ column(I, Vectors) ->
 %%
 %% THE BODY'S CHANGE IS APPLIED FIRST AND MUST MATCH IT EXACTLY, or every weight
 %% past the change point silently reads a different measurement.
+%% ⚠ THE SENSOR COUNT IS PASSED IN AND NOT RECOVERED, which it used to be.
+%%
+%% `inputs_of/1' read the width off the brain's first hidden row, or off any
+%% output if there were no hidden rows, **and returned 0 when there was neither**.
+%% A brain with no hidden layer and no outputs at all has no shape to recover a
+%% shape from, and its comment claimed the opposite: "recovered from the brain's
+%% own shape rather than passed in, so it cannot disagree with what the vectors
+%% actually are."
+%%
+%% Then growing a hidden node made a row one weight wide for a creature with
+%% three sensors, and the next tick crashed in `dot/2' on lists of different
+%% lengths. **The one misalignment in this file that DOES crash**, which is why
+%% it was found at all.
+%%
+%% It has been reachable since world 6, when losing an output became possible:
+%% a lineage that shed all four purposes and had no hidden node was one grow away
+%% from it. Nothing ever hit it because shedding four outputs takes four separate
+%% mutations. World 20 made it common, because a child can fail to inherit all
+%% four in a single birth, and that is how it surfaced.
 -spec inherit(brain(), none | {added, pos_integer()} | {dropped, pos_integer()},
-              map(), rand:state()) -> {brain(), rand:state()}.
-inherit(Brain, SensorChange, Econ, Rng0) ->
+              non_neg_integer(), map(), rand:state()) -> {brain(), rand:state()}.
+inherit(Brain, SensorChange, Sensors, Econ, Rng0) ->
     Followed = follow_body(SensorChange, Brain),
-    {Grown, Rng1} = mutate_topology(Followed, Econ, Rng0),
+    {Grown, Rng1} = mutate_topology(Followed, Sensors, Econ, Rng0),
     nudge_all(Grown, Econ, Rng1).
 
 %% A GAINED SENSOR ARRIVES WEIGHTED AT ZERO in every vector that reads it, rather
@@ -308,15 +327,15 @@ remove(Pos, List) ->
 %% One structural change to the brain's own shape per birth, at the same rate the
 %% body changes: grow a hidden node, prune one, or gain or lose the ability to do
 %% something at all.
-mutate_topology(Brain, Econ, Rng0) ->
+mutate_topology(Brain, Sensors, Econ, Rng0) ->
     {Roll, Rng1} = rand:uniform_s(max(1, maps:get(brain_mutation_structural,
                                                   Econ)), Rng0),
-    topology(Roll, Brain, Econ, Rng1).
+    topology(Roll, Brain, Sensors, Econ, Rng1).
 
-topology(1, Brain, Econ, Rng0) ->
+topology(1, Brain, Sensors, Econ, Rng0) ->
     {Kind, Rng1} = rand:uniform_s(3, Rng0),
-    restructure(Kind, Brain, Econ, Rng1);
-topology(_NoMutation, Brain, _Econ, Rng) ->
+    restructure(Kind, Brain, Sensors, Econ, Rng1);
+topology(_NoMutation, Brain, _Sensors, _Econ, Rng) ->
     {Brain, Rng}.
 
 %% A NEW HIDDEN NODE COMPUTES SOMETHING AND NOTHING LISTENS TO IT. Its own input
@@ -324,22 +343,23 @@ topology(_NoMutation, Brain, _Econ, Rng) ->
 %% the creature behaves exactly as its parent did until drift connects it. Same
 %% argument as a new sensor: the capacity appears first and is adopted later, or
 %% never.
-restructure(1, #{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
-    grow_hidden(length(H) < maps:get(max_hidden, Econ), Brain, H, Os, Econ, Rng0);
-restructure(2, #{hidden := []} = Brain, _Econ, Rng) ->
+restructure(1, #{hidden := H, outputs := Os} = Brain, Sensors, Econ, Rng0) ->
+    grow_hidden(length(H) < maps:get(max_hidden, Econ), Brain, H, Os, Sensors,
+                Econ, Rng0);
+restructure(2, #{hidden := []} = Brain, _Sensors, _Econ, Rng) ->
     {Brain, Rng};
-restructure(2, #{hidden := H, outputs := Os} = Brain, _Econ, Rng0) ->
+restructure(2, #{hidden := H, outputs := Os} = Brain, _Sensors, _Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(length(H), Rng0),
     {Brain#{hidden => remove(N, H),
             outputs => maps:map(fun(_P, O) -> on_hidden(O, N) end, Os)}, Rng1};
-restructure(3, Brain, Econ, Rng0) ->
+restructure(3, Brain, Sensors, Econ, Rng0) ->
     {N, Rng1} = rand:uniform_s(length(?PURPOSES), Rng0),
-    toggle(lists:nth(N, ?PURPOSES), Brain, Econ, Rng1).
+    toggle(lists:nth(N, ?PURPOSES), Brain, Sensors, Econ, Rng1).
 
-grow_hidden(false, Brain, _H, _Os, _Econ, Rng) ->
+grow_hidden(false, Brain, _H, _Os, _Sensors, _Econ, Rng) ->
     {Brain, Rng};
-grow_hidden(true, Brain, H, Os, Econ, Rng0) ->
-    Width = width(inputs_of(Brain), inputs),
+grow_hidden(true, Brain, H, Os, Sensors, Econ, Rng0) ->
+    Width = width(Sensors, inputs),
     {Row, Rng1} = draw_row(Width, Econ, Rng0),
     {Brain#{hidden => H ++ [Row],
             outputs => maps:map(fun(_P, O) -> listen_to_nothing(O) end, Os)},
@@ -354,23 +374,16 @@ on_hidden(#{hidden := WH} = O, N) -> O#{hidden => remove(N, WH)}.
 %% than a death sentence: it takes what gathers where it stands. One with no
 %% `breed' leaves no descendants, so its lineage ends there, which is simply very
 %% strong selection rather than a rule against it.
-toggle(Purpose, #{outputs := Os} = Brain, Econ, Rng0) ->
-    flip(maps:is_key(Purpose, Os), Purpose, Brain, Econ, Rng0).
+toggle(Purpose, #{outputs := Os} = Brain, Sensors, Econ, Rng0) ->
+    flip(maps:is_key(Purpose, Os), Purpose, Brain, Sensors, Econ, Rng0).
 
-flip(true, Purpose, #{outputs := Os} = Brain, _Econ, Rng) ->
+flip(true, Purpose, #{outputs := Os} = Brain, _Sensors, _Econ, Rng) ->
     {Brain#{outputs => maps:remove(Purpose, Os)}, Rng};
-flip(false, Purpose, #{hidden := H, outputs := Os} = Brain, Econ, Rng0) ->
-    {Ins, Rng1} = draw_row(width(inputs_of(Brain), inputs), Econ, Rng0),
+flip(false, Purpose, #{hidden := H, outputs := Os} = Brain, Sensors, Econ,
+     Rng0) ->
+    {Ins, Rng1} = draw_row(width(Sensors, inputs), Econ, Rng0),
     {Hids, Rng2} = draw_row(length(H), Econ, Rng1),
     {Brain#{outputs => Os#{Purpose => #{inputs => Ins, hidden => Hids}}}, Rng2}.
-
-%% Recovered from the brain's own shape rather than passed in, so it cannot
-%% disagree with what the vectors actually are.
-inputs_of(#{hidden := [Row | _]}) -> length(Row) - 1;
-inputs_of(#{outputs := Os}) -> from_outputs(maps:values(Os)).
-
-from_outputs([]) -> 0;
-from_outputs([#{inputs := Ins} | _]) -> length(Ins) - 1.
 
 %% Every weight, by a small symmetric step. Small and everywhere makes a lineage
 %% DRIFT through strategy space so intermediate forms exist and selection has a

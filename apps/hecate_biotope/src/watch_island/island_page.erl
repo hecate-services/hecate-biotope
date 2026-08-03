@@ -77,6 +77,14 @@ page() ->
        "harder strips it and forces a move. The green is energy in the ground "
        "and <strong>rose is a cell something died in</strong>. Violet is a scent "
        "trail.</p>"
+       "<p class=\"legend\">A mark is a <strong>target, not a dot</strong>. Its "
+       "SIZE is the body every contest here is decided on. The <strong>rings "
+       "inside it</strong> are how many things it measures, one ring per pair of "
+       "senses. The <strong>lit core</strong> means it has a hidden node and "
+       "therefore computes rather than merely reacts: fewer than one creature in "
+       "two carries one, and a creature without one cannot act on its own state "
+       "at all, because its own energy reads the same for every cell it can "
+       "reach and cancels out of the comparison.</p>"
        %% ⚠ WHAT THIS IS ACTUALLY ABOUT, ON THE PAGE. Every version of this
        %% legend before now described an ecology and never once said the word
        %% brain, on a page whose entire subject is whether brains evolve. A
@@ -237,8 +245,9 @@ js() ->
       %% anything. The glow separates an object from the field it stands on,
       %% which one shared primitive could never do.
       "c.globalAlpha=1;"
-      "for(let i=0;i<d.creatures.length;i+=6){const id=d.creatures[i],"
+      "for(let i=0;i<d.creatures.length;i+=8){const id=d.creatures[i],"
       "col=css(d.creatures[i+(kinds?5:4)]),r=d.creatures[i+3],"
+      "sn=d.creatures[i+6],nd=d.creatures[i+7],"
       "tx=d.creatures[i+1],ty=d.creatures[i+2],f=was.get(id);"
       %% A STREAK IS THE TWEEN PATH DRAWN, so movement and its history are one
       %% thing. Only for a mark that was here last frame: something just born
@@ -249,7 +258,23 @@ js() ->
       "c.stroke();}"
       "const x=f?f[0]+(tx-f[0])*e:tx,y=f?f[1]+(ty-f[1])*e:ty;"
       "c.globalAlpha=f?1:e;c.shadowColor=col;c.shadowBlur=Math.max(2,r);"
-      "c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,6.284);c.fill();}"
+      "c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,6.284);c.fill();"
+      %% A RING PER PAIR OF SENSES, drawn inside the body rather than around it,
+      %% so a well-equipped creature does not grow larger than a bigger one. Size
+      %% is body and body alone: it decides every contest and must not be
+      %% confounded with what a creature can perceive.
+      "c.shadowBlur=0;"
+      "if(sn>0){c.strokeStyle='rgba(255,255,255,0.55)';"
+      "c.lineWidth=Math.max(0.6,r*0.12);"
+      "for(let k=1;k<=Math.min(3,Math.ceil(sn/2));k++){"
+      "const rr=r*(1-k*0.24);if(rr>0.6){c.beginPath();"
+      "c.arc(x,y,rr,0,6.284);c.stroke();}}}"
+      %% A LIT CORE MEANS IT COMPUTES. Well under one creature in two carries a
+      %% hidden node, so this picks out the few that think from the many that
+      %% react, and it is the single rarest thing on the board.
+      "if(nd>0){c.fillStyle='#FFF3B0';c.shadowColor='#FFF3B0';"
+      "c.shadowBlur=Math.max(3,r);c.beginPath();"
+      "c.arc(x,y,Math.max(0.8,r*0.3),0,6.284);c.fill();c.shadowBlur=0;}}"
       "c.shadowBlur=0;c.globalAlpha=0.35;"
       "c.strokeStyle=getComputedStyle(el).color;c.lineWidth=1;c.beginPath();"
       "for(let i=0;i<d.rim.length;i+=2){i?c.lineTo(d.rim[i],d.rim[i+1]):"
@@ -265,7 +290,7 @@ js() ->
       "if(e<1)frame=requestAnimationFrame(step);};"
       "frame=requestAnimationFrame(step);};"
       "const board=n=>{was=now;const first=!d;d=n;if(first)fit();"
-      "now=new Map();for(let i=0;i<d.creatures.length;i+=6){"
+      "now=new Map();for(let i=0;i<d.creatures.length;i+=8){"
       "now.set(d.creatures[i],[d.creatures[i+1],d.creatures[i+2]]);}"
       "const gap=Math.min(2000,Math.max(120,performance.now()-started));"
       "started=performance.now();if(on)animate(gap);"

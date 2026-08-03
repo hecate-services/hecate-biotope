@@ -146,7 +146,7 @@ still() -> with(#{brain_mutation => 0, brain_mutation_structural => 1000000}).
 a_gained_sensor_inserts_a_zero_in_every_vector_test() ->
     Parent = #{hidden => [[5, 6, 9]],
                outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
-    {Child, _} = brain:inherit(Parent, {added, 2}, still(), rng()),
+    {Child, _} = brain:inherit(Parent, {added, 2}, 3, still(), rng()),
     ?assertEqual([[5, 0, 6, 9]], maps:get(hidden, Child)),
     ?assertEqual(#{inputs => [1, 0, 2, 3], hidden => [4]},
                  maps:get(move, maps:get(outputs, Child))).
@@ -154,7 +154,7 @@ a_gained_sensor_inserts_a_zero_in_every_vector_test() ->
 a_lost_sensor_removes_its_column_from_every_vector_test() ->
     Parent = #{hidden => [[5, 6, 9]],
                outputs => #{move => #{inputs => [1, 2, 3], hidden => [4]}}},
-    {Child, _} = brain:inherit(Parent, {dropped, 2}, still(), rng()),
+    {Child, _} = brain:inherit(Parent, {dropped, 2}, 1, still(), rng()),
     ?assertEqual([[5, 9]], maps:get(hidden, Child)),
     ?assertEqual(#{inputs => [1, 3], hidden => [4]},
                  maps:get(move, maps:get(outputs, Child))).
@@ -170,7 +170,7 @@ a_gained_hidden_node_is_listened_to_by_nobody_test() ->
     Parent = #{hidden => [], outputs => #{move => #{inputs => [1, 2],
                                                     hidden => []}}},
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit(Parent, none, Grows, R) end,
+                      fun(_I, R) -> brain:inherit(Parent, none, 2, Grows, R) end,
                       rng(), lists:seq(1, 60)),
     Grown = [C || C <- Children, brain:hidden_count(C) =:= 1],
     ?assert(length(Grown) > 0),
@@ -187,12 +187,21 @@ every_vector_fits_after_any_change_test() ->
                outputs => #{move => #{inputs => [7, 8, 9], hidden => [1, 2]},
                             breed => #{inputs => [1, 1, 1], hidden => [3, 4]}}},
     Churn = with(#{brain_mutation => 1, brain_mutation_structural => 1}),
-    Changes = [none, {added, 1}, {added, 3}, {dropped, 1}, {dropped, 3}],
-    lists:foreach(fun(Change) -> fits(Parent, Change, Churn) end, Changes).
+    %% ⚠ THE SENSOR COUNT IS THE CHILD'S, NOT THE PARENT'S, and it is now passed
+    %% rather than recovered from the brain. The parent has two sensors; a child
+    %% that gained one has three and one that lost one has a single sensor, and
+    %% passing the parent's count would rebuild a vector to the wrong width in
+    %% exactly the case this test exists to cover.
+    Changes = [{none, 2}, {{added, 1}, 3}, {{added, 3}, 3},
+               {{dropped, 1}, 1}, {{dropped, 3}, 1}],
+    lists:foreach(fun({Change, Sensors}) -> fits(Parent, Change, Sensors, Churn)
+                  end, Changes).
 
-fits(Parent, Change, Econ) ->
+fits(Parent, Change, Sensors, Econ) ->
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit(Parent, Change, Econ, R) end,
+                      fun(_I, R) ->
+                              brain:inherit(Parent, Change, Sensors, Econ, R)
+                      end,
                       rng(), lists:seq(1, 40)),
     lists:foreach(fun consistent/1, Children).
 
@@ -215,7 +224,7 @@ outputs_are_gained_and_lost_test() ->
     Parent = #{hidden => [], outputs => #{move => #{inputs => [1],
                                                     hidden => []}}},
     {Children, _} = lists:mapfoldl(
-                      fun(_I, R) -> brain:inherit(Parent, none, Churn, R) end,
+                      fun(_I, R) -> brain:inherit(Parent, none, 2, Churn, R) end,
                       rng(), lists:seq(1, 90)),
     ?assert(lists:any(fun(C) -> not brain:has(move, C) end, Children)),
     ?assert(lists:any(fun(C) -> brain:has(breed, C) end, Children)).

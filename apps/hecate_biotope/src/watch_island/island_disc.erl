@@ -82,7 +82,7 @@ packed(Chart, Ceiling) ->
       ground => flat([soil(M, Box, Ceiling) || M <- marks(maps:get(ground, Chart, []))]),
       %% [x, y, alpha%]
       trails => flat([trail(M, Box) || M <- marks(maps:get(scent, Chart, []))]),
-      %% [id, x, y, radius, rgb_feeding, rgb_kind]
+      %% [id, x, y, radius, rgb_feeding, rgb_kind, senses, nodes]
       %%
       %% BOTH COLOURINGS TRAVEL IN ONE FRAME, so switching between them is
       %% instant and costs no round trip. They answer different questions and
@@ -152,12 +152,33 @@ creatures(Chart, Box, Cell, Ceiling) ->
     %% "each kind has exactly one colour" perfectly.
     Colours = kind_colours(Chart),
     Kinds = maps:get(kind_of, Chart, []),
-    [creature(Id, P, F, U, kind_colour(K, Colours), Box, Cell, Ceiling)
-     || {Id, P, F, U, K} <- zip5(Ids, Points, Frames, Rates, Kinds)].
+    Senses = maps:get(senses, Chart, []),
+    Nodes = maps:get(nodes, Chart, []),
+    [creature(Id, P, F, U, kind_colour(K, Colours), {S, N}, Box, Cell, Ceiling)
+     || {Id, P, F, U, K, S, N} <-
+            zip7(Ids, Points, Frames, Rates, Kinds, Senses, Nodes)].
 
-creature(Id, {Q, R}, Frame, Rate, KindRgb, Box, Cell, Ceiling) ->
+%% ⚠ A MARK IS A TARGET AND NOT A DOT, because a creature is not one quantity.
+%% Its SIZE is the body every contest is decided on, its FILL is how it feeds or
+%% what it is, its RING is how many things it measures, and its CORE is whether
+%% it computes at all. Four traits on one mark, and the fourth is the rarest and
+%% the point: well under one creature in two carries a hidden node, so a lit core
+%% picks out the few that think from the many that react.
+creature(Id, {Q, R}, Frame, Rate, KindRgb, {Senses, Nodes}, Box, Cell, Ceiling) ->
     {X, Y} = to_pixel(Q, R, Box),
-    [Id, X, Y, radius_for(Cell, Frame), feeding_rgb(Rate, Ceiling), KindRgb].
+    [Id, X, Y, radius_for(Cell, Frame), feeding_rgb(Rate, Ceiling), KindRgb,
+     count(Senses), count(Nodes)].
+
+count(N) when is_integer(N), N >= 0 -> N;
+count(_Absent) -> 0.
+
+zip7([], _P, _F, _U, _K, _S, _N) -> [];
+zip7(_I, [], _F, _U, _K, _S, _N) -> [];
+zip7([Id | Ids], [P | Ps], Frames, Rates, Kinds, Senses, Nodes) ->
+    [{Id, P, head(Frames, 0), head(Rates, absent), head(Kinds, none),
+      head(Senses, 0), head(Nodes, 0)}
+     | zip7(Ids, Ps, tail(Frames), tail(Rates), tail(Kinds), tail(Senses),
+            tail(Nodes))].
 
 %% ==========================================================================
 %% A KIND'S COLOUR COMES FROM WHAT IT IS, NOT FROM WHERE IT SITS IN THE TABLE
@@ -290,12 +311,6 @@ pairs(_Ragged) -> [].
 %% Kinds are carried through the same lenient zip as everything else, so an
 %% island on an older build that sends no `kind_of' draws in feeding colours and
 %% greys rather than failing to draw.
-zip5([], _P, _F, _U, _K) -> [];
-zip5(_I, [], _F, _U, _K) -> [];
-zip5([Id | Ids], [P | Ps], Frames, Rates, Kinds) ->
-    [{Id, P, head(Frames, 0), head(Rates, absent), head(Kinds, none)}
-     | zip5(Ids, Ps, tail(Frames), tail(Rates), tail(Kinds))].
-
 head([], Default) -> Default;
 head([H | _T], _Default) -> H.
 
