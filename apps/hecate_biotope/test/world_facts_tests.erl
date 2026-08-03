@@ -47,7 +47,8 @@ carries_totals_rather_than_rates_test() ->
     lists:foreach(fun(K) -> ?assert(is_integer(maps:get(K, F))) end,
                   [born, starved, aged_out, consumed, absorbed,
                    births_refused, population, energy_total, ground_total,
-                   ground_spread, still_pct, hidden_mean, movers, breeders,
+                   ground_spread, still_pct, hidden_mean, hidden_width, movers,
+                   breeders,
                    from_creatures_pct, sensor_mean, scent_tags, scent_spread]),
     %% The shape of the population rather than its average, as short
     %% fixed-length lists of counts.
@@ -81,6 +82,13 @@ carries_totals_rather_than_rates_test() ->
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
 %%
+%% Version 15 published `hidden_width`, which had been computed since world 19
+%% and stopped at the island's own page. World 19 exists to ask whether a brain
+%% can become NARROWER as against smaller, and no published fact could answer it:
+%% a brain getting cheaper and a brain getting simpler are indistinguishable from
+%% a node count. Six worlds of history were recorded without the one column the
+%% rules change was about.
+%%
 %% Version 14 SENT THE ARCHITECTURES THEMSELVES, on the chart. Version 13 could
 %% say a world held nineteen kinds and could not say what any of them was. This
 %% one carries the body plan and brain of each: which of the four fields it has
@@ -101,7 +109,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(14, V).
+    ?assertEqual(15, V).
 
 %%==============================================================================
 %% Which door the island is on

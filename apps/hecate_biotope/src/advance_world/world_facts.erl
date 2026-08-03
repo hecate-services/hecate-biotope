@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 14).
+-define(FACT_VERSION, 15).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -137,6 +137,7 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       sensors_gained := Gained, sensors_lost := Lost,
       ground_total := GroundTotal, ground_spread := GroundSpread,
       still_pct := Still, hidden_mean := HiddenMean,
+      hidden_width := HiddenWidth,
       movers := Movers, breeders := Breeders,
       dissipated := Dissipated, structure_total := StructureTotal,
       structure_max := StructureMax, lineages := Lineages, depth := Depth,
@@ -222,6 +223,17 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       %% at all. An absent output is not a weak one: it is a creature that never
       %% does that thing.
       hidden_mean => HiddenMean,
+      %% ⚠ HOW MUCH OF THAT BRAIN IS WIRED TO ANYTHING, which world 19 made a
+      %% trait and this fact did not carry. It has been in the snapshot since
+      %% that world shipped and stopped at the island's own page, so the whole
+      %% question world 19 exists to ask was unanswerable from anything
+      %% published.
+      %%
+      %% A BRAIN GETTING CHEAPER AND A BRAIN GETTING SIMPLER ARE INDISTINGUISHABLE
+      %% FROM THE NODE COUNT ALONE. A node wired to six inputs is six times the
+      %% apparatus of one wired to a single input, and until world 19 they cost
+      %% the same. Live weights per node, times a hundred.
+      hidden_width => HiddenWidth,
       movers => Movers,
       breeders => Breeders,
       %% Per field: how many creatures carry a sensor for it, and the total reach
