@@ -36,7 +36,7 @@
          world_charted/2]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 15).
+-define(FACT_VERSION, 16).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -131,6 +131,8 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId, seed := Seed,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       kinds := Kinds, kind_max_pct := KindMax,
+      explored := Explored, frontier := Frontier,
+      behaviour_space := Space, deepest_elite := Elite,
       sensors := Sensors, sensor_mean := SensorMean,
       sensor_hist := SensorHist, hidden_hist := HiddenHist,
       uptake_hist := UptakeHist,
@@ -246,6 +248,30 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       %% reading one lineage routinely carries twenty of these.
       kinds => Kinds,
       kind_max_pct => KindMax,
+      %% ==================================================================
+      %% HOW MUCH OF THE SPACE OF WAYS-OF-LIVING HAS BEEN FOUND
+      %% ==================================================================
+      %%
+      %% `kinds' counts ARCHITECTURES: what creatures ARE. These count
+      %% BEHAVIOURS: what they DO. Two creatures of one architecture can make a
+      %% living in completely different ways, and measured on a live world the
+      %% two numbers move in OPPOSITE directions: over six thousand ticks
+      %% architectures fell from 38 to 10 while ways of living rose from 0 to 91
+      %% of 125. A census of the genotype alone would have called that
+      %% convergence.
+      %%
+      %% ⚠ `frontier' IS THE ONE THAT CAN FALL, and it is the point. `explored'
+      %% only ever rises, so a world that stopped discovering last night still
+      %% reports a large number and looks healthy. The frontier counts what was
+      %% found in the last thousand ticks. **Zero is convergence**, and this
+      %% world reached zero at tick 3,000 and came back to 14 by tick 4,000.
+      %%
+      %% This is the closest thing a world with no fitness function has to a
+      %% curve, and it is an INSTRUMENT: nothing selects on it.
+      explored => Explored,
+      frontier => Frontier,
+      behaviour_space => Space,
+      deepest_elite => Elite,
       sensor_mean => SensorMean,
       %% THE SHAPE OF THE POPULATION AND NOT ITS AVERAGE. How many creatures
       %% carry none, one, two and so on. A mean of 0.01 reads as "nearly none"

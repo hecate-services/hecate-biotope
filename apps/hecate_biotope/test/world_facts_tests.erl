@@ -48,7 +48,7 @@ carries_totals_rather_than_rates_test() ->
                   [born, starved, aged_out, consumed, absorbed,
                    births_refused, population, energy_total, ground_total,
                    ground_spread, still_pct, hidden_mean, hidden_width, movers,
-                   breeders,
+                   breeders, explored, frontier, behaviour_space, deepest_elite,
                    from_creatures_pct, sensor_mean, scent_tags, scent_spread]),
     %% The shape of the population rather than its average, as short
     %% fixed-length lists of counts.
@@ -82,6 +82,13 @@ carries_totals_rather_than_rates_test() ->
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
 %%
+%% Version 16 published WHAT CREATURES DO, as against what they are. `kinds'
+%% counts architectures; `explored' and `frontier' count ways of living, found
+%% out of a space of 125. Measured on one world the two move in opposite
+%% directions, so the genotype census alone was calling expansion convergence.
+%% `frontier' is the one that can fall and reaching zero is this world's
+%% definition of converged.
+%%
 %% Version 15 published `hidden_width`, which had been computed since world 19
 %% and stopped at the island's own page. World 19 exists to ask whether a brain
 %% can become NARROWER as against smaller, and no published fact could answer it:
@@ -109,7 +116,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(15, V).
+    ?assertEqual(16, V).
 
 %%==============================================================================
 %% Which door the island is on

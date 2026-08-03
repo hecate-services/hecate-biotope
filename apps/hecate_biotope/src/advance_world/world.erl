@@ -153,6 +153,12 @@
                   radius := non_neg_integer(),
                   max_creatures := pos_integer()}.
 
+%% How recently a behaviour has to have first appeared to count as new. A
+%% thousand ticks is about a hundred generations at this world's lifespan, which
+%% is long enough that a rare behaviour is not missed and short enough that a
+%% world which stopped discovering last night reads as stopped.
+-define(FRONTIER, 1000).
+
 -record(world, {tick = 0 :: non_neg_integer(),
                 econ :: econ(),
                 ground :: ground:ground(),
@@ -206,6 +212,25 @@
                 %% and this counter is the dose. Without it a null result cannot
                 %% be told from a rule that never fired.
                 outcrossed = 0 :: non_neg_integer(),
+                %% ==========================================================
+                %% EVERY WAY OF LIVING THIS WORLD HAS EVER FOUND
+                %% ==========================================================
+                %%
+                %% Keyed by behaviour cell, holding when it was first seen and
+                %% the deepest lineage that ever behaved that way. It is the
+                %% idea from novelty search and MAP-Elites and NOT the method:
+                %% **nothing selects on it.** Selection here is still that you
+                %% starve.
+                %%
+                %% IT EXISTS BECAUSE THERE IS NO FITNESS CURVE TO PLOT. A world
+                %% with no objective cannot say a run "improved", only what
+                %% changed, so the replacement measurement is how much of the
+                %% space of ways-of-living has been found and whether new ones
+                %% are still turning up. **Cells discovered per thousand ticks
+                %% going to zero is this world's definition of converged**, and
+                %% nothing before this could have said it.
+                archive = #{} :: #{non_neg_integer() =>
+                                       {non_neg_integer(), non_neg_integer()}},
                 extinct_at = undefined :: non_neg_integer() | undefined,
                 %% THE NUMBER THIS WHOLE WORLD UNFOLDED FROM, carried so it can be
                 %% published. A world is a pure function of it, proven by
@@ -646,6 +671,12 @@ add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatur
     C = maps:merge(#{id => Id, at => At, energy => Energy, age => 0,
                      structure => Structure, memory => blank(Traits),
                      born => T, parent => Parent, still => true,
+                     %% WHAT IT HAS DONE, as against what it is. `origin' is the
+                     %% cell it was born in and `moved' counts the ticks it
+                     %% actually went somewhere, which are the two things a
+                     %% behaviour descriptor needs and the only two the world
+                     %% was not already keeping.
+                     origin => At, moved => 0,
                      lineage => Line, generation => Gen,
                      %% A NEWBORN OWES NOTHING, which slightly under-charges the
                      %% very short-lived. At a generation time near forty ticks
@@ -698,7 +729,53 @@ tick(W, N) ->
     %% place an answer is KEPT, taken from where the creature actually ended up,
     %% so what it remembers cannot depend on the order its options were weighed.
     W8 = recall(W7),
-    tick(W8#world{tick = W8#world.tick + 1}, N - 1).
+    W9 = note_behaviours(W8),
+    tick(W9#world{tick = W9#world.tick + 1}, N - 1).
+
+%% HOW MANY WAYS OF LIVING TURNED UP RECENTLY. Measured over a window rather
+%% than since the beginning, because a total can only rise and would report a
+%% long-converged world as a thriving one.
+frontier(#world{archive = A, tick = T}) ->
+    map_size(maps:filter(fun(_Cell, {First, _Best}) -> T - First < ?FRONTIER end,
+                         A)).
+
+deepest_elite(#world{archive = A}) when map_size(A) =:= 0 -> 0;
+deepest_elite(#world{archive = A}) ->
+    lists:max([Best || {_First, Best} <- maps:values(A)]).
+
+%% Sorted, so the same world always publishes the same bytes.
+flatten_archive(A) ->
+    lists:append([[Cell, First, Best]
+                  || {Cell, {First, Best}} <- lists:sort(maps:to_list(A))]).
+
+%% ==========================================================================
+%% THE ARCHIVE, WHICH IS AN INSTRUMENT AND NEVER A SELECTOR
+%% ==========================================================================
+%%
+%% Every creature alive is described and its cell recorded. A cell holds the tick
+%% it was FIRST seen and the deepest generation ever reached by something living
+%% that way.
+%%
+%% ⚠ THE ELITE IS AN OBSERVATION, NOT AN OBJECTIVE. MAP-Elites keeps the best
+%% individual per cell and BREEDS FROM IT. Nothing here breeds from anything: a
+%% creature reproduces when its own brain says so and it has the energy, exactly
+%% as before. The depth recorded is what happened, and reading it back into
+%% selection would turn this world into the kind of thing it exists not to be.
+%%
+%% No random numbers are drawn, so folding a map is safe here where `G.6' forbids
+%% it elsewhere.
+note_behaviours(#world{creatures = Cs, econ = Econ, tick = T,
+                       archive = A} = W) ->
+    Radius = maps:get(radius, Econ),
+    W#world{archive = maps:fold(fun(_Id, C, Acc) -> note_one(C, Radius, T, Acc)
+                                end, A, Cs)}.
+
+note_one(C, Radius, Tick, Acc) ->
+    Cell = behaviour:cell(C, Radius),
+    Depth = maps:get(generation, C, 0),
+    maps:update_with(Cell, deepen(Depth), {Tick, Depth}, Acc).
+
+deepen(Depth) -> fun({First, Best}) -> {First, max(Best, Depth)} end.
 
 %% ==========================================================================
 %% WHAT A CREATURE CARRIES INTO THE NEXT TICK, WHICH IS WORLD 21
@@ -1091,7 +1168,8 @@ pick_best(Scored, Rng0) ->
 %% save energy, and it is the only counter available to something being tracked.
 step(Id, To, #world{creatures = Cs, econ = Econ} = W) ->
     C = maps:get(Id, Cs),
-    W1 = burn(Id, C#{at => To, still => false}, fare(C, Econ),
+    W1 = burn(Id, C#{at => To, still => false,
+                     moved => maps:get(moved, C, 0) + 1}, fare(C, Econ),
               W#world{creatures = Cs#{Id => C}}),
     mark(To, maps:get(scent, C), W1).
 
@@ -1636,6 +1714,27 @@ snapshot(#world{econ = Econ} = W) ->
       %% changed nothing" and "recombination almost never happened" look
       %% identical in every other column.
       outcrossed => W#world.outcrossed,
+      %% ==================================================================
+      %% HOW MUCH OF THE SPACE OF WAYS-OF-LIVING HAS BEEN FOUND
+      %% ==================================================================
+      %%
+      %% `explored' is how many of the 125 behaviour cells have ever held a
+      %% creature. `frontier' is how many were first seen in the last thousand
+      %% ticks, and it is the one number here that answers "is this world still
+      %% discovering anything". **A frontier of zero is convergence**, and it is
+      %% the closest thing a world with no fitness function has to a curve.
+      %%
+      %% `deepest_elite' is the deepest lineage any behaviour ever produced,
+      %% which says whether the ways of living that were found were survivable
+      %% or merely visited.
+      explored => map_size(W#world.archive),
+      frontier => frontier(W),
+      behaviour_space => behaviour:bins() * behaviour:bins() * behaviour:bins(),
+      deepest_elite => deepest_elite(W),
+      %% The occupied cells themselves, so a reader can draw the map rather than
+      %% be told a count. Flat: cell, first seen, best depth.
+      archive => flatten_archive(W#world.archive),
+      archive_stride => 3,
       energy_total => total_energy(W),
       %% STRUCTURE REPORTED APART FROM STORE, because a mean of the two added
       %% together is exactly the conflation world 6 exists to undo.
