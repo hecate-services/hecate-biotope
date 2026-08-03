@@ -73,10 +73,12 @@ verdict(Single) ->
     Mean = lists:sum(Single) / max(1, N),
     Low = length([F || F <- Single, F =< 10]) * 100 / max(1, N),
     Top = length([F || F <- Single, F > 30]) * 100 / max(1, N),
+    %% `~.0f' is not a format Erlang accepts and this is the third script today
+    %% to crash on it AFTER printing its table. Rounded to an integer instead.
     io:format("~nmean winning founder ~.1f, against 20.5 if it were a fair "
-              "draw.~nids 1 to 10 took ~.0f%% of wins and ids 31 to 40 took "
-              "~.0f%%, against 25%% each.~n~n~s~n",
-              [Mean, Low, Top, call(Mean, N)]).
+              "draw.~nids 1 to 10 took ~w% of wins and ids 31 to 40 took "
+              "~w%, against 25% each.~n~n~s~n",
+              [Mean, round(Low), round(Top), call(Mean, N)]).
 
 call(_Mean, N) when N < 8 ->
     "TOO FEW SURVIVORS TO SAY. Run more seeds before reading the shape above:\n"
