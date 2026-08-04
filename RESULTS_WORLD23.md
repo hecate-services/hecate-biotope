@@ -6,6 +6,18 @@ them only one question.**
 Pre-registered in [PREREGISTRATION_WORLD23.md](PREREGISTRATION_WORLD23.md),
 frozen before the first run. Five findings were named with their instruments.
 
+> ## ⚠ EVERY NUMBER BELOW WAS TAKEN ON A LANDSCAPE THAT NO LONGER EXISTS
+>
+> World 23 laid water as **single cells on concentric rings**. On the default
+> island that came out as one cell at the centre, a complete circular moat of
+> thirty cells at distance five, and half a ring at distance ten, leaving
+> **73% of the island with no water anywhere further out**.
+>
+> **World 24 replaced it with lakes and rivers**, and a river runs to the shore,
+> so the dry rim is now 0%. Nothing here is re-run. Read the verdicts as verdicts
+> about the ring world, because that is the world they were measured in, and the
+> dry rim is a live candidate for why the result was a cull.
+
 ## The verdict, against what was written down beforehand
 
 | # | pre-registered finding | reading | verdict |

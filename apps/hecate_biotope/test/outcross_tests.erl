@@ -216,7 +216,7 @@ a_shared_node_is_recognised_wherever_it_sits_test() ->
 %% passes and says nothing. World 23 killed seed 77 down to ONE creature and this
 %% test went on passing, having checked a single brain.
 marks_are_handed_out_once_and_never_returned_test() ->
-    W = world:tick(world:new(#{seed => 11, population => 40}), 300),
+    W = world:tick(world:new(#{seed => 101, population => 40}), 300),
     All = [brain:marks(maps:get(brain, C))
            || C <- maps:values(world:creatures(W))],
     ?assert(length(All) > 20),
@@ -229,7 +229,7 @@ marks_are_handed_out_once_and_never_returned_test() ->
 %% bug this project keeps hitting. Only four operations change the node count and
 %% this asserts all four kept step, over a whole live world.
 a_brain_has_exactly_one_mark_per_node_test() ->
-    W = world:tick(world:new(#{seed => 11, population => 40}), 400),
+    W = world:tick(world:new(#{seed => 101, population => 40}), 400),
     ?assert(maps:size(world:creatures(W)) > 20),
     lists:foreach(
       fun(C) ->

@@ -42,6 +42,7 @@
 -module(island_disc).
 
 -export([packed/2, box/2, feeding_rgb/2, radius_for/2, kind_rgb/1]).
+-export([water_rgb/0]).
 
 %% The board is drawn into a square of this many pixels. The canvas scales it to
 %% whatever width the page has, so this is resolution and not layout.
@@ -63,6 +64,11 @@
 -define(SOIL, 16#2F7D52).
 -define(CORPSE, 16#C2557A).
 
+%% Water. Deep enough to read as water against the green rather than as another
+%% kind of ground, and it is the only flat colour on the board: a cell is wet or
+%% it is not, there is no amount to shade.
+-define(WATER, 16#2B6CB0).
+
 -spec box(map(), non_neg_integer()) -> map().
 box(#{radius := Radius}, Size) -> #{radius => Radius, size => Size}.
 
@@ -78,6 +84,11 @@ packed(Chart, Ceiling) ->
     Cell = cell_radius(Box),
     #{size => ?SIZE,
       cell => Cell,
+      %% [x, y] -- UNDER THE GROUND LAYER, because water is the landscape and
+      %% the ground grows on top of it. Painted first for that reason and for a
+      %% practical one: a wet cell still carries energy, so drawing water over it
+      %% would hide the one field a creature eats from.
+      water => flat([wet(P, Box) || P <- pairs(maps:get(water, Chart, []))]),
       %% [x, y, rgb, alpha%]
       ground => flat([soil(M, Box, Ceiling) || M <- marks(maps:get(ground, Chart, []))]),
       %% [x, y, alpha%]
@@ -93,6 +104,22 @@ packed(Chart, Ceiling) ->
       %% [x, y] around the edge, so the board reads as an object with a rim
       %% rather than as a drawing that happens to stop.
       rim => flat(rim(Box, Cell))}.
+
+%% ==========================================================================
+%% The water
+%% ==========================================================================
+%%
+%% Position and nothing else. World 23 put water in the physics and never on the
+%% wire, so an island spent a whole world unable to draw the thing that world was
+%% about.
+wet({Q, R}, Box) ->
+    {X, Y} = to_pixel(Q, R, Box),
+    [X, Y].
+
+%% @doc The colour water is drawn in. Exported so a page and a test agree on it
+%% rather than each carrying its own copy of a hex literal.
+-spec water_rgb() -> non_neg_integer().
+water_rgb() -> ?WATER.
 
 %% ==========================================================================
 %% The ground

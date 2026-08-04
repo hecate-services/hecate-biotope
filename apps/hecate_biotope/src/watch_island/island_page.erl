@@ -233,6 +233,11 @@ js() ->
       "const a=Math.PI/180*(60*i-30),px=x+r*Math.cos(a),py=y+r*Math.sin(a);"
       "i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();};"
       "const paint=e=>{if(!d)return;c.clearRect(0,0,d.size,d.size);"
+      %% WATER FIRST, UNDER EVERYTHING. Same hexagon primitive as the ground so
+      %% a shoreline is a shared edge rather than two shapes that nearly meet.
+      "c.globalAlpha=1;c.fillStyle='#2B6CB0';"
+      "for(let i=0;i<(d.water||[]).length;i+=2){"
+      "hex(d.water[i],d.water[i+1],d.cell);c.fill();}"
       %% THE GROUND IS A FIELD AND GETS A FIELD'S PRIMITIVE. Circles leave gaps
       %% and read as a dot screen; hexagons tile the disc exactly, so grazed
       %% ground reads as bare terrain rather than as holes in something.

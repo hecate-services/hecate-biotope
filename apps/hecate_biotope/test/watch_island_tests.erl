@@ -341,18 +341,19 @@ a_kind_colour_is_visible_test() ->
 %%
 %% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** It needs a board where kinds
 %% are SHARED, so the assertion below states the ratio it needs and the fixture
-%% has to earn it. Seed 11 at 600 ticks holds 86 creatures across 15 kinds.
+%% has to earn it. Seed 101 at 600 ticks holds 150 creatures across 19 kinds.
 %%
 %% ⚠ AND THE GUARD HAS EARNED ITS KEEP THREE TIMES. The fixture was seed 101
-%% until world 20, seed 3 until world 21, seed 55 until historical marking and
-%% seed 77 until thirst,
+%% until world 20, seed 3 until world 21, seed 55 until historical marking,
+%% seed 77 until thirst and seed 11 until lakes and rivers, which brought it back
+%% round to 101. FIVE TIMES,
 %% and each time the changed world left that seed holding a handful of creatures
 %% each of its own kind. Every assertion above
 %% would have passed on it, vacuously, and the guard is the only thing that
 %% noticed. **A world change invalidates every fixture chosen by running the
 %% world**, which is a cost of testing against the real thing and worth paying.
 one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 11, population => 40}), 600),
+    W = world:tick(world:new(#{seed => 101, population => 40}), 600),
     Chart = world:chart(W),
     D = island_disc:packed(Chart, 400),
     Kinds = maps:get(kind_of, Chart),
@@ -489,3 +490,27 @@ two_architectures_rarely_share_a_colour_test() ->
     %% collision-free one would, which is the honest shape of the claim.
     ?assert(Distinct > length(Records) div 2),
     ?assert(Distinct < length(Records)).
+
+%% ⚠ THE ISLAND SPENT A WHOLE WORLD UNABLE TO DRAW WHAT THAT WORLD WAS ABOUT.
+%% World 23 added water to the physics, to `?FIELDS', to the sweep and to the
+%% pre-registration, and never to `world:chart/1'. There was not even an
+%% accessor: the cells lived in the world record and nothing outside could read
+%% them, so the question "why am I not seeing rivers and lakes" had no answer in
+%% the drawing code at all.
+the_island_sends_its_water_and_the_disc_draws_it_test() ->
+    W = world:tick(world:new(#{seed => 101, population => 40}), 200),
+    Chart = world:chart(W),
+    Wet = maps:get(water, Chart),
+    %% Stride two, position only: a cell is wet or it is not.
+    ?assertEqual(0, length(Wet) rem 2),
+    ?assert(length(Wet) > 0),
+    %% AND THE COUNT IS THE WORLD'S OWN. A chart that carries a different number
+    %% of wet cells from the snapshot is two readings of one world disagreeing.
+    #{water_holes := Holes} = world:snapshot(W),
+    ?assertEqual(Holes, length(Wet) div 2),
+    %% Through to the painter, same stride, nothing lost.
+    D = island_disc:packed(Chart, 400),
+    ?assertEqual(length(Wet), length(maps:get(water, D))),
+    %% And it is blue rather than whatever the ground is.
+    ?assertNotEqual(island_disc:water_rgb(), 16#2F7D52).
+

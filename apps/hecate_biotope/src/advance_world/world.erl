@@ -161,6 +161,13 @@
 %% world which stopped discovering last night reads as stopped.
 -define(FRONTIER, 1000).
 
+%% The largest a single lake may be, in cells. Not a physics constant and not
+%% swept: `water_holes' decides how much water there is, and this only decides
+%% whether that budget arrives as a few big bodies or many small ones. Twelve
+%% because a lake wants a shore worth settling and a disc of 1,261 cells cannot
+%% hold many more without the whole board being wet.
+-define(LAKE_MAX, 12).
+
 -record(world, {tick = 0 :: non_neg_integer(),
                 econ :: econ(),
                 ground :: ground:ground(),
@@ -297,7 +304,7 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 23,
+    #{number => 24,
       %% ⚠ THE LINE MUST BE TRUE AT THE VALUE THE FLEET RUNS. A first version
       %% said "being able to act costs something", written while the default was
       %% still 0, and it would have gone out on every published fact describing
@@ -307,10 +314,9 @@ ruleset() ->
       %% True at 16: four purposes cost more than none. It does NOT say a
       %% creature sheds what it cannot afford, because at 16 it does not; that
       %% needs four times the price and RESULTS_WORLD18.md says so.
-      line => <<"There is water, it is only in some places, and a creature "
-                "dries out and must go back to drink, so for the first time "
-                "staying where the food is and leaving to survive pull against "
-                "each other.">>}.
+      line => <<"The water is lakes and rivers, cut fresh for every island, "
+                "and a river runs all the way to the shore, so no part of the "
+                "land is too far from a drink to live on.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -660,12 +666,12 @@ new(Opts) ->
     reject_unknown(maps:keys(Opts) -- (maps:keys(defaults()) ++ ?WORLD_OPTS)),
     Econ = maps:merge(defaults(), maps:with(maps:keys(defaults()), Opts)),
     Seed = maps:get(seed, Opts, 42),
-    Rng = rand:seed_s(exsss, {Seed, Seed, Seed}),
+    Rng0 = rand:seed_s(exsss, {Seed, Seed, Seed}),
     Radius = maps:get(radius, Econ),
+    {Water, Rng} = water(maps:get(water_holes, Econ), Radius, Rng0),
     populate(maps:get(population, Opts, 40), Opts,
              #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng,
-                    water = water(maps:get(water_holes, Econ), Radius),
-                    seed = Seed}).
+                    water = Water, seed = Seed}).
 
 populate(0, _Opts, W) -> W;
 populate(N, Opts, #world{econ = Econ, rng = Rng0, next_mark = M0} = W) ->
@@ -680,30 +686,122 @@ populate(N, Opts, #world{econ = Econ, rng = Rng0, next_mark = M0} = W) ->
                           W#world{rng = Rng2, next_mark = M1})).
 
 %% ==========================================================================
-%% WHERE THE WATER GOES
+%% WHERE THE WATER GOES: LAKES AND RIVERS
 %% ==========================================================================
 %%
-%% Rings outward from the centre, which concentrates hardest for a given count
-%% and is the arrangement `PLAN.md' named before any of this was measured. NOT
-%% random: a random scatter would give every seed a different geometry and make
-%% the hole count and the luck of the draw inseparable.
+%% ⚠ THIS REPLACED CONCENTRIC RINGS, WHICH WERE A BULLSEYE AND NOT A LANDSCAPE.
+%% The old arrangement laid single cells on rings spaced `radius div 4' apart.
+%% At the default it came out as one cell at the centre, a COMPLETE CIRCULAR MOAT
+%% of thirty cells at distance five, and half a ring at distance ten, leaving
+%% **73% of the island with no water anywhere further out**. Nothing about it
+%% resembled water and the dry rim is a plausible reason world 23 culled rather
+%% than taught anything: for three quarters of the board "go and drink" was not a
+%% decision, it was a death sentence.
 %%
-%% Zero holes is a legal and meaningful setting: it is world 22 with an extra
-%% field nobody can use, and it is the control arm of the sweep.
-water(0, _Radius) -> #{};
-water(Holes, Radius) -> maps:from_keys(lists:sublist(rings(Radius), Holes), true).
+%% Two shapes, because they ask different questions of a creature:
+%%
+%%   A LAKE is a blob. It is somewhere to live NEXT TO, and it concentrates: the
+%%          creatures that settle around one are near each other, which is what
+%%          `J.1' wanted and what a ring of isolated cells could never give.
+%%
+%%   A RIVER runs from inland to the rim. It is a CORRIDOR, so it puts water
+%%          within reach of the outer island without covering it, and a creature
+%%          that finds one can follow it. Rings put nothing past distance ten.
+%%
+%% ⚠ AND IT IS RANDOM PER SEED, WHICH THE RING VERSION REFUSED TO BE. Its comment
+%% argued that a random scatter makes the hole count and the luck of the draw
+%% inseparable. That is true of ONE seed and false of twenty-four: over a sweep
+%% the geometry averages out, and a fixed geometry instead guarantees that every
+%% seed shares whatever artefact the arrangement happens to have. The bullseye is
+%% what that costs, and it cost a world.
+%%
+%% Zero is a legal and meaningful setting: it is world 22 with an extra field
+%% nobody can use, and it is the control arm of the sweep.
+water(0, _Radius, Rng) -> {#{}, Rng};
+water(Budget, Radius, Rng) ->
+    %% ⚠ CAPPED AT THE ISLAND. `water_holes' is a budget of CELLS and a caller
+    %% may ask for more than the board has: `world_tests' asks for 999 on a
+    %% radius-5 disc of 91 cells, meaning "enough that thirst never binds".
+    %% Without this, carving loops for ever once every cell is already wet.
+    carve(min(Budget, length(hex:disc(Radius))), Radius, #{}, Rng,
+          Budget * 4 + 16).
 
-%% The centre, then each ring in turn, so `water(7, R)' is the centre and its six
-%% neighbours and `water(19, R)' adds the ring beyond.
-rings(Radius) ->
-    [{0, 0} | lists:append([ring(D) || D <- lists:seq(spacing(Radius),
-                                                      Radius, spacing(Radius))])].
+%% Features are cut until the budget of water cells is spent, so `water_holes'
+%% still means "how many cells are wet" and every sweep ever run against it stays
+%% comparable.
+%%
+%% ⚠ AND THE FUEL IS NOT DECORATION. A feature can land entirely on cells that
+%% are already wet and add nothing, so "keep going until the budget is met" is
+%% not by itself a terminating loop. The fuel bounds the attempts; a world that
+%% runs out simply has slightly less water than asked for, which is visible in
+%% `water_holes' on the snapshot rather than hidden.
+carve(_Budget, _Radius, Water, Rng, 0) -> {Water, Rng};
+carve(Budget, _Radius, Water, Rng, _Fuel) when map_size(Water) >= Budget ->
+    {Water, Rng};
+carve(Budget, Radius, Water, Rng0, Fuel) ->
+    {Coin, Rng1} = rand:uniform_s(2, Rng0),
+    {Cells, Rng2} = feature(Coin, Radius, Budget - map_size(Water), Rng1),
+    carve(Budget, Radius, wet(Cells, Water), Rng2, Fuel - 1).
 
-%% Rings are spaced so that a creature living ten ticks and moving one cell a
-%% tick can reach the next one. Derived from the board rather than chosen.
-spacing(Radius) -> max(1, Radius div 4).
+wet(Cells, Water) -> maps:merge(Water, maps:from_keys(Cells, true)).
 
-ring(D) -> [C || C <- hex:disc(D), hex:distance(C, {0, 0}) =:= D].
+feature(1, Radius, Room, Rng) -> lake(Radius, Room, Rng);
+feature(2, Radius, Room, Rng) -> river(Radius, Room, Rng).
+
+%% A LAKE: pick a cell and grow outward into it. Sizes are drawn rather than
+%% fixed so an island has both ponds and something worth walking to.
+lake(Radius, Room, Rng0) ->
+    {At, Rng1} = random_cell(Radius, Rng0),
+    {Size, Rng2} = rand:uniform_s(min(Room, ?LAKE_MAX), Rng1),
+    spread([At], [At], Size - 1, Radius, Rng2).
+
+spread(Blob, _Edge, 0, _Radius, Rng) -> {Blob, Rng};
+%% NO SHORE LEFT TO GROW FROM. Every cell of the blob is hemmed in by itself or
+%% by the rim, which happens on a small island long before the size drawn is
+%% reached. The lake is simply as big as it can be.
+spread(Blob, [], _Left, _Radius, Rng) -> {Blob, Rng};
+spread(Blob, Edge, Left, Radius, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(Edge), Rng0),
+    From = lists:nth(N, Edge),
+    grown(free(From, Blob, Radius), Blob, Edge, From, Left, Radius, Rng1).
+
+%% A cell with no room left stops being a place to grow from, which is what keeps
+%% this from spinning when a blob closes in on itself.
+grown([], Blob, Edge, From, Left, Radius, Rng) ->
+    spread(Blob, Edge -- [From], Left, Radius, Rng);
+grown(Free, Blob, Edge, _From, Left, Radius, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(Free), Rng0),
+    Next = lists:nth(N, Free),
+    spread([Next | Blob], [Next | Edge], Left - 1, Radius, Rng1).
+
+free(From, Blob, Radius) ->
+    [C || C <- hex:neighbours_in(From, Radius), not lists:member(C, Blob)].
+
+%% A RIVER: start inland and run for the rim, never turning back on itself. The
+%% walk takes any neighbour that is no nearer the centre than the current cell,
+%% so it wanders sideways and still gets there.
+%% ⚠ THE SOURCE IS INLAND BUT NEVER OFF THE ISLAND. `max(1, Radius div 2)' was
+%% written to keep a source away from the very centre and puts it OUTSIDE the
+%% board on a radius-0 or radius-1 disc, which every conservation test in
+%% `world_tests' runs on. The cap is the island itself.
+river(Radius, Room, Rng0) ->
+    {At, Rng1} = random_cell(min(Radius, max(1, Radius div 2)), Rng0),
+    flow(At, [], min(Room, Radius * 2), Radius, Rng1).
+
+flow(At, Cells, 0, _Radius, Rng) -> {[At | Cells], Rng};
+flow(At, Cells, Left, Radius, Rng0) ->
+    onward(seaward(At, Radius), At, Cells, Left, Radius, Rng0).
+
+%% Reaching the rim ends the river. There is nowhere further to run.
+onward([], At, Cells, _Left, _Radius, Rng) -> {[At | Cells], Rng};
+onward(Options, At, Cells, Left, Radius, Rng0) ->
+    {N, Rng1} = rand:uniform_s(length(Options), Rng0),
+    flow(lists:nth(N, Options), [At | Cells], Left - 1, Radius, Rng1).
+
+seaward(At, Radius) ->
+    Here = hex:distance(At, {0, 0}),
+    [C || C <- hex:neighbours_in(At, Radius),
+          hex:distance(C, {0, 0}) >= Here].
 
 %% Everything heritable, drawn fresh and SPREAD. The first generation should
 %% already contain every shape of creature the rules allow, so selection has
@@ -2426,11 +2524,12 @@ econ_id(Econ) ->
                           structures := [integer()],
                           signatures := [integer()], uptakes := [integer()],
                           ground := [integer()],
+                          water := [integer()],
                           scent := [integer()],
                           kind_of := [integer()], kind_table := [integer()],
                           senses := [integer()], nodes := [integer()],
                           radius := non_neg_integer(), tick := non_neg_integer()}.
-chart(#world{creatures = Cs, ground = G, scent = Scent,
+chart(#world{creatures = Cs, ground = G, scent = Scent, water = Water,
              econ = Econ, tick = Tick}) ->
     Ids = lists:sort(maps:keys(Cs)),
     #{creatures => flatten_hexes([maps:get(at, maps:get(Id, Cs)) || Id <- Ids]),
@@ -2499,6 +2598,15 @@ chart(#world{creatures = Cs, ground = G, scent = Scent,
       kind_of => kind_indexes(Cs, Ids),
       kind_table => kind_table(Cs),
       ground => flatten_ground(G),
+      %% ⚠ WORLD 23 ADDED WATER TO THE PHYSICS AND NEVER TO THE WIRE, so for the
+      %% whole of that world the island page could not draw the one thing the
+      %% world was about. There was not even an accessor: the cells lived in this
+      %% record and nothing outside could read them.
+      %%
+      %% Position only, no amount. A cell is wet or it is not, water is never
+      %% consumed and never depleted, so an amount column would carry the same
+      %% number in every entry.
+      water => flatten_hexes(lists:sort(maps:keys(Water))),
       scent => flatten_scent(Scent),
       radius => maps:get(radius, Econ),
       tick => Tick}.

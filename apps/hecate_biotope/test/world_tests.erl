@@ -773,10 +773,13 @@ the_line_does_not_overclaim_the_default_test() ->
     %% World 23 states a RULE: water exists in places, a creature dries out, and
     %% it must go back. It must not claim any of the findings, and the
     %% pre-registration predicts a cull rather than an adaptation.
+    %% World 24 states a SHAPE: lakes and rivers, cut per island, reaching the
+    %% shore. It must not claim any of world 23's findings, which were all
+    %% negative, and must not suggest a creature does anything about it.
     ?assertEqual(nomatch, binary:match(Line, <<"adapt">>)),
     ?assertEqual(nomatch, binary:match(Line, <<"learn">>)),
     ?assertEqual(nomatch, binary:match(Line, <<"better">>)),
-    ?assertNotEqual(nomatch, binary:match(Line, <<"dries out">>)).
+    ?assertNotEqual(nomatch, binary:match(Line, <<"rivers">>)).
 
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),
@@ -1545,3 +1548,74 @@ decode_kinds([NSensors | Rest]) ->
 
 pairs_of([]) -> [];
 pairs_of([F, R | Rest]) -> [{F, R} | pairs_of(Rest)].
+
+%%==============================================================================
+%% The shape of the water
+%%==============================================================================
+
+%% ⚠ THE ARRANGEMENT THIS REPLACED WAS A BULLSEYE AND WOULD PASS NOTHING BELOW.
+%% Water used to be single cells laid on rings spaced `radius div 4' apart. On
+%% the default island that came out as one cell at the centre, a COMPLETE
+%% CIRCULAR MOAT of thirty cells at distance five, and half a ring at distance
+%% ten, so the outermost water sat at exactly half the radius and **73% of the
+%% island had no water anywhere further out**.
+%%
+%% Nothing noticed, because nothing ever looked: the cells were never published,
+%% so no page could draw them and no test could read them.
+water_reaches_the_far_half_of_the_island_test() ->
+    lists:foreach(fun(Seed) ->
+                          {Cells, Radius} = shore(Seed),
+                          Far = lists:max([hex:distance(C, {0, 0}) || C <- Cells]),
+                          %% Rings put the outermost water at EXACTLY half the
+                          %% radius, so a strict `>' is the assertion the old
+                          %% geometry fails and rivers pass.
+                          ?assert(Far > Radius div 2)
+                  end, [1, 2, 3, 7, 11, 42, 91, 101]).
+
+%% A LAKE AND A RIVER ARE CONTIGUOUS; A SCATTER OF PUDDLES IS NOT.
+%%
+%% ⚠ AND THIS ONE DOES NOT CATCH THE BULLSEYE, which is why it is written down
+%% rather than left to look like it does. A hex ring is a CLOSED LOOP of cells
+%% that all touch, so the old geometry passes this comfortably with a body of
+%% thirty. Verified by running it against the ring version rather than assumed.
+%% `water_reaches_the_far_half_of_the_island_test' is the one that fails there.
+%% This one guards a different regression: a placement that degenerates into
+%% isolated cells.
+water_comes_in_bodies_and_not_in_specks_test() ->
+    lists:foreach(fun(Seed) ->
+                          {Cells, _Radius} = shore(Seed),
+                          ?assert(largest_body(Cells) > 3)
+                  end, [1, 2, 3, 7, 11, 42, 91, 101]).
+
+%% AND IT IS ALL ON THE ISLAND. `river/3' picked its source at
+%% `max(1, radius div 2)', which is off the board on the small discs every
+%% conservation test in this file runs on.
+no_water_lies_off_the_island_test() ->
+    lists:foreach(fun(Radius) ->
+                          W = world:new(#{seed => 5, population => 2,
+                                          radius => Radius}),
+                          {Cells, Radius} = {wet_cells(W), Radius},
+                          [?assert(hex:in_disc(C, Radius)) || C <- Cells]
+                  end, [0, 1, 2, 3, 5, 20]).
+
+shore(Seed) ->
+    W = world:new(#{seed => Seed, population => 2}),
+    {wet_cells(W), maps:get(radius, world:chart(W))}.
+
+wet_cells(W) -> hexes(maps:get(water, world:chart(W), [])).
+
+hexes([]) -> [];
+hexes([Q, R | Rest]) -> [{Q, R} | hexes(Rest)].
+
+largest_body(Cells) -> lists:max([length(B) || B <- bodies(Cells, [])]).
+
+bodies([], Acc) -> Acc;
+bodies([C | Rest], Acc) ->
+    {Body, Left} = touching([C], [], Rest),
+    bodies(Left, [Body | Acc]).
+
+touching([], Seen, Left) -> {Seen, Left};
+touching([C | Queue], Seen, Left) ->
+    Near = [X || X <- Left, hex:distance(C, X) =:= 1],
+    touching(Queue ++ Near, [C | Seen], Left -- Near).
+
