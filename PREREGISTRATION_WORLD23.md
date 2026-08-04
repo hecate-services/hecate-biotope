@@ -242,7 +242,7 @@ and it is why the sweep runs over every hole count rather than stopping here.
 | `sweep_senses.escript` | `?FIELDS` | world 17; same five-versus-four hazard |
 | `behaviour.erl` | the three behaviour axes | world 22; water is not an axis and the archive keeps its 125 cells |
 | `can_they_reach_the_water.escript` | fare, income, lifespan | **today, and it reports the FOUNDER distribution: `I.17`, read the settled figure beside it** |
-| `sweep_water.escript` | `thirst`, `water_holes`, `parched` | **today** |
+| `sweep_water.escript` | `thirst`, `water_holes`, `parched` | ⚠ **THIS ROW SAID "today" AND WAS FALSE.** The script read `births_dry`, a counter belonging to the withdrawn breeding rule, and crashed on the first arm. `I.18`. Verified now by RUNNING it, which is the only way this row may ever be filled in |
 | `is_it_still_discovering.escript` | the archive | world 22, unchanged |
 
 **And believe a test result only from `rm -rf _build`, whole.** `I.8`.
