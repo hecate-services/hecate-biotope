@@ -1,217 +1,189 @@
 # Pre-registration: world 23
 
-**Written before world 23 was built.** Addresses register entry **J.2**, new
-below. World 22 is superseded, not edited.
+**Written before world 23 was built.** Addresses register entries **J.1** and
+**J.2**. World 22 is superseded, not edited.
 
-**A creature can spoil the ground it stands on.**
+**A creature can only breed while it is standing on water.**
+
+The spoiling world that briefly held this number is
+[withdrawn](PREREGISTRATION_SPOIL_WITHDRAWN.md): its gate was computed against an
+`Ne` nobody had measured, and it was gated as a trait when it was a change to the
+world.
 
 ---
 
-## THE SELECTABILITY GATE
+## THE ENVIRONMENTAL GATE
 
-**⚠ AND THE GATE AS WRITTEN DOES NOT FIT THIS WORLD, WHICH IS STATED HERE RATHER
-THAN FUDGED.**
-
-Every previous world put a PRICE on something and asked whether selection could
-see the price. World 15 failed because its price moved the bill by 0.24% of
-income, below the level at which drift beats selection, and one line of
-arithmetic would have said so.
-
-World 23 does not put a price on anything. It adds a CAPACITY, and the question
-is whether selection can see what the capacity DOES. So the table is filled in
-for the cost, because the cost still has to not swamp the effect, and a second
-table is added for the effect, because that is the thing under test.
-
-### The cost of carrying the organ
+**This is a change to the island, not to a creature, so it is gated as one.**
+`I.16`: the selectability gate asks whether selection can see a trait's cost,
+which is the wrong question here and reported a failure that was not there.
 
 | | value | how it was obtained |
 |---|---|---|
-| what a creature earns, per tick | **117** | measured, `scripts/where_does_it_go.escript`, three surviving seeds at 124, 107, 120 |
-| what one mutation of this trait changes the bill by, per tick | **1.57** | an output is charged its live wiring at `act_cost`: ~3.24 live weights × 16 ÷ `upkeep_divisor` 33 |
-| that as a share of earnings | **1.34%** | |
-| the drift threshold, `1 / (2·Ne)` | **0.71% at Ne = 70, 1.43% at Ne = 35** | population is 65 to 100; **`Ne` has never been measured here** |
-| **does it clear the threshold** | **MARGINAL, AND THAT IS ACCEPTABLE HERE** | it clears at `Ne = 70` and fails at `Ne = 35` |
-| what the FULL complement of this organ costs, as a share of income | **1.34%**, one output | **the roof** |
-| **is that well under half** | **yes, comfortably** | the price is not a prohibition |
+| the differential the change creates | **100%** | a creature that never reaches water leaves no descendants at all |
+| **is that above the drift floor** | **YES, by fifteenfold** | floor is **6.72%** at the measured `Ne` of 7.44, `G.10` |
+| **can a creature physically respond within one life** | **YES, ONE WAY** | mean life 10 ticks, one cell per tick, fare 22 against 117 earned |
+| what share of the population could respond | **50% at 7 holes, 66% at 19, 86% at 37** | `scripts/can_they_reach_the_water.escript`, 12 seeds settled to 2,000 ticks |
+| **can a creature perceive it** | **NOT YET — and that makes it part of this world** | `?FIELDS` is `[creatures, ground, scent, self]` and contains no water |
+| what it costs in new constants | **one, the number of holes, and it is SWEPT** | every value published |
 
-**A MARGINAL COST IS THE RIGHT ANSWER FOR THIS WORLD AND WOULD BE THE WRONG ONE
-FOR ANY PREVIOUS WORLD.** World 18 measured exactly this and called it a defect:
-at `act_cost` 16 "nothing visible happens", and shedding an output needs four
-times the drift floor. Here that is the point. **The organ should be nearly free
-so that selection sees its EFFECT rather than its rent.** If spoiling is not
-adopted, we want to be able to say it was not worth doing, not that it was
-unaffordable, which is what worlds 19 and 21 both ended up saying.
+**⚠ A ROUND TRIP IS IMPOSSIBLE AND THAT IS WHY THE RULE IS SHAPED THIS WAY.**
+Measured: at one hole the mean distance is 13 cells, and a creature that lives
+ten ticks and moves one cell a tick **cannot get there and back at any
+arrangement**. Thirst — a store that drains and must be topped up — would require
+exactly that and is therefore unbuildable in this world. **A rule that requires
+reaching water ONCE is affordable where a rule that requires reaching it
+repeatedly is not.** That is a design decision the gate forced, and the first
+version of this world would have been built without it.
 
-⚠ **`Ne` IS UNMEASURED AND THIS IS THE THIRD WORLD TO LEAN ON A GUESS FOR IT.**
-Reproductive variance here is enormous: `lineages` collapses to 1 within a few
-hundred ticks in every seed, which is the signature of an effective population
-far below the census count. **Measuring `Ne` is owed and is not part of this
-world**, but every gate that has used it has used an estimate, and if world 23
-returns a null the honest first question is whether `Ne` is 10 rather than 70.
+### The representability check, which this world fails without a second change
 
-### The size of the effect, which is what is actually under test
+**A requirement nobody can sense is a lottery, not a selection pressure.** World
+16 is the register entry for pricing a shape the genome cannot express. If water
+exists and no creature can perceive it, selection cannot favour going to water;
+it can only kill whatever was born too far away. That is a **filter**, and the
+gate above says a filter must be declared as one rather than reported as
+adaptation.
 
-| | value | how it was obtained |
-|---|---|---|
-| what one spoiling denies, at most | **≤ `min(uptake, structure)`**, the same bound eating already has | reuses `absorb/2`'s bound, no new constant |
-| a full cell, as ticks of one creature's income | **3.4** | `ground_ceiling` 400 ÷ 117 earned per tick |
-| a full cell, as a share of a LIFETIME's earnings | **34%** | mean life ~10 ticks, so lifetime earnings ~1,170 |
-| **is the effect large enough for selection to see** | **YES, by an order of magnitude** | 34% against a drift floor near 1% |
-| **who receives the effect** | ⚠ **MOSTLY THE SPOILER** | **61% of creatures are standing still**, measured |
+So `water` is appended to `?FIELDS`, making it the fifth thing a sensor can
+measure. This is inseparable from the rule rather than a second change, exactly
+as world 15's mouth was inseparable from `eat`: a capacity nobody can act on is
+not a capacity.
 
-**THE LAST ROW IS THE WHOLE EXPERIMENT AND IT PREDICTS FAILURE.** Spoiling harms
-whoever feeds in that cell next. On a board where three creatures in five do not
-move, that is usually the spoiler. The effect is enormous and its expected sign
-is negative.
-
-### Representability: can the genome express this at all?
-
-**Yes, and this is the check world 16 failed.** `spoil` is an output, and outputs
-are already a trait: `brain:toggle/5` gains and loses them, world 18 measured
-purposes per creature falling 3.71 to 2.06 under price, and 68% of creatures
-currently carry all four. A creature can have the organ or not, and can weight it
-from -8 to +8. Nothing about the shape is unrepresentable.
-
-**What may NOT be representable is the STRATEGY.** Spoiling pays only if the
-spoiler leaves and a competitor arrives. That requires either coupling two acts
-in one tick, which a brain can express since every output is evaluated from the
-same inputs, or knowing that it is about to leave, which nothing tells it. This
-is the honest weak point and is the reason for the strongest negative below.
+**⚠ APPENDED AND NEVER INSERTED.** `[creatures, ground, scent, self]` become
+`[creatures, ground, scent, self, water]`. Those indexes travel on the wire
+inside `kind_table` and
+`the_wire_codes_for_fields_and_purposes_are_fixed_test` pins the order, because
+reordering would silently change the meaning of every kind table ever published.
+`I.6` with a wire between the instrument and the reader.
 
 ---
 
 ## Why there is a world 23
 
-**Every previous world changed what a creature COSTS. This one changes what a
-creature can DO TO THE WORLD.**
+**`J.1`: a creature has exactly one requirement, so the scarcest thing is always
+the same thing.** The register's own words: *"This world has ONE drive... Nothing
+pulls against anything... So the brains are not being deleted for being too
+small. They are being deleted because there is nothing to decide."*
 
-Twenty-two worlds of creatures have influenced their island in exactly two ways,
-both passive: a corpse enriches the cell it fell in, and moving leaves a scent
-that fades. Neither is chosen. Nothing a creature decides has ever changed the
-place it lives in.
+Liebig's Law of the Minimum, 1840: organisms have several independent
+requirements and the scarcest binds. This world has one, so there is a single
+optimum — get more energy — and a brain has nothing to weigh against anything.
 
-That matters because of what the archive now measures. Over 32 seeds to 8,000
-ticks the frontier of newly-found ways-of-living runs 42, 9, 3, 2, 1, **0, 0, 0**:
-the median world stops discovering by tick 6,000 while its population carries on
-at seventy-odd creatures. World 22 added historical marking and assortative
-mating, and neither moved it.
+**`J.2`: the environment is not a participant.** Twenty-two worlds of creatures
+have influenced their island only passively. Nothing a creature decides has ever
+changed the place it lives in, and a static landscape has a finite number of ways
+to make a living.
 
-The standing hypothesis for why is that **the environment is static**. A fixed
-landscape has a finite number of ways to make a living, they are found, and the
-search ends. Niche construction — organisms changing the environment that selects
-them — is the standard precondition for open-ended evolution, and this world has
-it only as a side effect of dying.
+**And `G.10` says this is the only class of change that can be selected here.**
+With the drift floor at 6.72%, every price this project has tweaked was
+invisible: a mouth at 0.24%, an act at 1.34%, silencing at 10.6% and marginal.
+**An environmental change that decides whether you breed at all is a 100%
+differential.** Three worlds concluded a capacity was "expressible and unused"
+and the common cause was never the capacity.
 
-**Register entry `J.2`, new:** *the environment is not a participant.* Creatures
-adapt to the island and the island does not adapt to them, so the fitness
-landscape is exogenous and the search is a search of a fixed space.
+**It also composes with `D.7`.** Predation is suppressed by opportunity, not
+economics: creatures get nought to one chances in a life because 54 to 84 of them
+on 1,261 cells almost never meet. **Everything that breeds will now be at a
+hole.** `what_would_a_waterhole_buy.escript` measured what concentration is worth
+before any of this was built: the share of creatures standing on something
+strictly smaller rises from 6.1% to **17.0% at threefold crowding and 38.5% at
+tenfold**.
 
 ## The single change
 
-**A fifth purpose, `spoil`. When a creature's brain says spoil, energy is drawn
-from the cell it stands on and dissipated instead of being eaten.**
+**Breeding requires standing on a water cell.** Water is a fixed set of cells,
+never consumed, never depleted. There is no thirst store, no drain, no death from
+dryness and no new rule about any of those.
 
-**NO NEW CONSTANT.** The amount is bounded by `min(uptake, structure)`, which is
-exactly the bound `absorb/2` already puts on eating, and the energy goes to
-`dissipated`, which is where every other loss in this world already goes.
-Spoiling is eating without swallowing.
+**ONE NEW CONSTANT, AND IT IS SWEPT: the number of holes.** Few big holes
+concentrate hardest and are furthest away; many small ones are reachable and
+concentrate least. **That tension is the experiment**, which `PLAN.md` named
+before any of it was measured, and every value is published.
 
-⚠ **`spoil` IS APPENDED TO `?PURPOSES` AND NEVER INSERTED.**
-`[move, breed, grow, eat]` become `[move, breed, grow, eat, spoil]`. Those
-indexes travel on the wire inside `kind_table`, and
-`the_wire_codes_for_fields_and_purposes_are_fixed_test` pins the order precisely
-because reordering would silently change the meaning of every kind table ever
-published: a reader would draw a creature that breeds where one that moves is.
-That is `I.6` with a wire between the instrument and the reader.
+Holes are placed as rings from the centre outward, which concentrates most for a
+given count.
 
 ## What would count as a finding
 
-1. **The organ is carried.** A creature can have `spoil` and some do.
-   **Instrument:** `brain:carried/1` via the purposes census;
-   `scripts/sweep_acts.escript` reports purposes per creature and needs a column
-   added for the share carrying each specific purpose, which **does not exist yet
-   and is part of this world**.
+1. **Creatures evolve to sense water.** The `water` field is carried by more
+   creatures than chance. **Instrument:** `body:census/1`, which already reports
+   carriers, reach and attention per field. Exists.
 
-2. **Spoiling actually happens.** Carrying an output and firing it are different
-   things, and world 16 is the register entry for confusing them: a creature can
-   pay for an organ its brain weights at zero. **Instrument:** a new world
-   counter `spoiled`, total energy destroyed this way, published on the fact
-   beside `dissipated`. **Does not exist yet and is part of this world.**
+2. **They evolve to move toward it.** Carrying a sensor and acting on it are
+   different things, which is `world 16`'s entry. **Instrument:** mean distance
+   from a breeder to its nearest hole, against the same figure for the population
+   at large. **Does not exist and is part of this world.**
 
-3. **The frontier moves.** The claim this world is for: a co-constructed
-   environment keeps producing new ways to live. **Instrument:**
-   `scripts/is_it_still_discovering.escript`, already built, 32 seeds to 8,000
-   ticks, against the recorded baseline of 42, 9, 3, 2, 1, 0, 0, 0.
+3. **Predation rises.** `D.7`'s prediction, made before the watering hole
+   existed. **Instrument:** `from_creatures_pct`, already reported, against
+   world 22's value on the same seeds.
 
-4. **Spoilers and their neighbours differ.** If spoiling pays at all it pays by
-   being spatially structured: spoil here, feed there. **Instrument:** `F_ST`,
-   already reported, against world 22's value on the same seeds.
+4. **The frontier stops reaching zero.** The claim `J.2` is for.
+   **Instrument:** `scripts/is_it_still_discovering.escript` against the recorded
+   baseline of 42, 9, 3, 2, 1, 0, 0, 0, and
+   `scripts/is_the_frontier_real_or_is_it_the_ruler.escript` to check the
+   descriptor has not simply saturated again.
+
+5. **Hidden nodes are carried more.** The conditional — go when you must, eat
+   otherwise — needs a nonlinearity, which is `B.10` and `H.12`. This is the
+   first world in which a brain has two things to weigh. **Instrument:**
+   `hidden_mean`, already reported. ⚠ **And it is underpowered**: nodes run 0.16
+   to 0.80 and only a twofold response is detectable, so a smaller one will be
+   scored UNTESTED rather than absent.
 
 ## THE STALE INSTRUMENT GATE
 
 | script | which rule it reads | last verified against it |
 |---|---|---|
-| `sweep_acts.escript` | `?PURPOSES` and the act price | world 18; **must be re-read: it will silently average over five purposes where it averaged four** |
-| `what_kinds_are_alive.escript` | `?PURPOSES` order via `kind_of` | world 20; the order is appended so indexes 0–3 are stable |
-| `world_facts:world_charted/2` | `purpose_code/1` indexes into `brain:purposes/0` | world 20, pinned by a test; **appending is safe, inserting is not** |
-| `is_it_still_discovering.escript` | the archive and `frontier` | world 22, unchanged by this world |
-| `where_does_it_go.escript` | income and the mouth's share | world 15; reads `uptake`, untouched here |
-| `behaviour.erl` portraits | acts are not an axis | unaffected |
+| `what_can_they_see.escript` | `?FIELDS` and `body:reading/4` | world 17, where it was `I.6`; **must be re-read: it will average over five fields where it averaged four** |
+| `world_facts:world_charted/2` | `field_code/1` indexes into `body:fields/0` | world 20, pinned by a test; **appending is safe, inserting is not** |
+| `sweep_senses.escript` | `?FIELDS` | world 17; same five-versus-four hazard |
+| `behaviour.erl` | the three behaviour axes | world 22; water is not an axis and the archive keeps its 125 cells |
+| `can_they_reach_the_water.escript` | fare, income, lifespan | **today** |
+| `is_it_still_discovering.escript` | the archive | world 22, unchanged |
 
-**And believe a test result only from `rm -rf _build`, whole.** See `I.8`.
+**And believe a test result only from `rm -rf _build`, whole.** `I.8`.
 
 ## What will NOT happen, stated in advance
 
-**SPOILING WILL BE EXPRESSIBLE AND UNUSED. This is the expected result and the
-reasoning is arithmetic, not pessimism.**
+**THE MOST LIKELY OUTCOME IS A FILTER RATHER THAN AN ADAPTATION, and the gate
+above demands this be said.** At seven holes only half the population can reach
+water within a life. If creatures do not evolve to sense and approach it, world
+23 will simply kill everyone born too far out and select on birthplace. **That
+would look like a result and would be a cull.** Finding 2 is the one that
+separates them, and it is the reason a new instrument is owed before the sweep.
 
-Spoiling denies energy to whoever feeds in that cell next. **61% of creatures are
-standing still**, measured, so for three creatures in five the next feeder is
-itself. The organ costs 1.34% of income to carry and its expected effect on its
-owner is *negative* at the population's measured mobility. Selection should
-remove it, and the honest prediction is that the `spoil` output is carried by a
-smaller share than any of the four existing purposes.
+**Extinction is expected to rise, possibly sharply.** Half the seeds already die.
+A rule that forbids breeding away from water can only reduce the number of
+successful births, and at one hole it may kill every seed. **If every arm dies,
+the sweep has measured a prohibition and not a tradeoff**, and the answer is more
+holes, not a different conclusion.
 
-**THE STRONGEST AVAILABLE NEGATIVE, written out so it cannot be reinterpreted
-afterwards:** if `spoil` is carried at a share indistinguishable from what an
-unused output drifts to, and `spoiled` energy is a negligible fraction of
-`dissipated`, and the frontier still reaches zero by tick 6,000, then **the
-answer is that this world cannot support spite, and niche construction is not
-what is closing the frontier.** That would be a finding about the ecology and it
-would make the next world look at the environment rather than at the creatures.
-
-**This is the fourth consecutive world to predict a null**, after width (19),
-acts (18, partial) and memory (21). Three "expressible and unused" results in a
-row is beginning to be the finding: something in this world systematically
-prevents new capacities from being adopted. **That only holds as a claim if each
-was predicted rather than rationalised afterwards**, which is what this section
-is for.
-
-⚠ **AND THE OPPOSITE MUST BE SAYABLE.** If spoiling IS adopted, the mechanism
-will be spite under negative relatedness: harming a competitor less related to
-you than the population average. This world acquired the machinery for that two
-days ago — scent is kin recognition by its own documentation, and world 22 made
-creatures breed with the least strange partner in reach. **That is a genuine
-reason this null might fail where the last three did not**, and if it does, the
-credit belongs to world 22 and not to this one.
+**And the strongest negative, written so it cannot be reinterpreted:** if
+creatures carry the water field at chance, breeders are no closer to water than
+anybody else, and the frontier still reaches zero, then **a second requirement
+does not give this world's brains anything to decide, and `J.1` is wrong.** That
+would be a finding about the register's own central diagnosis and would be worth
+more than a success.
 
 ## The commitments
 
-1. Rules frozen before the first run, not changed in response to it. This file is
-   superseded, not edited.
+1. Rules frozen before the first run. This file is superseded, not edited.
 2. Every seed reported, including **nothing happened**, and including the dead.
-3. `world:ruleset/0` says 23 in the same commit as the rules, `WORLDS.md` gains
-   its row first, and `the_number_agrees_with_the_register_test` fails if they
-   disagree. **Both sides were stale for three worlds** because I updated
-   neither; see `I.15`.
+3. `world:ruleset/0` says 23 in the same commit as the rules, and `WORLDS.md`
+   gains its row **first**. Both were stale for three worlds; `I.15`.
 4. `lineages`, `depth`, the uptake spread and **F_ST** reported beside the
    population.
 5. New tests go red against world 22's physics before they are believed.
 6. **No test names a swept constant by inheriting it.**
 7. **A node config may name what a node IS and never what the physics ARE.**
-8. **The two instruments in findings 1 and 2 are built and tested BEFORE the
-   sweep runs**, not after. `I.7`: a pre-registered finding that names no
-   instrument is a finding that cannot fail, and world 17 scored one UNTESTED
-   after 24 seeds had run to 20,000 ticks.
-9. **`spoil` is appended to `?PURPOSES`, never inserted**, and the existing wire
-   test is extended to pin the five-element order before the rule is written.
+8. **Finding 2's instrument is built and tested BEFORE the sweep runs.** `I.7`:
+   a finding that names no instrument cannot fail, and it is the one that tells a
+   filter from an adaptation.
+9. **`water` is appended to `?FIELDS`, never inserted**, and the wire test is
+   extended to pin the five-element order before the rule is written.
+10. **Medians are taken over LIVING worlds, and the dead are counted separately.**
+    A median over all seeds is dominated by graveyards: it read 21 cells where
+    living worlds had reached 76, and it nearly confirmed a finding of mine by a
+    factor of five on the strength of that.

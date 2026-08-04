@@ -9,6 +9,19 @@
 %% own answer to the central null, because this world has ONE drive and a brain
 %% has nothing to weigh.
 %%
+%% ⚠⚠ AND THE GATE IT RAN WAS THE WRONG GATE, WHICH IS THE POINT OF THIS FILE
+%% NOW. The first version asked whether a creature could AFFORD a round trip and
+%% reported that it could not, and that was read as "water fails". It is a trait
+%% gate applied to an environmental change: `R.1` asks whether selection can see
+%% a trait's COST, and water is not a trait, it is a change to the landscape that
+%% every existing trait is selected against. See `I.16`.
+%%
+%% What an environmental change has to clear is different and is now measured
+%% here too: is the differential it creates above the drift floor, and can a
+%% creature PHYSICALLY respond to it within a life? The first is trivial for
+%% water — breeding or not is a 100% differential against a floor of 6.72% — and
+%% the second is what the table below is for.
+%%
 %% ⚠ THE PREMISE WAS MEASURED AND THE GATE WAS NOT.
 %% `what_would_a_waterhole_buy.escript' established that concentration produces
 %% meals. This asks the prior question, which `PLAN.md` wrote down as W.0 and
@@ -65,20 +78,28 @@ settled(Live, Econ, Radius) ->
     io:format("mean life, ticks              : ~p~n", [Life]),
     io:format("a lifetime's earnings         : ~p~n~n", [Income * Life]),
     io:format("~s~n", [row(["holes", "mean cells", "round trip", "as % of a life",
-                            "reachable?"])]),
+                            "round trip?", "ONE WAY"])]),
     lists:foreach(fun(N) -> arm(N, Cs, Fare, Income * Life, Life, Radius) end,
-                  [1, 7, 19, 37]),
+                  [1, 7, 19, 37, 61]),
     io:format("~n~s~n", [verdict()]).
 
 %% Holes are placed as rings around the centre, which is the arrangement that
 %% concentrates most for a given count.
 arm(Holes, Cs, Fare, Lifetime, Life, Radius) ->
     Where = holes(Holes, Radius),
-    Mean = mean([nearest(maps:get(at, C), Where) || C <- Cs]),
+    Distances = [nearest(maps:get(at, C), Where) || C <- Cs],
+    Mean = mean(Distances),
     Trip = 2 * Mean * Fare,
     Share = Trip * 100 div max(1, Lifetime),
+    %% ⚠ THE COLUMN THAT ACTUALLY DECIDES IT, AND IT IS ONE-WAY. A creature does
+    %% not need to come back. It needs to GET there once, inside a life, and the
+    %% share of the population that could is what says whether the landscape is
+    %% something a lineage can adapt to or a wall it dies against.
+    Within = length([D || D <- Distances, D =< Life]) * 100
+                 div max(1, length(Distances)),
     io:format("~s~n", [row([Holes, Mean, Trip, [integer_to_list(Share), "%"],
-                            reachable(Mean, Life)])]).
+                            reachable(Mean, Life),
+                            [integer_to_list(Within), "%"]])]).
 
 %% ⚠ THE BOUND THAT IS NOT ABOUT MONEY. One cell per tick, ten ticks of life: a
 %% hole further than a few cells cannot be reached at any price, and a round trip
@@ -102,12 +123,12 @@ mean([]) -> 0;
 mean(Vs) -> lists:sum(Vs) div length(Vs).
 
 verdict() ->
-    "A round trip over the roof means the journey costs more than a creature\n"
-    "earns in its whole life, and `NO` in the last column means it cannot be\n"
-    "made at all: one cell per tick against a life of ten. Neither is an\n"
-    "argument against water. Both are arguments about HOW MANY HOLES, which\n"
-    "PLAN.md already names as the experiment: few big holes concentrate and\n"
-    "cannot be reached, many small ones can be reached and do not concentrate.".
+    "ONE WAY is the column that decides an environmental change: the share of\n"
+    "creatures that could reach a hole once inside a life. A round trip is what\n"
+    "a THIRST CYCLE needs and this world cannot afford one at any arrangement,\n"
+    "which is a fact about the rule to be written and not about water.\n\n"
+    "**A rule that needs reaching water ONCE is affordable where a rule that\n"
+    "needs reaching it repeatedly is not**, and that is the whole design.".
 
 advance(W, 0) -> W;
 advance(W, N) -> going(world:population(W) > 0, W, N).

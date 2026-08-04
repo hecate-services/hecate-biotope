@@ -53,6 +53,46 @@ a price moved one and not the other.
 
 ---
 
+## THE ENVIRONMENTAL GATE
+
+**Use this instead of the selectability gate when the change is to the WORLD
+rather than to a creature. Added 2026-08-04 after the gate above was applied to
+the watering hole and reported that it failed.**
+
+The gate above asks whether selection can see a TRAIT'S COST. It is the right
+question for "should this organ be priced at X" and the wrong question for
+"should the island contain water". **An environmental change does not add a trait
+that must clear a drift floor. It changes the landscape that every trait already
+present is selected against**, and the differential it creates is usually
+enormous rather than marginal.
+
+Applying the trait gate to an environmental change reports a failure that is not
+there. See `I.16`.
+
+| | value | how it was obtained |
+|---|---|---|
+| the differential the change creates, as a share of fitness | | breeding or not, eating or not, living or not: usually tens of percent |
+| **is that above the drift floor** | | `1/(2·Ne)`, and **`Ne` is 7.44, so the floor is 6.72%** — `G.10` |
+| **can a creature PHYSICALLY respond within one life** | | **the binding question.** Mean life is ten ticks and a creature moves one cell per tick |
+| what share of the population could respond | | **if it is low, the change is a filter and not a pressure** |
+| **can a creature PERCEIVE the change** | | a requirement nobody can sense is a lottery, not a selection pressure. `?FIELDS` is fixed and adding to it is part of the world |
+| what the change costs in new constants | | swept, with every value published, or derived from something that exists |
+
+**⚠ THE PHYSICAL BOUND IS NOT ABOUT MONEY AND IS USUALLY THE ONE THAT BITES.**
+The watering hole's first gate found a round trip costs 22–48% of a lifetime's
+earnings, which is affordable, and then that **no arrangement of holes is
+reachable round-trip at all**: ten ticks of life against one cell per tick. The
+money was never the problem. **A rule requiring a creature to reach something
+ONCE is affordable where a rule requiring it repeatedly is not**, and that
+distinction is a design decision the gate must force.
+
+**AND A FILTER IS NOT A PRESSURE.** If only a quarter of the population can
+respond, the change kills three quarters and selects on where they happened to be
+born. That may be interesting and it is not adaptation, and a pre-registration
+must say which it expects.
+
+---
+
 ## Why there is a world N
 
 What the register says is wrong, and why it is worth a world rather than a
