@@ -36,7 +36,12 @@
          world_charted/2, world_narrated/3]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 17).
+%% ⚠ BUMPED WHENEVER THE SHAPE CHANGES, INCLUDING AN APPEND. 18 adds `water',
+%% `senses' and `nodes' to the chart fact. Appending is backward compatible, so
+%% an old reader keeps working, and that is exactly why the number has to move:
+%% a reader has no other way to ask "is the field I want in this frame, or am I
+%% talking to an island that predates it".
+-define(FACT_VERSION, 18).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -420,6 +425,7 @@ world_charted(Chart, Pace) ->
     #{creatures := Creatures, ids := Ids, energies := Energies,
       structures := Structures, signatures := Signatures,
       uptakes := Uptakes, ground := Ground, scent := Scent, radius := Radius,
+      water := Water, senses := Senses, nodes := Nodes,
       kind_of := KindOf, kind_table := KindTable, tick := Tick} = Chart,
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
@@ -446,6 +452,33 @@ world_charted(Chart, Pace) ->
       %% was never a kind of thing and there is nothing left to enumerate.
       ground => Ground,
       ground_stride => 3,
+      %% WHERE THE WATER IS, at a stride of two: position only, because a cell is
+      %% wet or it is not and there is no amount to send.
+      %%
+      %% ⚠ THE SAME GAP AS `structures' ABOVE, AND IT WENT ONE STEP FURTHER.
+      %% World 23 built a world about water and put it in the physics, in
+      %% `?FIELDS', in the sweep and in the pre-registration, and on no wire at
+      %% all: not in `chart/1', so the island could not draw it, and not here, so
+      %% no spectator could either. World 24 fixed the chart. This is the second
+      %% half, and without it the site draws a landscape with the landscape
+      %% missing.
+      %%
+      %% `B.7' and `C.6' are the register entries for exactly this: each function
+      %% right on its own, the gap between them wrong, and the test feeding the
+      %% renderer a hand-built chart rather than the fact an island sends.
+      water => Water,
+      water_stride => 2,
+      %% WHAT EACH CREATURE IS MADE OF, parallel to `creatures': how many sensors
+      %% it carries and how many hidden nodes. The two things that define a
+      %% creature beyond its size.
+      %%
+      %% ⚠ FOUND BY `every_field_on_the_chart_reaches_the_wire_test' ON ITS FIRST
+      %% RUN, which is the whole argument for writing it. `chart/1' has computed
+      %% both since the kind table arrived, the island's own disc draws them, and
+      %% neither had ever left the island. That is the third and fourth field to
+      %% go missing in this exact gap, after `structures' and `water'.
+      senses => Senses,
+      nodes => Nodes,
       %% ONE ENERGY PER CREATURE, IN THE SAME ORDER, as a parallel list rather
       %% than interleaved. Interleaving would make the creature stride 3 while
       %% plants stayed 2, and a reader that got that wrong would draw a

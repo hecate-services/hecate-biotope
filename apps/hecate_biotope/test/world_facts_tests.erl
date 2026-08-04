@@ -115,6 +115,12 @@ carries_totals_rather_than_rates_test() ->
 %% eighteen worlds read its 1 as a monoculture. Measured, a world reading one
 %% lineage routinely carries five to twenty-seven body plans at once.
 %%
+%% Version 18 put `water', `senses' and `nodes' on the chart fact. All three were
+%% computed by `chart/1' and reached no wire, so an island could not be drawn
+%% with its own landscape and a spectator could not size a creature by what it is
+%% built of. An APPEND still moves this number: an old reader keeps working, and
+%% that is precisely why a reader needs a way to ask whether the field it wants
+%% is in this frame or whether it is talking to an island that predates it.
 %% Version 9 named the DOOR: which station this island reaches the mesh through,
 %% read from the live link rather than from configuration.
 %% Version 4 named which world is running, so a fleet mid-rollout could be read.
@@ -122,7 +128,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(17, V).
+    ?assertEqual(18, V).
 
 %%==============================================================================
 %% Which door the island is on
@@ -211,6 +217,24 @@ chart() ->
     world_facts:world_charted(world:chart(world:new(#{population => 7,
                                                      radius => 5})),
                               world_pace:from_map(#{})).
+
+%% ⚠ THE GUARD THAT WOULD HAVE CAUGHT WATER, AND `structures' BEFORE IT.
+%%
+%% `world:chart/1' computes a field and `world_charted/2' destructures a FIXED
+%% LIST of keys to put on the wire. Append to the first and forget the second and
+%% the field silently never leaves the island. That has now happened twice:
+%% `structures' was computed from world 6 and dropped for four worlds, so a
+%% renderer that sizes a creature by its body never once had the number; and
+%% `water' was the entire subject of world 23 and reached no wire at all.
+%%
+%% Both are `B.7' and `C.6': each function correct on its own, the gap between
+%% them wrong, and the test feeding a hand-built chart rather than the fact an
+%% island sends. This compares the two directly, so the NEXT appended field
+%% cannot go missing quietly.
+every_field_on_the_chart_reaches_the_wire_test() ->
+    Chart = world:chart(world:new(#{population => 7, radius => 5})),
+    Dropped = maps:keys(Chart) -- maps:keys(chart()),
+    ?assertEqual([], Dropped).
 
 %% ⚠ THE CHART HAS NEVER HAD A WIRE-RULES TEST OF ITS OWN, and everything on it
 %% until now was a fixed-width record of integers where breaking a rule was hard.
