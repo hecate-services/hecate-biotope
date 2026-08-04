@@ -35,4 +35,5 @@ init([]) ->
              restart => permanent,
              shutdown => 5000,
              type => worker}
-           | island_ui:child_specs() ++ narrator:child_specs()]}}.
+           | island_ui:child_specs() ++ narrator:child_specs()
+             ++ keeper:child_specs()]}}.

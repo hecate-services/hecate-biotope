@@ -87,8 +87,18 @@ supervisor_starts_a_running_world_test() ->
     try
         {ok, Pid} = hecate_biotope_sup:start_link(),
         ?assert(is_process_alive(Pid)),
-        ?assertMatch([{world_server, _, worker, _}],
-                     supervisor:which_children(Pid)),
+        %% ⚠ THE WORLD IS THE ONE CHILD THAT MUST BE THERE; THE OTHERS ARE
+        %% CONDITIONAL. The page starts only with a UI port, the narrator only
+        %% with a model to ask, and the keeper only with a store open. Pinning
+        %% the exact list made this test a running inventory of optional
+        %% features, which it failed at three times in one day.
+        %%
+        %% What it actually protects is that the tree boots and the world is in
+        %% it, and that nothing OTHER than the known slices got in.
+        Children = [Id || {Id, _Pid, worker, _M} <- supervisor:which_children(Pid)],
+        ?assert(lists:member(world_server, Children)),
+        ?assertEqual([], Children -- [world_server, keeper, narrator,
+                                      island_ui_listener]),
         #{population := Pop, tick := Tick} = world_server:snapshot(),
         ?assert(Pop > 0),
         ?assert(Tick >= 0),
