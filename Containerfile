@@ -7,7 +7,21 @@
 # image cannot keep. When the biotope has something worth outliving a container
 # recreate, the volume arrives together with the code that writes it.
 
-FROM docker.io/erlang:27-alpine AS builder
+# ⚠ THE RUNTIME IS PINNED IN TWO PLACES AND THEY MUST AGREE: here and
+# `.github/workflows/lint.yml'. They did not, and the cost was real. This said
+# 27 while development ran on 28, so `rebar3 eunit' passing locally meant
+# "passing on 28" and nothing more. CI failed for three commits on a crash that
+# does not occur on 28 at all, and `build-and-push' is a separate workflow, so
+# the image went to the fleet anyway.
+#
+# ⚠⚠ AND A WORLD IS ONLY A PURE FUNCTION OF ITS SEED WITHIN ONE OTP RELEASE.
+# `rand' and map iteration are not promised to agree across releases, so seed 101
+# is a different world on 27 and on 28. Every result this project has recorded is
+# a result about the release it was measured on.
+#
+# 27 was never chosen. It came in with the very first commit from the
+# `hecate_service' scaffold in `hecate-om' and was never revisited.
+FROM docker.io/erlang:28-alpine AS builder
 WORKDIR /build
 
 # macula ships a QUIC NIF. MACULA_FORCE_SOURCE_BUILD makes it build here rather
