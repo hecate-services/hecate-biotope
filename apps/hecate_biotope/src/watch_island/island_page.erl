@@ -233,17 +233,25 @@ js() ->
       "const a=Math.PI/180*(60*i-30),px=x+r*Math.cos(a),py=y+r*Math.sin(a);"
       "i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();};"
       "const paint=e=>{if(!d)return;c.clearRect(0,0,d.size,d.size);"
-      %% WATER FIRST, UNDER EVERYTHING. Same hexagon primitive as the ground so
-      %% a shoreline is a shared edge rather than two shapes that nearly meet.
-      "c.globalAlpha=1;c.fillStyle='#2B6CB0';"
-      "for(let i=0;i<(d.water||[]).length;i+=2){"
-      "hex(d.water[i],d.water[i+1],d.cell);c.fill();}"
       %% THE GROUND IS A FIELD AND GETS A FIELD'S PRIMITIVE. Circles leave gaps
       %% and read as a dot screen; hexagons tile the disc exactly, so grazed
       %% ground reads as bare terrain rather than as holes in something.
       "for(let i=0;i<d.ground.length;i+=4){c.globalAlpha=d.ground[i+3]/100;"
       "c.fillStyle=css(d.ground[i+2]);hex(d.ground[i],d.ground[i+1],d.cell);"
       "c.fill();}"
+      %% ⚠ WATER GOES ON TOP OF THE GROUND, AND THE FIRST VERSION PUT IT UNDER.
+      %% The reasoning was that water is the landscape and the ground grows on
+      %% it, which is true and drew an invisible result: ground is painted for
+      %% every cell holding energy at an alpha running to 0.65, so green over
+      %% blue reads as green. The arrays were on the wire, decoded and painted,
+      %% and the board showed no lakes and no rivers.
+      %%
+      %% The cost is that a wet cell no longer shows how much energy it holds.
+      %% About 61 wet cells against 1,261 is a small price for the landscape
+      %% being visible at all.
+      "c.globalAlpha=1;c.fillStyle='#2B6CB0';"
+      "for(let i=0;i<(d.water||[]).length;i+=2){"
+      "hex(d.water[i],d.water[i+1],d.cell);c.fill();}"
       "c.fillStyle='#8B7CE8';"
       "for(let i=0;i<d.trails.length;i+=3){c.globalAlpha=d.trails[i+2]/100;"
       "c.beginPath();c.arc(d.trails[i],d.trails[i+1],d.cell*1.2,0,6.284);"

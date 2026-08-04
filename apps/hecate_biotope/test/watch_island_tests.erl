@@ -186,6 +186,32 @@ the_page_makes_no_repeating_request_test() ->
     ?assertEqual(nomatch, binary:match(Js, <<"setInterval">>)),
     ?assertEqual(nomatch, binary:match(Js, <<"fetch(">>)).
 
+%% ⚠ PAINT ORDER IS A CORRECTNESS PROPERTY HERE AND NOT A MATTER OF TASTE.
+%%
+%% The ground is painted for every cell holding energy, at an alpha running to
+%% 0.65. Water under it is therefore invisible: green over blue reads as green.
+%% The first version painted water first, reasoning that water is the landscape
+%% and the ground grows on it, which is true and produced a board with no lakes
+%% and no rivers on it while the arrays were on the wire, decoded, and painted.
+%%
+%% Nothing else could have caught it. Every test passed, the data was correct at
+%% every step, and the only symptom was a picture that a person had to look at.
+%% So the order is asserted where it lives, in the source of the painter.
+water_is_painted_over_the_ground_test() ->
+    Js = island_page:js(),
+    {Ground, _} = binary:match(Js, <<"d.ground.length">>),
+    {Water, _} = binary:match(Js, <<"d.water||[]">>),
+    %% ⚠ ANCHORED ON THE PAINTING LOOP BY NAME, not by position. There are two
+    %% loops over creatures: one paints, one remembers where each mark was so the
+    %% next frame can tween from it. `binary:match/2' takes the first, which is
+    %% the painter HERE and the remember loop in the site's copy of this hook, so
+    %% neither "first" nor "last" is a rule that holds. Both were tried and both
+    %% were wrong somewhere.
+    {Creatures, _} = binary:match(Js, <<"d.creatures.length;i+=8){const id=">>),
+    ?assert(Water > Ground),
+    %% AND UNDER THE LIVING, who are the only things that decide anything.
+    ?assert(Water < Creatures).
+
 %%==============================================================================
 %% The picture
 %%==============================================================================
