@@ -292,6 +292,8 @@ TO it.
 
 ---
 
+| H.13 | **NOTHING LIVES LONG ENOUGH TO EXECUTE A STRATEGY, and this may be why three worlds in a row found a new capacity expressible and unused** | **OPEN, and it is the largest thing in this register since `B.10`.** `max_age` is **600** and the mean life is **about ten ticks**: a creature uses 1.7% of the lifespan the rules permit. At tick 3,000 of a live world, of 31,877 born, **20,498 were eaten, 11,228 starved and 9 died of old age.** ⚠ **CONSEQUENCE: any strategy spanning more than a few ticks cannot pay, whatever it costs.** Memory (world 21) is worth nothing to a creature that will not see a second situation. Width (19) must be re-won every generation against drift, and a generation is ten ticks. Spoiling (23, predicted) needs the spoiler to leave and a competitor to arrive. **Each was measured as a fact about the capacity and may be a fact about the clock.** Found while running the watering hole's gate: at a fare of 22 a cell and a life of ten ticks, **no arrangement of holes is reachable round-trip** — not one, not seven, not thirty-seven — because a round trip to the nearest of 37 holes is twelve cells of travel against ten ticks of life. `scripts/can_they_reach_the_water.escript`. **The test is cheap and needs no new physics**: lengthen life through the existing constants and ask whether ANY of the three capacities starts paying. If none does at any lifespan, that is a much deeper finding than any of them. |
+
 ## J. What a creature needs besides energy
 
 **A new section, and the fact that it did not exist is the entry.** Every section
