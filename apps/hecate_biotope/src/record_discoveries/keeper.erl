@@ -34,6 +34,7 @@
 -define(WATCH_MS, 5000).
 
 -record(state, {seed = none :: none | integer(),
+                island = <<>> :: binary(),
                 stream = none :: none | binary(),
                 seen = #{} :: map(),
                 settled = false :: boolean(),
@@ -83,10 +84,11 @@ handle_info(look, S) ->
 inspect(#{seed := Seed} = Snap, #state{seed = Seed} = S) ->
     carry_on(Snap, S);
 inspect(#{seed := Seed} = Snap, S) ->
-    Fresh = #state{seed = Seed,
-                   stream = discovery:stream_for(world_facts:island(), Seed),
+    Island = world_facts:island(),
+    Fresh = #state{seed = Seed, island = Island,
+                   stream = discovery:stream_for(Island, Seed),
                    written = S#state.written, failed = S#state.failed},
-    carry_on(Snap, append(discovery:seeded(Snap), Fresh)).
+    carry_on(Snap, append(discovery:seeded(Island, Snap), Fresh)).
 
 carry_on(Snap, S) ->
     lists:foldl(fun(Step, Acc) -> Step(Snap, Acc) end, S,
@@ -113,7 +115,8 @@ discoveries(Snap, #state{seen = Seen} = S) ->
 
 note(true, _Cell, _At, _Snap, S) -> S;
 note(false, Cell, At, Snap, #state{seen = Seen} = S) ->
-    append(discovery:found(Cell, At, Snap), S#state{seen = Seen#{Cell => At}}).
+    append(discovery:found(S#state.island, Cell, At, Snap),
+           S#state{seen = Seen#{Cell => At}}).
 
 %% Stride three: cell, first seen, best depth. The depth is not kept here; it is
 %% a live number and this file records events rather than state.
@@ -131,10 +134,10 @@ stillness(Snap, #state{settled = Was} = S) ->
 
 crossed(Same, Same, _Snap, S) -> S;
 crossed(true, false, Snap, S) ->
-    append(discovery:settled(maps:get(tick, Snap, 0), Snap),
+    append(discovery:settled(S#state.island, maps:get(tick, Snap, 0), Snap),
            S#state{settled = true});
 crossed(false, true, Snap, S) ->
-    append(discovery:stirred(maps:get(tick, Snap, 0), Snap),
+    append(discovery:stirred(S#state.island, maps:get(tick, Snap, 0), Snap),
            S#state{settled = false}).
 
 %% ==========================================================================
@@ -145,7 +148,7 @@ crossed(false, true, Snap, S) ->
 %% advances, so without the flag this would write an ending every five seconds
 %% until the next seed is drawn.
 death(#{population := 0} = Snap, #state{ended = false} = S) ->
-    append(discovery:ended(Snap), S#state{ended = true});
+    append(discovery:ended(S#state.island, Snap), S#state{ended = true});
 death(_Snap, S) -> S.
 
 %% ==========================================================================

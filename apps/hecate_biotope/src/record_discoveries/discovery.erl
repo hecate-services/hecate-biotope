@@ -40,7 +40,7 @@
 %% the store would cost the record and not a single creature.
 -module(discovery).
 
--export([seeded/1, found/3, settled/2, stirred/2, ended/1, stream_for/2]).
+-export([seeded/2, found/4, settled/3, stirred/3, ended/2, stream_for/2]).
 
 %% ⚠ BUSINESS VERBS, NOT CRUD. Nothing here is created, updated or deleted: a
 %% world is SEEDED and ENDS, a way of living is FOUND, a world SETTLES and
@@ -59,14 +59,27 @@
 %% an island's name comes from `world_facts:island()', from the environment, and
 %% a world knows nothing about what the thing running it is called.
 %%
-%% It crashed on the first live look, on every node, in a `function_clause' that
-%% the supervisor restarted every five seconds. **And a test passed**, because
-%% the test handed it a map with an `island' key in it: a fixture that agrees
-%% with my own function rather than with the island, which is `C.6' and `B.7' in
-%% this project's own register, both filed for exactly this.
+%% ⚠⚠ AND THE ID IT BUILT WAS NOT A LEGAL STREAM ID. It was
+%% `biotope/beam01/101516166', and reckon-db's contract is
+%% `[a-z]{1,32}-[a-f0-9]{32}': a lowercase prefix, one hyphen, and exactly
+%% thirty-two hex digits. Every append came back `invalid_stream_id' after
+%% exhausting its retries, which took long enough to block the keeper's own
+%% mailbox.
+%%
+%% Written now as a prefix and a digest of island and seed together, so the same
+%% island replaying the same seed writes to the same stream and two islands that
+%% happen to draw one seed do not. **The id is therefore opaque**, which is a real
+%% cost for a notebook meant to be read in a year, and is paid for by every event
+%% carrying its island and tick in the clear.
+%%
+%% The alternative was a `$biotope:beam01-101516166' system stream, which is
+%% legal and human-readable, and which the same contract calls a STRUCTURALLY
+%% RESERVED namespace. Squatting in it to get prettier ids is not a trade worth
+%% making.
 -spec stream_for(binary(), integer()) -> binary().
 stream_for(Island, Seed) ->
-    <<"biotope/", Island/binary, "/", (integer_to_binary(Seed))/binary>>.
+    Digest = crypto:hash(md5, <<Island/binary, ":", (integer_to_binary(Seed))/binary>>),
+    <<"world-", (binary:encode_hex(Digest, lowercase))/binary>>.
 
 %% @doc A world began.
 %%
@@ -74,9 +87,9 @@ stream_for(Island, Seed) ->
 %% rules that produced it. Two runs that found the same way of living under
 %% different physics found different things, and `econ_id' alone cannot say so:
 %% world 6 changed the rules and not one constant.
--spec seeded(map()) -> map().
-seeded(#{seed := Seed, econ := Econ} = Snap) ->
-    event(world_seeded, Snap,
+-spec seeded(binary(), map()) -> map().
+seeded(Island, #{seed := Seed, econ := Econ} = Snap) ->
+    event(world_seeded, Island, Snap,
           #{seed => Seed,
             world => maps:get(number, world:ruleset()),
             rules => maps:get(line, world:ruleset()),
@@ -89,9 +102,9 @@ seeded(#{seed := Seed, econ := Econ} = Snap) ->
 %% are stored rather than derived**, because a reader in a year has the event and
 %% not necessarily the code that would decode a cell index, and `I.6' is what
 %% happens when an instrument and the thing it reads drift apart.
--spec found(non_neg_integer(), non_neg_integer(), map()) -> map().
-found(Cell, At, Snap) ->
-    event(way_of_living_found, Snap,
+-spec found(binary(), non_neg_integer(), non_neg_integer(), map()) -> map().
+found(Island, Cell, At, Snap) ->
+    event(way_of_living_found, Island, Snap,
           #{cell => Cell,
             means => behaviour:describe(Cell),
             first_seen_at => At,
@@ -104,26 +117,26 @@ found(Cell, At, Snap) ->
 %% world looks exactly like a healthy one in every other number: the population
 %% carries on, energy flows, creatures are born and eaten. Over 32 seeds the
 %% median island reaches this by tick 6,000.
--spec settled(non_neg_integer(), map()) -> map().
-settled(At, Snap) ->
-    event(world_settled, Snap,
+-spec settled(binary(), non_neg_integer(), map()) -> map().
+settled(Island, At, Snap) ->
+    event(world_settled, Island, Snap,
           #{settled_at => At,
             ways_found => maps:get(explored, Snap, 0),
             of_possible => maps:get(behaviour_space, Snap, 0),
             kinds_alive => maps:get(kinds, Snap, 0)}).
 
 %% @doc And started again, which is rarer and more interesting.
--spec stirred(non_neg_integer(), map()) -> map().
-stirred(At, Snap) ->
-    event(world_stirred, Snap,
+-spec stirred(binary(), non_neg_integer(), map()) -> map().
+stirred(Island, At, Snap) ->
+    event(world_stirred, Island, Snap,
           #{stirred_at => At,
             new_ways => maps:get(frontier, Snap, 0),
             ways_found => maps:get(explored, Snap, 0)}).
 
 %% @doc It died, which is what most seeds do.
--spec ended(map()) -> map().
-ended(Snap) ->
-    event(world_ended, Snap,
+-spec ended(binary(), map()) -> map().
+ended(Island, Snap) ->
+    event(world_ended, Island, Snap,
           #{ended_at => maps:get(extinct_at, Snap, maps:get(tick, Snap, 0)),
             ways_found => maps:get(explored, Snap, 0),
             deepest_line => maps:get(depth, Snap, 0),
@@ -132,10 +145,14 @@ ended(Snap) ->
             starved => maps:get(starved, Snap, 0),
             eaten => maps:get(consumed, Snap, 0)}).
 
-%% Every event carries the tick and the island, so a stream can be read without
-%% joining it to anything.
-event(Type, Snap, Data) ->
+%% ⚠ EVERY EVENT CARRIES ITS ISLAND AND ITS TICK IN THE CLEAR, and the comment
+%% here used to CLAIM that while the code carried only the tick. It matters more
+%% now than it did: the stream id is a digest and says nothing a human can read,
+%% so if these two are not in the event then nothing anywhere connects a
+%% discovery to the island that made it.
+event(Type, Island, Snap, Data) ->
     #{event_type => atom_to_binary(Type),
       schema_version => ?VERSION,
+      island => Island,
       tick => maps:get(tick, Snap, 0),
       data => Data}.
