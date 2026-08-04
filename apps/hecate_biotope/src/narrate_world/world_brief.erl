@@ -30,6 +30,16 @@
 -define(NEW_WAYS_FOUND, 6).
 
 %% @doc The brief, as a flat map of integers and short phrases.
+%% ⚠ ONE FIELD HERE IS WORDS AND EVERYTHING ELSE IS INTEGERS, and it is the only
+%% exception this module allows. `commonest_way' is adjectives derived
+%% mechanically from measured bins by `behaviour:portrait/3': reproducible,
+%% testable, and not a sentence anybody wrote. It is here because a narrator that
+%% can only quote counts writes "the commonest kind holds 21%", and one that can
+%% say "most of them graze, never move and have not yet bred" is describing the
+%% same island to somebody who might care.
+%%
+%% It is still not a licence to invent. A NOUN would assert a kind of thing and
+%% there are none; the prompt says so and this map contains no nouns to borrow.
 -spec of_world(map()) -> map().
 of_world(Snap) ->
     #{%% FROM THE RULESET AND NOT FROM THE SNAPSHOT, which has never carried it:
@@ -50,8 +60,11 @@ of_world(Snap) ->
       ways_of_living_possible => get(behaviour_space, Snap),
       new_ways_last_1000_ticks => get(frontier, Snap),
       standing_still_pct => get(still_pct, Snap),
+      mean_age_in_ticks => get(age_mean, Snap),
       food_from_creatures_pct => get(from_creatures_pct, Snap),
       %% What happened to them.
+      commonest_way => maps:get(commonest_way, Snap, <<>>),
+      commonest_way_pct => get(commonest_way_pct, Snap),
       born => get(born, Snap),
       starved => get(starved, Snap),
       eaten => get(consumed, Snap),
@@ -80,9 +93,12 @@ get(Key, Snap) -> maps:get(Key, Snap, 0).
 %% still carries the integers; only what the model READS is scaled.
 -spec lines(map()) -> iodata().
 lines(Brief) ->
-    [line(K, V) || {K, V} <- lists:sort(maps:to_list(Brief)), is_integer(V)].
+    [shown(atom_to_list(K), V) || {K, V} <- lists:sort(maps:to_list(Brief)),
+                                  is_integer(V)]
+        ++ words(maps:get(commonest_way, Brief, <<>>)).
 
-line(Key, Value) -> shown(atom_to_list(Key), Value).
+words(<<>>) -> [];
+words(Way) -> ["commonest_way: ", Way, "\n"].
 
 shown(Name, Value) ->
     hundredths(lists:suffix("_x100", Name), Name, Value).

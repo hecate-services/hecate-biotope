@@ -36,7 +36,7 @@
          world_charted/2, world_narrated/3]).
 
 -define(DEFAULT_NS, <<"biotope">>).
--define(FACT_VERSION, 16).
+-define(FACT_VERSION, 17).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -137,6 +137,7 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
       kinds := Kinds, kind_max_pct := KindMax,
       explored := Explored, frontier := Frontier,
+      commonest_way := Way, commonest_way_pct := WayPct, age_mean := AgeMean,
       behaviour_space := Space, deepest_elite := Elite,
       sensors := Sensors, sensor_mean := SensorMean,
       sensor_hist := SensorHist, hidden_hist := HiddenHist,
@@ -273,6 +274,26 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       %%
       %% This is the closest thing a world with no fitness function has to a
       %% curve, and it is an INSTRUMENT: nothing selects on it.
+      %% ==================================================================
+      %% WHAT MOST CREATURES HERE ARE LIKE, IN WORDS
+      %% ==================================================================
+      %%
+      %% Every other field on this fact is a number. This is the commonest way of
+      %% making a living, spelled out, with the share of the population living it
+      %% and the mean age beside it.
+      %%
+      %% ⚠ ADJECTIVES FROM BINS, NEVER A SPECIES. "grazes, sessile, breeds hard"
+      %% describes measurements. A noun would assert a kind of thing, and there
+      %% are no kinds of thing here, only a continuum with bins drawn through it.
+      %% `body.erl' records what naming cost world 1.
+      %%
+      %% ⚠ AND THE AGE IS NOT DECORATION. A creature needs ticks to move, eat or
+      %% breed and the mean life is about nine, so much of any population reads
+      %% as "barren, starving" because it is NEWBORN. Without the age beside it, a
+      %% nursery reads as a dying world.
+      commonest_way => Way,
+      commonest_way_pct => WayPct,
+      age_mean => AgeMean,
       explored => Explored,
       frontier => Frontier,
       behaviour_space => Space,

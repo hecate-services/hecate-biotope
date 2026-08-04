@@ -49,6 +49,7 @@ carries_totals_rather_than_rates_test() ->
                    births_refused, population, energy_total, ground_total,
                    ground_spread, still_pct, hidden_mean, hidden_width, movers,
                    breeders, explored, frontier, behaviour_space, deepest_elite,
+                   commonest_way_pct, age_mean,
                    from_creatures_pct, sensor_mean, scent_tags, scent_spread]),
     %% The shape of the population rather than its average, as short
     %% fixed-length lists of counts.
@@ -81,6 +82,11 @@ carries_totals_rather_than_rates_test() ->
 %% every other field on this wire describes a population without answering. World
 %% 8 ended rich and frozen, nothing born since tick 15, and no fact it published
 %% could have shown that.
+%%
+%% Version 17 published WHAT MOST OF THEM ARE LIKE, in words: the commonest way
+%% of making a living as adjectives derived from bins, its share, and the mean
+%% age beside it, because a large part of any population is too young to have
+%% done anything and reads as barren and starving for that reason alone.
 %%
 %% Version 16 published WHAT CREATURES DO, as against what they are. `kinds'
 %% counts architectures; `explored' and `frontier' count ways of living, found
@@ -116,7 +122,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(16, V).
+    ?assertEqual(17, V).
 
 %%==============================================================================
 %% Which door the island is on

@@ -6,15 +6,23 @@
 %% What a narrator is allowed to know
 %%==============================================================================
 
-%% ⚠ NUMBERS ONLY. A narrator can only invent things about things it was told
-%% about, so the surest way to stop it explaining WHY something happened is to
-%% hand it nothing to build a why out of. Anything that is not an integer here is
-%% something a model could take as licence.
-a_brief_is_numbers_and_nothing_else_test() ->
+%% ⚠ NUMBERS, AND ONE FIELD OF DERIVED WORDS. A narrator can only invent things
+%% about things it was told about, so the brief hands it nothing to build a cause
+%% out of.
+%%
+%% This assertion used to be "integers only", and adding the portrait broke it.
+%% **The guarantee worth keeping is NO FREE TEXT, not NO TEXT**: `commonest_way'
+%% is adjectives assembled mechanically from bins by `behaviour:portrait/3', so
+%% it is reproducible and contains no sentence anybody wrote. The next test
+%% enforces that rather than trusting it, which is the difference between
+%% correcting an assertion and weakening one.
+a_brief_is_numbers_and_derived_words_test() ->
     Brief = world_brief:of_world(snapshot()),
     ?assert(map_size(Brief) > 10),
     ?assert(lists:all(fun is_atom/1, maps:keys(Brief))),
-    ?assert(lists:all(fun is_integer/1, maps:values(Brief))).
+    Text = [V || V <- maps:values(Brief), not is_integer(V)],
+    ?assertEqual(1, length(Text)),
+    ?assert(is_binary(hd(Text))).
 
 %% It carries the two censuses that disagree, because they are the whole reason
 %% there is anything interesting to say: what creatures ARE and what they DO.
@@ -24,15 +32,30 @@ a_brief_carries_both_censuses_test() ->
                   [kinds, ways_of_living_found, new_ways_last_1000_ticks,
                    ways_of_living_possible, creatures, tick]).
 
+%% ⚠ THE ONE TEXT FIELD IS BUILT ENTIRELY FROM A FIXED VOCABULARY, and this is
+%% what makes the exception above safe. Every word in a portrait came out of a
+%% bin, so nothing a person or a model wrote can reach the prompt through it.
+%%
+%% Checked against `behaviour:vocabulary/0' rather than against a list repeated
+%% here, so adding an axis cannot quietly smuggle free text in.
+the_only_words_in_a_brief_came_out_of_a_bin_test() ->
+    #{commonest_way := Way} = world_brief:of_world(snapshot()),
+    Known = behaviour:vocabulary(),
+    Parts = binary:split(Way, <<", ">>, [global]),
+    ?assertEqual(5, length(Parts)),
+    lists:foreach(fun(P) -> ?assert(lists:member(P, Known), {invented, P}) end,
+                  Parts).
+
 %% NOTHING AN OUTSIDER WROTE REACHES IT. An island's name comes from whoever
 %% started the container and is the only text in this slice that was not written
 %% in this repository. It is carried as a label and truncated, so an owner who
 %% names their island a paragraph of instructions gets a short label rather than
 %% a narrator that obeys them.
-the_brief_contains_no_text_at_all_test() ->
+the_brief_carries_no_text_an_outsider_wrote_test() ->
     Brief = world_brief:of_world(snapshot()),
-    ?assertEqual([], [V || V <- maps:values(Brief), is_binary(V)]),
-    ?assertEqual([], [V || V <- maps:values(Brief), is_list(V)]).
+    ?assertEqual([], [V || V <- maps:values(Brief), is_list(V)]),
+    %% The island name is passed beside the brief, never inside it.
+    ?assertNot(maps:is_key(island, Brief)).
 
 %%==============================================================================
 %% When it speaks

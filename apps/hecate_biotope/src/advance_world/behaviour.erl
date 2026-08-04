@@ -46,6 +46,7 @@
 -module(behaviour).
 
 -export([of_creature/2, cell/2, axes/0, bins/0, describe/1]).
+-export([portrait/3, vocabulary/0]).
 
 %% How many buckets each axis is cut into. Five is enough to tell a grazer from a
 %% predator from something in between, and small enough that the whole space is
@@ -125,3 +126,115 @@ travels(1) -> <<"drifts">>;
 travels(2) -> <<"ranges">>;
 travels(3) -> <<"travels far">>;
 travels(_4) -> <<"crosses the island">>.
+
+%% ==========================================================================
+%% A PORTRAIT: THE SAME CREATURE IN WORDS, AND ON MORE AXES
+%% ==========================================================================
+%%
+%% ⚠ THIS IS NOT THE ARCHIVE AND MUST NEVER BECOME IT.
+%%
+%% `cell/2' is three axes and 125 cells, and that 125 is in every measurement
+%% this project has made: "explored 76 of 125", "the frontier reaches zero by
+%% tick 6,000". Five axes at five bins is 3,125 cells. Exploration would look
+%% tiny, the frontier would never reach zero because there would always be more
+%% space left, and **every comparison already recorded would become
+%% incomparable**.
+%%
+%% So the archive keeps its three axes and a portrait may have as many as it
+%% likes, because a portrait is prose and an archive is an instrument with a
+%% history. Nothing bins a portrait and nothing counts them.
+%%
+%% ==========================================================================
+%% ADJECTIVES ARE DERIVED; NOUNS ARE NOT PERMITTED
+%% ==========================================================================
+%%
+%% Every word here comes out of a bin, so it is reproducible, testable, and
+%% checkable against the figures. What a narrator may NOT do is turn them into a
+%% species: "fast, greedy breeders" describes measurements and "pigs" asserts a
+%% kind of thing.
+%%
+%% That is not fussiness. `body.erl' records why world 1 was deleted: "a world
+%% whose rules contain `eye' cannot discover that seeing was worth doing." The
+%% physics stayed clean. The risk now is second-order and just as real: once a
+%% page says pigs, the next question anybody asks is whether the pigs are beating
+%% the wolves, and there are no pigs and no wolves, there is a continuum with bins
+%% drawn through it.
+%%
+%% ==========================================================================
+%% TWO AXES A PORTRAIT HAS THAT THE ARCHIVE DOES NOT
+%% ==========================================================================
+%%
+%%   BREEDING   what share of its ticks it spent making a child. Nothing
+%%              measured this before: `born' is a world total and says nothing
+%%              about who did it.
+%%
+%%   FEEDING    what it ACTUALLY took in per tick. The island already charts
+%%              "how fast they feed" and that is `uptake', which is a heritable
+%%              trait and a CAPACITY: `absorb/2' takes `min(uptake, structure)'
+%%              and then only what the cell actually holds. **A creature with a
+%%              large gut standing on bare ground charts as fast and eats
+%%              nothing.** This is the realised rate, which is a different
+%%              quantity and has never been on a page.
+%% ⚠ A YOUNG CREATURE READS AS "barren, starving" AND THAT IS ITS AGE TALKING.
+%%
+%% A creature needs ticks to move, eat or breed, and the mean life in this world
+%% is about nine. So a large share of any living population has simply not had
+%% time to do anything, and describes as barren and starving because it is
+%% newborn rather than because it is failing. The first live run showed exactly
+%% that portrait at 36% of the island.
+%%
+%% No age threshold is applied here. A cutoff would be a constant nobody could
+%% justify, and it would hide a true fact about a world where most creatures die
+%% young. `world:snapshot/1' publishes `age_mean' beside the portrait instead, so
+%% a reader can see the confound rather than have it quietly removed.
+-spec portrait(map(), non_neg_integer(), pos_integer()) -> binary().
+portrait(C, Radius, Ceiling) ->
+    {T, M, D} = of_creature(C, Radius),
+    Words = [eats(T), moves(M), travels(D), breeds(bin(breeding(C))),
+             feeds(bin(feeding(C, Ceiling)))],
+    join(Words).
+
+%% A creature can start at most one child a tick, so this is the share of its
+%% life spent breeding rather than a rate needing a scale.
+%% No fallback clause: every creature carries `bred' and `age' from the moment it
+%% is added, and a defensive clause here would be unreachable code claiming
+%% otherwise. Dialyzer says so, and a creature that lacked them should crash
+%% loudly rather than describe as barren.
+breeding(#{bred := B, age := Age}) -> share(B, Age).
+
+%% Against what a full cell holds, so "fast" means fast relative to the richest
+%% mouthful the world offers rather than to whatever this island happens to
+%% average.
+feeding(#{from_ground := G, from_creatures := F, age := Age}, Ceiling) ->
+    share((G + F) div max(1, Age), Ceiling).
+
+breeds(0) -> <<"barren">>;
+breeds(1) -> <<"breeds seldom">>;
+breeds(2) -> <<"breeds steadily">>;
+breeds(3) -> <<"breeds hard">>;
+breeds(_4) -> <<"breeds constantly">>.
+
+feeds(0) -> <<"starving">>;
+feeds(1) -> <<"feeds poorly">>;
+feeds(2) -> <<"feeds steadily">>;
+feeds(3) -> <<"feeds well">>;
+feeds(_4) -> <<"gorges">>.
+
+join([First | Rest]) ->
+    lists:foldl(fun(W, Acc) -> <<Acc/binary, ", ", W/binary>> end, First, Rest).
+
+%% @doc Every phrase a portrait can be built from.
+%%
+%% EXPORTED SO THE GUARANTEE CAN BE TESTED RATHER THAN ASSERTED. The brief handed
+%% to a language model is otherwise integers only, deliberately, so that there is
+%% nothing in it to build an explanation out of. A portrait is the one exception,
+%% and it is safe exactly because every word in it came out of a bin.
+%%
+%% A test checks that the phrase in a brief decomposes entirely into this list.
+%% Without that, "derived adjectives" is a claim about how the code is written
+%% rather than a property anything enforces.
+-spec vocabulary() -> [binary()].
+vocabulary() ->
+    [F(N) || F <- [fun eats/1, fun moves/1, fun travels/1, fun breeds/1,
+                   fun feeds/1],
+             N <- lists:seq(0, ?BINS - 1)].

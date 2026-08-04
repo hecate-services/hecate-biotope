@@ -692,7 +692,7 @@ add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatur
                      %% actually went somewhere, which are the two things a
                      %% behaviour descriptor needs and the only two the world
                      %% was not already keeping.
-                     origin => At, moved => 0,
+                     origin => At, moved => 0, bred => 0,
                      lineage => Line, generation => Gen,
                      %% A NEWBORN OWES NOTHING, which slightly under-charges the
                      %% very short-lived. At a generation time near forty ticks
@@ -751,6 +751,35 @@ tick(W, N) ->
 %% HOW MANY WAYS OF LIVING TURNED UP RECENTLY. Measured over a window rather
 %% than since the beginning, because a total can only rise and would report a
 %% long-converged world as a thriving one.
+age_mean(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+age_mean(#world{creatures = Cs}) ->
+    lists:sum([maps:get(age, C) || C <- maps:values(Cs)]) div map_size(Cs).
+
+%% The portraits of every living creature, tallied. No random numbers are drawn,
+%% so folding a map is safe here.
+portraits(#world{creatures = Cs, econ = Econ}) ->
+    Radius = maps:get(radius, Econ),
+    Ceiling = maps:get(ground_ceiling, Econ),
+    lists:foldl(fun(C, Acc) -> tally_portrait(C, Radius, Ceiling, Acc) end,
+                #{}, maps:values(Cs)).
+
+tally_portrait(C, Radius, Ceiling, Acc) ->
+    maps:update_with(behaviour:portrait(C, Radius, Ceiling), fun bump/1, 1, Acc).
+
+commonest_portrait(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> <<>>;
+commonest_portrait(W) -> element(2, top_portrait(W)).
+
+portrait_share(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+portrait_share(#world{creatures = Cs} = W) ->
+    element(1, top_portrait(W)) * 100 div map_size(Cs).
+
+%% Sorted before the maximum, so a tie is broken by the phrase itself rather
+%% than by whatever order the map happened to give. `G.6' is about draws taking
+%% their order from a map; this draws nothing, but a census that reported a
+%% different winner on each call for the same world would be just as useless.
+top_portrait(W) ->
+    lists:max([{N, P} || {P, N} <- lists:sort(maps:to_list(portraits(W)))]).
+
 frontier(#world{archive = A, tick = T}) ->
     map_size(maps:filter(fun(_Cell, {First, _Best}) -> T - First < ?FRONTIER end,
                          A)).
@@ -1548,9 +1577,11 @@ room(true, Id, Near, #world{creatures = Cs, econ = Econ, rng = Rng0} = W) ->
                                                   W#world.next_mark, Rng2),
     %% WHAT THE PARENT GIVES UP IS NOT WHAT THE CHILD RECEIVES. Assembling a
     %% second creature is a transformation and pays like every other one.
+    Bred = maps:get(bred, C, 0) + 1,
     W1 = note_change(Change,
                      note_mate(Mate,
-                               W#world{creatures = Cs#{Id => C#{energy => E - Dowry}},
+                               W#world{creatures = Cs#{Id => C#{energy => E - Dowry,
+                                                               bred => Bred}},
                                        dissipated = W#world.dissipated + (Dowry - Given),
                                        next_mark = Mark1, rng = Rng3})),
     add_creature(Where, Store, Built, Id, Traits, W1).
@@ -1785,6 +1816,34 @@ snapshot(#world{econ = Econ} = W) ->
       %% `deepest_elite' is the deepest lineage any behaviour ever produced,
       %% which says whether the ways of living that were found were survivable
       %% or merely visited.
+      %% ==================================================================
+      %% WHAT MOST CREATURES HERE ARE ACTUALLY LIKE, IN WORDS
+      %% ==================================================================
+      %%
+      %% Every other line of this census is a number or a count of a shape. This
+      %% is the commonest way of MAKING A LIVING, spelled out, and the share of
+      %% the population living that way.
+      %%
+      %% ⚠ ADJECTIVES DERIVED FROM BINS, NEVER A SPECIES. "grazes, sessile,
+      %% breeds hard" describes measurements; "pigs" would assert a kind of
+      %% thing, and there are no kinds of thing here, only a continuum with bins
+      %% drawn through it. `body.erl' records what naming did to world 1.
+      commonest_way => commonest_portrait(W),
+      commonest_way_pct => portrait_share(W),
+      %% ⚠ AND HOW OLD THEY ARE, BESIDE IT, BECAUSE THE TWO CONFOUND.
+      %%
+      %% A creature needs ticks to move anywhere, eat anything or make a child,
+      %% and the mean life here is about nine of them. So a large share of any
+      %% living population is simply YOUNG, and reads as "barren, starving"
+      %% because it has not had time to be anything else. On the first live run
+      %% the commonest portrait was exactly that, at 36%.
+      %%
+      %% **That is not a fault in the portrait and it is a trap for a reader**:
+      %% "most creatures are barren and starving" sounds like a dying world and
+      %% describes a nursery. No threshold is introduced to hide it, because a
+      %% cutoff age would be a constant nobody could justify. The age is
+      %% published instead, so the confound is visible rather than removed.
+      age_mean => age_mean(W),
       explored => map_size(W#world.archive),
       frontier => frontier(W),
       behaviour_space => behaviour:bins() * behaviour:bins() * behaviour:bins(),
