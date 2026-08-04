@@ -352,36 +352,50 @@ a_kind_colour_is_visible_test() ->
 %% would have passed on it, vacuously, and the guard is the only thing that
 %% noticed. **A world change invalidates every fixture chosen by running the
 %% world**, which is a cost of testing against the real thing and worth paying.
-one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 101, population => 40}), 600),
-    Chart = world:chart(W),
-    D = island_disc:packed(Chart, 400),
-    Kinds = maps:get(kind_of, Chart),
-    Painted = every(8, 5, maps:get(creatures, D)),
-    ?assertEqual(length(Kinds), length(Painted)),
-    Pairs = lists:usort(lists:zip(Kinds, Painted)),
-    %% One colour per kind: no kind index appears twice with different colours.
-    ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)),
-    %% ⚠ "AND AS MANY COLOURS AS KINDS" STOOD HERE AND WAS WRONG, so it is
-    %% written down rather than quietly deleted. `kind_rgb/1' hashes into 360
-    %% hues; by the birthday bound fifteen kinds collide about a QUARTER of the
-    %% time, so that assertion demanded a property a 360-bucket hash does not
-    %% have and cannot be given. It passed for as long as the fixture held
-    %% fourteen kinds, which is luck, and world 23 moved the fixture to fifteen
-    %% and two of them landed on one hue.
-    %%
-    %% The claim the code makes is "two architectures RARELY collide", which is a
-    %% statement about the hash and not about any one board, and it is tested as
-    %% one in `two_architectures_rarely_share_a_colour_test'. What is exact on a
-    %% board is asserted here and nothing more.
-    %%
-    %% AND NOT ONE FALLBACK. Grey means an index missed a table that has
-    %% entries, which is two parallel lists disagreeing rather than a display
-    %% case.
-    ?assertEqual([], [C || C <- Painted, C =:= 16#888888]),
-    %% The fixture itself is asserted, because this test is only worth running on
-    %% a board where kinds are shared and the previous two were not.
-    ?assert(length(Kinds) > 4 * length(lists:usort(Kinds))).
+%% ⚠ WRAPPED BECAUSE EUNIT'S DEFAULT TIMEOUT IS FIVE SECONDS PER TEST, and this
+%% one ticks a live world. It reads 3.9s on a development machine and blew the
+%% limit on CI's slower runner, which reports `*timed out*' and then prints
+%% whatever the process happened to be executing when it was killed. That stack
+%% is NOT the cause: it pointed at `brain:dot/2' on one release and
+%% `hex:neighbours/1' on the next, and I read the first as a latent crash and
+%% went looking for a bug that does not exist.
+%%
+%% A timeout is not a slow test's problem to solve by shrinking. The fixture has
+%% to be a world with shared kinds, and seed 101 is that world precisely because
+%% it thrives at 150 creatures.
+one_kind_is_one_colour_on_the_board_test_() ->
+    {timeout, 300,
+     fun() ->
+        W = world:tick(world:new(#{seed => 101, population => 40}), 600),
+        Chart = world:chart(W),
+        D = island_disc:packed(Chart, 400),
+        Kinds = maps:get(kind_of, Chart),
+        Painted = every(8, 5, maps:get(creatures, D)),
+        ?assertEqual(length(Kinds), length(Painted)),
+        Pairs = lists:usort(lists:zip(Kinds, Painted)),
+        %% One colour per kind: no kind index appears twice with different colours.
+        ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)),
+        %% ⚠ "AND AS MANY COLOURS AS KINDS" STOOD HERE AND WAS WRONG, so it is
+        %% written down rather than quietly deleted. `kind_rgb/1' hashes into 360
+        %% hues; by the birthday bound fifteen kinds collide about a QUARTER of the
+        %% time, so that assertion demanded a property a 360-bucket hash does not
+        %% have and cannot be given. It passed for as long as the fixture held
+        %% fourteen kinds, which is luck, and world 23 moved the fixture to fifteen
+        %% and two of them landed on one hue.
+        %%
+        %% The claim the code makes is "two architectures RARELY collide", which is a
+        %% statement about the hash and not about any one board, and it is tested as
+        %% one in `two_architectures_rarely_share_a_colour_test'. What is exact on a
+        %% board is asserted here and nothing more.
+        %%
+        %% AND NOT ONE FALLBACK. Grey means an index missed a table that has
+        %% entries, which is two parallel lists disagreeing rather than a display
+        %% case.
+        ?assertEqual([], [C || C <- Painted, C =:= 16#888888]),
+        %% The fixture itself is asserted, because this test is only worth running on
+        %% a board where kinds are shared and the previous two were not.
+        ?assert(length(Kinds) > 4 * length(lists:usort(Kinds)))
+     end}.
 
 %% THE MAPPING ALONE, ON A CHART BUILT BY HAND, so the claim is checked without
 %% depending on any world evolving a particular shape. Four creatures, two kinds,
@@ -497,20 +511,25 @@ two_architectures_rarely_share_a_colour_test() ->
 %% accessor: the cells lived in the world record and nothing outside could read
 %% them, so the question "why am I not seeing rivers and lakes" had no answer in
 %% the drawing code at all.
-the_island_sends_its_water_and_the_disc_draws_it_test() ->
-    W = world:tick(world:new(#{seed => 101, population => 40}), 200),
-    Chart = world:chart(W),
-    Wet = maps:get(water, Chart),
-    %% Stride two, position only: a cell is wet or it is not.
-    ?assertEqual(0, length(Wet) rem 2),
-    ?assert(length(Wet) > 0),
-    %% AND THE COUNT IS THE WORLD'S OWN. A chart that carries a different number
-    %% of wet cells from the snapshot is two readings of one world disagreeing.
-    #{water_holes := Holes} = world:snapshot(W),
-    ?assertEqual(Holes, length(Wet) div 2),
-    %% Through to the painter, same stride, nothing lost.
-    D = island_disc:packed(Chart, 400),
-    ?assertEqual(length(Wet), length(maps:get(water, D))),
-    %% And it is blue rather than whatever the ground is.
-    ?assertNotEqual(island_disc:water_rgb(), 16#2F7D52).
+%% ⚠ Wrapped for the same reason as the kind-colour test above: it ticks a
+%% live world and eunit's default is five seconds.
+the_island_sends_its_water_and_the_disc_draws_it_test_() ->
+    {timeout, 300,
+     fun() ->
+        W = world:tick(world:new(#{seed => 101, population => 40}), 200),
+        Chart = world:chart(W),
+        Wet = maps:get(water, Chart),
+        %% Stride two, position only: a cell is wet or it is not.
+        ?assertEqual(0, length(Wet) rem 2),
+        ?assert(length(Wet) > 0),
+        %% AND THE COUNT IS THE WORLD'S OWN. A chart that carries a different number
+        %% of wet cells from the snapshot is two readings of one world disagreeing.
+        #{water_holes := Holes} = world:snapshot(W),
+        ?assertEqual(Holes, length(Wet) div 2),
+        %% Through to the painter, same stride, nothing lost.
+        D = island_disc:packed(Chart, 400),
+        ?assertEqual(length(Wet), length(maps:get(water, D))),
+        %% And it is blue rather than whatever the ground is.
+        ?assertNotEqual(island_disc:water_rgb(), 16#2F7D52)
+     end}.
 

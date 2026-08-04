@@ -215,28 +215,36 @@ a_shared_node_is_recognised_wherever_it_sits_test() ->
 %% ⚠ AND THE FIXTURE IS ASSERTED, because `lists:foreach' over an empty world
 %% passes and says nothing. World 23 killed seed 77 down to ONE creature and this
 %% test went on passing, having checked a single brain.
-marks_are_handed_out_once_and_never_returned_test() ->
-    W = world:tick(world:new(#{seed => 101, population => 40}), 300),
-    All = [brain:marks(maps:get(brain, C))
-           || C <- maps:values(world:creatures(W))],
-    ?assert(length(All) > 20),
-    %% Within any one brain a mark appears at most once: a node is one node.
-    lists:foreach(fun(M) -> ?assertEqual(lists:usort(M), lists:sort(M)) end,
-                  All).
+%% ⚠ Wrapped: ticks a live world, and eunit's default timeout is five seconds.
+marks_are_handed_out_once_and_never_returned_test_() ->
+    {timeout, 300,
+     fun() ->
+        W = world:tick(world:new(#{seed => 101, population => 40}), 300),
+        All = [brain:marks(maps:get(brain, C))
+               || C <- maps:values(world:creatures(W))],
+        ?assert(length(All) > 20),
+        %% Within any one brain a mark appears at most once: a node is one node.
+        lists:foreach(fun(M) -> ?assertEqual(lists:usort(M), lists:sort(M)) end,
+                      All)
+     end}.
 
 %% ⚠ AND THE TWO LISTS STAY THE SAME LENGTH. `marks' runs parallel to `hidden'
 %% rather than being fused into it, which is cheap and is exactly the shape of
 %% bug this project keeps hitting. Only four operations change the node count and
 %% this asserts all four kept step, over a whole live world.
-a_brain_has_exactly_one_mark_per_node_test() ->
-    W = world:tick(world:new(#{seed => 101, population => 40}), 400),
-    ?assert(maps:size(world:creatures(W)) > 20),
-    lists:foreach(
-      fun(C) ->
-              Brain = maps:get(brain, C),
-              ?assertEqual(length(maps:get(hidden, Brain)),
-                           length(brain:marks(Brain)))
-      end, maps:values(world:creatures(W))).
+%% ⚠ Wrapped: ticks a live world, and eunit's default timeout is five seconds.
+a_brain_has_exactly_one_mark_per_node_test_() ->
+    {timeout, 300,
+     fun() ->
+        W = world:tick(world:new(#{seed => 101, population => 40}), 400),
+        ?assert(maps:size(world:creatures(W)) > 20),
+        lists:foreach(
+          fun(C) ->
+                  Brain = maps:get(brain, C),
+                  ?assertEqual(length(maps:get(hidden, Brain)),
+                               length(brain:marks(Brain)))
+          end, maps:values(world:creatures(W)))
+     end}.
 
 marked(Body, Hidden, Marks, Outputs) ->
     #{body => Body,

@@ -7,14 +7,19 @@
 %% `here' -- see `world:inputs/5', where `here' is an ordinary input and not a
 %% special case. Its `hidden' row must be exactly as long as the brain has nodes,
 %% and a hidden row is `sensors + 1 + nodes' wide because it also reads the
-%% previous tick's activations, which is world 21. A mismatch is a crash inside
-%% `lists:zip/3', which is what CI hit on erlang:27 at a seed that is fine on 28.
+%% previous tick's activations, which is world 21. A mismatch would crash inside
+%% `lists:zip/3'.
 %%
-%% ⚠ THE VERSIONS ARE THE POINT. The world is a pure function of its seed WITHIN
-%% one OTP release; `rand' and map iteration are not promised to agree across
-%% them. So "it passes locally" only ever meant "it passes on this OTP", and a
-%% latent width bug can sit unreachable on one release and crash on another.
-%% This walks the invariant directly instead of waiting for a seed to find it.
+%% ⚠ THIS WAS WRITTEN TO CHASE A BUG THAT DOES NOT EXIST, and it is kept because
+%% it is the evidence of that. CI reported `*timed out*' and then printed the
+%% stack the process happened to be executing when eunit killed it: `brain:dot/2'
+%% on one run and `hex:neighbours/1' on the next. I read the first as a crash and
+%% went looking for a width bug. **The fault was eunit's five-second default
+%% against a test that ticks a live world**, and the elapsed time was exactly
+%% 5.000 seconds every time.
+%%
+%% 120 seeds x 800 ticks find no violation. That is the ANSWER, not a failure to
+%% reproduce. A timeout's stack names WHERE, never WHY. `I.20'.
 -mode(compile).
 
 main(Args) ->
