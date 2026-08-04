@@ -265,6 +265,14 @@
                 %% as neatly for a creature admitted twice as for one admitted
                 %% once. A guard that cannot fail is not a guard.
                 seen = #{} :: #{integer() => true},
+                %% ⚠ WHETHER THIS ISLAND TAKES MIGRANTS, AND IT IS NOT PHYSICS.
+                %%
+                %% A world option rather than an economy constant, deliberately.
+                %% `HECATE_BIOTOPE_ECON' put beam01 in a two-hour crash loop for
+                %% exactly this confusion, and the rule that came out of it is
+                %% that a node's config may name what a node IS and never what
+                %% the physics ARE. Who an island admits is what it is.
+                border = open :: open | closed,
                 %% ==========================================================
                 %% EVERY WAY OF LIVING THIS WORLD HAS EVER FOUND
                 %% ==========================================================
@@ -689,7 +697,7 @@ defaults() ->
 
 %% What a world takes that is not an economy constant: where it starts rather
 %% than what it costs to live there.
--define(WORLD_OPTS, [seed, population, founder_body, founder_brain,
+-define(WORLD_OPTS, [seed, population, border, founder_body, founder_brain,
                      founder_scent, founder_uptake, founder_uptake_max,
                      founder_mouth]).
 
@@ -723,7 +731,8 @@ new(Opts) ->
     {Water, Rng} = water(maps:get(water_holes, Econ), Radius, Rng0),
     populate(maps:get(population, Opts, 40), Opts,
              #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng,
-                    water = Water, seed = Seed}).
+                    water = Water, seed = Seed,
+                    border = maps:get(border, Opts, open)}).
 
 populate(0, _Opts, W) -> W;
 populate(N, Opts, #world{econ = Econ, rng = Rng0, next_mark = M0} = W) ->
@@ -1013,7 +1022,8 @@ leaving({ok, C}, Id, #world{creatures = Cs, departed = Out, rng = Rng0} = W) ->
 %% running, and a body and a brain that disagree on width crash the tick rather
 %% than drawing oddly. `migrant:unpack/1' checks the shape; this refuses what it
 %% rejects and the caller declines the animal.
--spec arrive(migrant:packed(), world()) -> {ok, world()} | {error, atom()}.
+-spec arrive(migrant:packed(), world()) ->
+          {ok, world()} | {turned_away, atom()} | {error, atom()}.
 arrive(Packed, W) ->
     landed(migrant:unpack(Packed), Packed, W).
 
@@ -1021,7 +1031,24 @@ landed({error, Why}, _Packed, _W) ->
     {error, Why};
 landed({ok, _C}, #{crossing := X}, #world{seen = Seen}) when is_map_key(X, Seen) ->
     {error, already_arrived};
-landed({ok, C}, #{crossing := X} = Packed,
+landed({ok, C}, #{crossing := X} = Packed, W) ->
+    %% ⚠ TWO QUESTIONS, ASKED SEPARATELY. Above: is this a creature at all, which
+    %% is fixed and technical and answers `{error, _}' because there is no animal
+    %% to hand back. Here: will we have it, which is a judgement about a creature
+    %% that is perfectly fine, and answers `{turned_away, Why}' so the caller can
+    %% return it alive.
+    considered(border:consider(C, gates(W)), C, X, Packed, W).
+
+%% What the border is allowed to know about this island. Deliberately small: a
+%% rule that could read the whole world would grow into one that reads a
+%% creature's lineage before anybody decided that was a policy this world has.
+gates(#world{border = Border, creatures = Cs, econ = Econ}) ->
+    #{border => Border, population => map_size(Cs),
+      max_creatures => maps:get(max_creatures, Econ)}.
+
+considered({turn_away, Why}, _C, _X, _Packed, _W) ->
+    {turned_away, Why};
+considered(admit, C, X, Packed,
        #world{creatures = Cs, econ = Econ, next_id = Id, seen = Seen,
               rng = Rng0, tick = T, arrived = In} = W) ->
     %% A MIGRANT MAKES LANDFALL AT RANDOM, because nothing in this world knows

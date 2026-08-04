@@ -216,6 +216,77 @@ a_refused_migrant_leaves_the_island_untouched_test() ->
     ?assertEqual(Before, world:snapshot(To)).
 
 %%==============================================================================
+%% Turned away is not broken, and not death
+%%==============================================================================
+
+%% ⚠ THE CATEGORY ERROR THIS SECTION EXISTS TO PREVENT.
+%%
+%% A migrant may arrive at the gates PERFECTLY HEALTHY and still be refused. That
+%% is a decision the island made and says nothing about the animal. The first
+%% version of the crossing conflated the two, because the sender let go
+%% irrevocably and a refused creature therefore had nowhere to be, so refusal
+%% BECAME destruction and the design described that as though it were a property
+%% of refusal rather than of the transport.
+%%
+%% The two answers are different SHAPES so a caller cannot confuse them: an
+%% `{error, _}` has no animal behind it, a `{turned_away, _}` has a live one the
+%% caller still holds and must hand back.
+a_closed_island_turns_a_healthy_creature_away_test() ->
+    From = world:new(#{seed => 11, population => 12, radius => 4}),
+    Shut = world:new(#{seed => 23, population => 12, radius => 4,
+                       border => closed}),
+    [Id | _] = lists:sort(maps:keys(world:creatures(From))),
+    {ok, Packed, _} = world:depart(Id, From),
+
+    ?assertEqual({turned_away, closed}, world:arrive(Packed, Shut)),
+    %% AND THE CREATURE IS FINE. The same animal, unchanged, admitted by an
+    %% island that will have it.
+    Open = world:new(#{seed => 23, population => 12, radius => 4}),
+    ?assertMatch({ok, _}, world:arrive(Packed, Open)).
+
+a_full_island_turns_a_healthy_creature_away_test() ->
+    From = world:new(#{seed => 11, population => 12, radius => 4}),
+    Packed = departure(From),
+    Crowded = world:new(#{seed => 23, population => 12, radius => 4,
+                          max_creatures => 12}),
+
+    ?assertEqual({turned_away, full}, world:arrive(Packed, Crowded)).
+
+%% ⚠ AND A REFUSAL IS NOT AN ERROR, which is the whole point. `{error, _}` means
+%% what arrived was not a creature; there is nothing to return and returning
+%% garbage to a node that probably did not send it would be worse than dropping
+%% it. These must never collapse into one answer.
+a_turned_away_creature_is_not_an_error_test() ->
+    From = world:new(#{seed => 11, population => 12, radius => 4}),
+    Shut = world:new(#{seed => 23, population => 12, radius => 4,
+                       border => closed}),
+    Packed = departure(From),
+
+    ?assertNotMatch({error, _}, world:arrive(Packed, Shut)),
+    %% Malformed is still an error, and on the SAME island, so the difference is
+    %% the migrant and not the policy.
+    ?assertMatch({error, _}, world:arrive(Packed#{body => [99, 1]}, Shut)).
+
+%% A refusal changes nothing about the island: it did not take the animal, so it
+%% must not have taken its energy or spent a crossing id either.
+a_turned_away_creature_leaves_the_island_untouched_test() ->
+    From = world:new(#{seed => 11, population => 12, radius => 4}),
+    Shut = world:new(#{seed => 23, population => 12, radius => 4,
+                       border => closed}),
+    Packed = departure(From),
+    Before = world:snapshot(Shut),
+
+    ?assertEqual({turned_away, closed}, world:arrive(Packed, Shut)),
+    ?assertEqual(Before, world:snapshot(Shut)).
+
+%% ⚠ THE REASON IS A WORD THE ISLAND CHOSE, and nothing downstream may enumerate
+%% them. What an island refuses today is "full" and "closed"; what it refuses
+%% when admission is something a world evolves is not knowable from here.
+every_reason_is_an_atom_and_the_list_is_open_test() ->
+    ?assert(lists:all(fun is_atom/1, border:reasons_so_far())),
+    ?assert(length(border:reasons_so_far()) > 0).
+
+%%==============================================================================
 %% Helpers
 %%==============================================================================
 
@@ -240,3 +311,9 @@ ledger(W) ->
 newest(W) ->
     Cs = world:creatures(W),
     maps:get(lists:max(maps:keys(Cs)), Cs).
+
+%% One creature, packed and gone. The sender is not the subject of these tests.
+departure(W) ->
+    [Id | _] = lists:sort(maps:keys(world:creatures(W))),
+    {ok, Packed, _} = world:depart(Id, W),
+    Packed.
