@@ -5,6 +5,28 @@
 Opened 2026-08-04. The track it replaces is closed and its reasons are in
 [WHY_THIS_TRACK_CLOSED.md](WHY_THIS_TRACK_CLOSED.md).
 
+> ## ⚠ AND THIS CHARTER WAS ITSELF SUPERSEDED THE SAME DAY. READ THIS FIRST.
+>
+> Raf decided that the next track is **Artificial Cultures**, in a **new repo**.
+> Islands, migration, the border and the mesh substrate all carry across. The
+> BIOLOGY does not: the energy economy, predation and thirst are being dropped,
+> and sensors and actuators become communication rather than perception.
+>
+> **So the substrate half of this document stands and the biology half does
+> not.** Sections on the metapopulation, migration, identity and the design rules
+> are live. Sections proposing body plans, excretion and a food economy are
+> history.
+>
+> ⚠ **Do not build the ALife metapopulation from this file.** The full handover,
+> including the decisions taken with their reasoning, is at
+> `~/.claude/sessions/2026-08-04_artificial-cultures-handover.md`.
+>
+> What is built here and is worth taking: `migrant.erl` (the crossing codec, the
+> conservation ledger, at-most-once by crossing id), `border.erl` (the admission
+> seam with an open reason vocabulary), `world_facts:island_id/0` (identity as
+> against name), and `Biotope.Archipelago` in `beam-campus-net` (hashed layout,
+> one map, a viewport).
+
 ---
 
 ## The one idea
