@@ -37,7 +37,7 @@ main(Args) ->
               "Nodes there~nare what mortality alone buys.~n").
 
 arm(Radius, Seeds, Ticks) ->
-    Rows = [run(S, Radius, Ticks) || S <- lists:seq(1, Seeds)],
+    Rows = in_parallel(fun(S) -> run(S, Radius, Ticks) end, lists:seq(1, Seeds)),
     Live = [N || #{population := P} = N <- Rows, P > 0],
     Dead = Seeds - length(Live),
     io:format("~-10w ~-8w ~-8s ~-8s ~-22s ~-8s~n",
@@ -61,6 +61,18 @@ going(true, W, Left) -> advance(W, Left).
 arg(Args, N, _D) when length(Args) >= N -> list_to_integer(lists:nth(N, Args));
 arg(_A, _N, D) -> D.
 
+%% One process per seed, as `sweep_water.escript' does. Sequential seeds put the
+%% first arm alone past an hour and the whole table out of reach.
+in_parallel(F, Items) ->
+    Parent = self(),
+    Refs = [spawn_one(Parent, F, I) || I <- Items],
+    [receive {Ref, Result} -> Result end || Ref <- Refs].
+
+spawn_one(Parent, F, Item) ->
+    Ref = make_ref(),
+    spawn_link(fun() -> Parent ! {Ref, F(Item)} end),
+    Ref.
+
 spread([]) -> "-";
 spread(Vs) ->
     S = lists:sort(Vs),
@@ -69,9 +81,13 @@ spread(Vs) ->
 med([]) -> "-";
 med(Vs) -> integer_to_list(median(Vs)).
 
+%% ⚠ THE SAME DEFINITION `sweep_water.escript' USES, character for character.
+%% This table is read directly against that one, and two scripts taking the
+%% median two different ways would show a difference that is arithmetic rather
+%% than biology.
 median([]) -> 0;
-median(Vs) -> lists:nth(max(1, length(Vs) div 2), lists:sort(Vs)).
+median(L) -> lists:nth(length(L) div 2 + 1, lists:sort(L)).
 
 pct(Part, Whole) -> [integer_to_list(Part * 100 div max(1, Whole)), "%"].
 
-hundredths(V) -> io_lib:format("~.2f", [V / 100]).
+hundredths(V) -> io_lib:format("~w.~2..0w", [V div 100, V rem 100]).

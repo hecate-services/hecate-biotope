@@ -73,7 +73,7 @@ there. See `I.16`.
 |---|---|---|
 | the differential the change creates, as a share of fitness | | breeding or not, eating or not, living or not: usually tens of percent |
 | **is that above the drift floor** | | `1/(2·Ne)`, and **`Ne` is 7.44, so the floor is 6.72%** — `G.10` |
-| **can a creature PHYSICALLY respond within one life** | | **the binding question.** Mean life is ten ticks and a creature moves one cell per tick |
+| **can a creature PHYSICALLY respond within one life** | | **the binding question**, and ⚠ `I.19`: SAY WHICH LIFESPAN. Birth-weighted is ~9 ticks and describes a newborn; the mean age of a creature actually alive is ~34, three to four times larger. A creature that is going to respond is the second one |
 | **measured on the SETTLED world, not the founders** | | ⚠ `I.17`. Founders are scattered uniformly because the world has just started; the answer is different and the founder figure is the wrong one |
 | what share of the population could respond | | **if it is low, the change is a filter and not a pressure** |
 | **can a creature PERCEIVE the change** | | a requirement nobody can sense is a lottery, not a selection pressure. `?FIELDS` is fixed and adding to it is part of the world |
