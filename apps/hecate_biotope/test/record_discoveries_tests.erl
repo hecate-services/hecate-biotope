@@ -26,9 +26,9 @@ the_events_are_named_for_what_happened_test() ->
 %% many; a run is the thing with a beginning, an end and a seed. Two islands
 %% drawing the same seed are two streams.
 a_run_gets_its_own_stream_test() ->
-    A = discovery:stream_for(#{island => <<"beam01">>, seed => 4242}),
-    B = discovery:stream_for(#{island => <<"beam01">>, seed => 99}),
-    C = discovery:stream_for(#{island => <<"beam03">>, seed => 4242}),
+    A = discovery:stream_for(<<"beam01">>, 4242),
+    B = discovery:stream_for(<<"beam01">>, 99),
+    C = discovery:stream_for(<<"beam03">>, 4242),
     ?assertNotEqual(A, B),
     ?assertNotEqual(A, C),
     ?assertEqual(<<"biotope/beam01/4242">>, A).
@@ -54,6 +54,28 @@ the_opening_event_carries_the_whole_economy_test() ->
     ?assert(map_size(maps:get(economy, Data)) > 20),
     ?assertEqual(maps:get(number, world:ruleset()), maps:get(world, Data)),
     ?assert(byte_size(maps:get(rules, Data)) > 20).
+
+%% ⚠ EVERY EVENT IS BUILT FROM A REAL SNAPSHOT, NOT FROM A MAP WRITTEN HERE.
+%%
+%% `stream_for/1' used to take the snapshot and match on an `island' key.
+%% `world:snapshot/1' has never had one: an island's name comes from the
+%% environment and a world knows nothing about what is running it. It crashed on
+%% the first live look on every node, in a function_clause the supervisor
+%% restarted every five seconds, while the store sat open and empty.
+%%
+%% **The test passed**, because it handed the function a map containing `island'.
+%% A fixture that agrees with my own function rather than with the island is
+%% `C.6' and `B.7' in this project's register, both filed for precisely this, and
+%% `world_facts' carries a paragraph about the last time it happened.
+%%
+%% So this feeds every constructor the real thing.
+every_event_is_built_from_a_real_snapshot_test() ->
+    Snap = snapshot(),
+    ?assertNot(maps:is_key(island, Snap)),
+    lists:foreach(fun(E) -> ?assert(is_map(maps:get(data, E))) end,
+                  [discovery:seeded(Snap), discovery:found(3, 9, Snap),
+                   discovery:settled(10, Snap), discovery:stirred(11, Snap),
+                   discovery:ended(Snap)]).
 
 %% Everything carries the tick, so a stream reads without being joined to
 %% anything.

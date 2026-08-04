@@ -83,7 +83,8 @@ handle_info(look, S) ->
 inspect(#{seed := Seed} = Snap, #state{seed = Seed} = S) ->
     carry_on(Snap, S);
 inspect(#{seed := Seed} = Snap, S) ->
-    Fresh = #state{seed = Seed, stream = discovery:stream_for(Snap),
+    Fresh = #state{seed = Seed,
+                   stream = discovery:stream_for(world_facts:island(), Seed),
                    written = S#state.written, failed = S#state.failed},
     carry_on(Snap, append(discovery:seeded(Snap), Fresh)).
 

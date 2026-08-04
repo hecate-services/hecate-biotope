@@ -40,7 +40,7 @@
 %% the store would cost the record and not a single creature.
 -module(discovery).
 
--export([seeded/1, found/3, settled/2, stirred/2, ended/1, stream_for/1]).
+-export([seeded/1, found/3, settled/2, stirred/2, ended/1, stream_for/2]).
 
 %% ⚠ BUSINESS VERBS, NOT CRUD. Nothing here is created, updated or deleted: a
 %% world is SEEDED and ENDS, a way of living is FOUND, a world SETTLES and
@@ -54,8 +54,18 @@
 %% many; a run is the thing with a beginning, an end and a seed. Keyed by island
 %% and seed together, so two islands that happen to draw the same seed are two
 %% streams and one island replaying a seed is one.
--spec stream_for(map()) -> binary().
-stream_for(#{island := Island, seed := Seed}) ->
+%% ⚠ THE ISLAND NAME IS PASSED IN, BECAUSE A SNAPSHOT DOES NOT CARRY ONE. This
+%% took the map and matched on `island', which `world:snapshot/1' has never had:
+%% an island's name comes from `world_facts:island()', from the environment, and
+%% a world knows nothing about what the thing running it is called.
+%%
+%% It crashed on the first live look, on every node, in a `function_clause' that
+%% the supervisor restarted every five seconds. **And a test passed**, because
+%% the test handed it a map with an `island' key in it: a fixture that agrees
+%% with my own function rather than with the island, which is `C.6' and `B.7' in
+%% this project's own register, both filed for exactly this.
+-spec stream_for(binary(), integer()) -> binary().
+stream_for(Island, Seed) ->
     <<"biotope/", Island/binary, "/", (integer_to_binary(Seed))/binary>>.
 
 %% @doc A world began.
