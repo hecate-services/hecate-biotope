@@ -36,12 +36,14 @@
          world_charted/2, world_narrated/3]).
 
 -define(DEFAULT_NS, <<"biotope">>).
-%% ⚠ BUMPED WHENEVER THE SHAPE CHANGES, INCLUDING AN APPEND. 18 adds `water',
-%% `senses' and `nodes' to the chart fact. Appending is backward compatible, so
+%% ⚠ BUMPED WHENEVER THE SHAPE CHANGES, INCLUDING AN APPEND. 19 adds `parched',
+%% death by drying out, to the counts fact: world 23's whole subject, counted
+%% separately on the island since it was built and published to nobody.
+%% 18 added `water', `senses' and `nodes' to the chart fact. Appending is backward compatible, so
 %% an old reader keeps working, and that is exactly why the number has to move:
 %% a reader has no other way to ask "is the field I want in this frame, or am I
 %% talking to an island that predates it".
--define(FACT_VERSION, 18).
+-define(FACT_VERSION, 19).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -137,6 +139,7 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected) ->
 world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
     #{tick := Tick, population := Pop, born := Born,
       starved := Starved, aged_out := Aged, consumed := Consumed,
+      parched := Parched,
       absorbed := Absorbed, births_refused := Refused,
       energy_total := Energy, radius := Radius, econ := Econ, econ_id := EconId, seed := Seed,
       extinct_at := ExtinctAt, from_creatures_pct := FromCreatures,
@@ -379,6 +382,15 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
       starved => Starved,
       aged_out => Aged,
       consumed => Consumed,
+      %% ⚠ DEATH BY DRYING OUT, AND IT WAS ON NO WIRE UNTIL NOW. World 23 exists
+      %% to make water matter and counts this separately so that "the world got
+      %% harsher" and "the world got thirsty" are different findings. It reached
+      %% no reader at all, so the one number that says whether that world's rule
+      %% does anything was invisible from outside the island.
+      %%
+      %% Measured at the default econ, 24 seeds to 4,000 ticks: 18% of all
+      %% deaths. The rule bites, and nobody could see it.
+      parched => Parched,
       absorbed => Absorbed,
       %% Non-zero means the safety valve bound and the population is NOT at a
       %% natural ceiling. Published so that never has to be guessed from shape.

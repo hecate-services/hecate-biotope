@@ -115,6 +115,10 @@ carries_totals_rather_than_rates_test() ->
 %% eighteen worlds read its 1 as a monoculture. Measured, a world reading one
 %% lineage routinely carries five to twenty-seven body plans at once.
 %%
+%% Version 19 put `parched' on the counts fact: death by drying out, which world
+%% 23 was built to cause and counted separately from the beginning so that "the
+%% world got harsher" and "the world got thirsty" could be told apart. It reached
+%% no reader, so at the default econ 18% of every death was invisible.
 %% Version 18 put `water', `senses' and `nodes' on the chart fact. All three were
 %% computed by `chart/1' and reached no wire, so an island could not be drawn
 %% with its own landscape and a spectator could not size a creature by what it is
@@ -128,7 +132,29 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(18, V).
+    ?assertEqual(19, V).
+
+%% ⚠ THE SAME GUARD AS THE CHART'S, FOR THE COUNTS FACT.
+%%
+%% `parched' was computed by `snapshot/1' from the day world 23 was built and put
+%% on no wire, so the one number saying whether that world's central rule does
+%% anything could not be read from outside the island. Four fields have now gone
+%% missing in this exact gap: `structures', `water', `senses', `nodes' -- and
+%% this one.
+%%
+%% ⚠⚠ AND THIS CANNOT BE THE CHART'S TEST REPEATED. A snapshot carries dozens of
+%% things a spectator has no use for, so "every key reaches the wire" is false
+%% here by design. What can be asserted is that the DEATH CAUSES are exhaustive:
+%% a reader that adds them up must get every death, and a new cause that does not
+%% reach the wire breaks that sum.
+every_way_to_die_reaches_the_wire_test() ->
+    F = fact(),
+    Causes = [starved, consumed, aged_out, parched],
+    [?assert(maps:is_key(C, F)) || C <- Causes],
+    %% The island's own snapshot has exactly these and no more. A fifth cause
+    %% added to the world fails here until it is published.
+    Snapshot = world:snapshot(world:new(#{population => 7, radius => 5})),
+    ?assertEqual([], [C || C <- Causes, not maps:is_key(C, Snapshot)]).
 
 %%==============================================================================
 %% Which door the island is on
