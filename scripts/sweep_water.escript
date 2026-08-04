@@ -72,10 +72,27 @@ arg(_A, _N, D) -> D.
 arms(Args) ->
     narrow(lists:member("narrow", Args)).
 
-narrow(true) -> [{61, 0}, {7, dflt}, {19, dflt}, {37, dflt}];
+%% ⚠ THE TIE-BREAK ARMS. The 24-seed ladder came out 16, 22, 17, 19, 18, 16, 17
+%% dead against a control of 15: flat in the budget, with 31 and 241 tied at the
+%% bottom and the CURRENT DEFAULT of 61 the worst arm on the board. A tie decided
+%% at 24 seeds is a tie decided by noise, which is `I.3'. These four run at many
+%% more seeds: the control, the two tied arms, and 61 to confirm it is genuinely
+%% bad rather than one unlucky column.
+narrow(true) -> [{61, 0}, {31, dflt}, {61, dflt}, {241, dflt}];
+%% ⚠ THE BUDGETS ARE WORLD 24'S, NOT WORLD 23'S, and the reason is a measurement.
+%% Under concentric rings, 61 wet cells put the mean creature 6.05 cells from
+%% water. Under lakes and rivers the same 61 cells put it 8.59 away, because
+%% CONTIGUITY COSTS COVERAGE: a twelve-cell lake serves a smaller area than
+%% twelve scattered cells. Survival fell from 7 seeds of 24 to 2.
+%%
+%% So the old ladder is the wrong ladder. It is kept at the bottom for
+%% comparability and the sweep climbs well past it, because the question is no
+%% longer "how few holes can a world stand" but "how much water does a landscape
+%% need to cover the same ground a bullseye did".
 narrow(false) ->
-    [{61, 0}, {19, 0},
-     {0, dflt}, {1, dflt}, {7, dflt}, {19, dflt}, {37, dflt}, {61, dflt}].
+    [{61, 0},
+     {31, dflt}, {61, dflt}, {91, dflt}, {121, dflt}, {181, dflt},
+     {241, dflt}, {361, dflt}].
 
 arm({Holes, Thirst}, Seeds, Ticks) ->
     Rows = in_parallel(fun(S) -> run(S, Holes, Thirst, Ticks) end,

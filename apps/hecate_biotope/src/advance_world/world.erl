@@ -564,12 +564,39 @@ defaults() ->
       %% is 26% at one hole, 50% at seven, 66% at nineteen and 86% at
       %% thirty-seven. Swept, with every value published.
       %%
-      %% 61 on the same viability criterion as `thirst': 7 seeds dead of 12
-      %% against 9 at nineteen holes. **It is the least concentrated arrangement
-      %% and it is what survives**, which is already an uncomfortable answer for
-      %% `J.1' and is the reason the sweep runs over every count rather than
-      %% settling here.
-      water_holes       => 61,
+      %% ⚠ 241, RE-SWEPT FOR LAKES AND RIVERS, AND THE OLD DEFAULT WAS THE WORST
+      %% ARM ON THE BOARD. 61 was chosen on viability under CONCENTRIC RINGS. The
+      %% geometry changed in world 24 and the number was carried over, which is a
+      %% constant surviving the world it was measured in.
+      %%
+      %% Contiguity costs coverage: a twelve-cell lake serves a smaller area than
+      %% twelve scattered cells, so the same 61 cells that put a creature 6.05
+      %% away as a bullseye put it 8.59 away as a landscape.
+      %%
+      %% 24 seeds to 4,000 ticks, dead of 24, control 15:
+      %%
+      %%   31: 16   61: 22   91: 17   121: 19   181: 18   241: 16   361: 17
+      %%
+      %% Flat, with 31 and 241 tied at the bottom. A tie at 24 seeds is a tie
+      %% decided by noise, so the tied arms and 61 were re-run at 64 seeds:
+      %%
+      %%   arm        dead/64   parched%   cells to water
+      %%   control        37        0%          6.91
+      %%   31            52       24%          9.67
+      %%   61            54       23%          7.03      <- the old default
+      %%   241           46       16%          2.36      <- chosen
+      %%
+      %% Fewest extinctions and nothing else. Thirst still takes 16% of all
+      %% deaths here, so the rule is not being switched off, and it still costs
+      %% nine seeds against a world with no thirst at all.
+      %%
+      %% ⚠⚠ AND THE SWEEP SAYS THIS IS A SIZE FILTER, NOT A DISTANCE ONE.
+      %% Distance to water falls from 9.67 cells to 2.36, a fourfold improvement,
+      %% and thirst deaths fall only from 24% to 16%. A rule about reaching water
+      %% would be nearly abolished by flooding the island. This one is not,
+      %% because capacity is `structure' and a small creature carries a leash of
+      %% a tenth of a tick wherever the water happens to be.
+      water_holes       => 241,
       %% ⚠ HOW FAST A CREATURE DRIES OUT, per tick, and it is SWEPT because
       %% nothing derives it. Capacity is the creature's own `structure', so a
       %% bigger animal carries more water and no second constant is needed, and

@@ -123,7 +123,7 @@ every_event_says_when_test() ->
 a_whole_run_is_a_few_hundred_events_test_() ->
     {timeout, 300,
      fun() ->
-             W = world:tick(world:new(#{seed => 101, population => 40}), 4000),
+             W = world:tick(world:new(#{seed => 101, population => 40, water_holes => 61}), 4000),
              #{archive := Flat, born := Born, behaviour_space := Space} =
                  world:snapshot(W),
              Discoveries = length(Flat) div 3,

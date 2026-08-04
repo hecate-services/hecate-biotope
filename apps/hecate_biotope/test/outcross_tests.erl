@@ -216,10 +216,22 @@ a_shared_node_is_recognised_wherever_it_sits_test() ->
 %% passes and says nothing. World 23 killed seed 77 down to ONE creature and this
 %% test went on passing, having checked a single brain.
 %% ⚠ Wrapped: ticks a live world, and eunit's default timeout is five seconds.
+%% ⚠ THE FIXTURE PINS ITS OWN WATER, AND THAT IS THE POINT.
+%%
+%% This test needs a live board with SHARED kinds. It does not care what the
+%% water budget is. Inheriting the default made it depend on a SWEPT CONSTANT, so
+%% every re-sweep of that constant changed the world underneath it and broke it:
+%% seed 101 at 600 ticks held 150 creatures across 19 kinds at 61 wet cells and
+%% holds 23 across 13 at 241.
+%%
+%% Six fixture invalidations in one day, each one a seed hunt. The guard caught
+%% every one, which is the guard working; hunting a seventh seed is the part that
+%% was waste. 61 is not the fleet's number and is not claimed to be: it is a
+%% FIXTURE economy, chosen once so this test stops moving when the physics do.
 marks_are_handed_out_once_and_never_returned_test_() ->
     {timeout, 300,
      fun() ->
-        W = world:tick(world:new(#{seed => 101, population => 40}), 300),
+        W = world:tick(world:new(#{seed => 101, population => 40, water_holes => 61}), 300),
         All = [brain:marks(maps:get(brain, C))
                || C <- maps:values(world:creatures(W))],
         ?assert(length(All) > 20),
@@ -233,10 +245,22 @@ marks_are_handed_out_once_and_never_returned_test_() ->
 %% bug this project keeps hitting. Only four operations change the node count and
 %% this asserts all four kept step, over a whole live world.
 %% ⚠ Wrapped: ticks a live world, and eunit's default timeout is five seconds.
+%% ⚠ THE FIXTURE PINS ITS OWN WATER, AND THAT IS THE POINT.
+%%
+%% This test needs a live board with SHARED kinds. It does not care what the
+%% water budget is. Inheriting the default made it depend on a SWEPT CONSTANT, so
+%% every re-sweep of that constant changed the world underneath it and broke it:
+%% seed 101 at 600 ticks held 150 creatures across 19 kinds at 61 wet cells and
+%% holds 23 across 13 at 241.
+%%
+%% Six fixture invalidations in one day, each one a seed hunt. The guard caught
+%% every one, which is the guard working; hunting a seventh seed is the part that
+%% was waste. 61 is not the fleet's number and is not claimed to be: it is a
+%% FIXTURE economy, chosen once so this test stops moving when the physics do.
 a_brain_has_exactly_one_mark_per_node_test_() ->
     {timeout, 300,
      fun() ->
-        W = world:tick(world:new(#{seed => 101, population => 40}), 400),
+        W = world:tick(world:new(#{seed => 101, population => 40, water_holes => 61}), 400),
         ?assert(maps:size(world:creatures(W)) > 20),
         lists:foreach(
           fun(C) ->

@@ -389,10 +389,22 @@ a_kind_colour_is_visible_test() ->
 %% A timeout is not a slow test's problem to solve by shrinking. The fixture has
 %% to be a world with shared kinds, and seed 101 is that world precisely because
 %% it thrives at 150 creatures.
+%% ⚠ THE FIXTURE PINS ITS OWN WATER, AND THAT IS THE POINT.
+%%
+%% This test needs a live board with SHARED kinds. It does not care what the
+%% water budget is. Inheriting the default made it depend on a SWEPT CONSTANT, so
+%% every re-sweep of that constant changed the world underneath it and broke it:
+%% seed 101 at 600 ticks held 150 creatures across 19 kinds at 61 wet cells and
+%% holds 23 across 13 at 241.
+%%
+%% Six fixture invalidations in one day, each one a seed hunt. The guard caught
+%% every one, which is the guard working; hunting a seventh seed is the part that
+%% was waste. 61 is not the fleet's number and is not claimed to be: it is a
+%% FIXTURE economy, chosen once so this test stops moving when the physics do.
 one_kind_is_one_colour_on_the_board_test_() ->
     {timeout, 300,
      fun() ->
-        W = world:tick(world:new(#{seed => 101, population => 40}), 600),
+        W = world:tick(world:new(#{seed => 101, population => 40, water_holes => 61}), 600),
         Chart = world:chart(W),
         D = island_disc:packed(Chart, 400),
         Kinds = maps:get(kind_of, Chart),
@@ -542,7 +554,7 @@ two_architectures_rarely_share_a_colour_test() ->
 the_island_sends_its_water_and_the_disc_draws_it_test_() ->
     {timeout, 300,
      fun() ->
-        W = world:tick(world:new(#{seed => 101, population => 40}), 200),
+        W = world:tick(world:new(#{seed => 101, population => 40, water_holes => 61}), 200),
         Chart = world:chart(W),
         Wet = maps:get(water, Chart),
         %% Stride two, position only: a cell is wet or it is not.
