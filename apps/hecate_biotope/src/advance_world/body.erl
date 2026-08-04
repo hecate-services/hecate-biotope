@@ -49,7 +49,16 @@
 -type body() :: [sensor()].
 -export_type([field/0, sensor/0, body/0]).
 
--define(FIELDS, [creatures, ground, scent, self]).
+%% ⚠ APPENDED, NEVER INSERTED. These positions are wire codes: `kind_table' sends
+%% a sensor's field as its index here, so inserting one would silently change the
+%% meaning of every kind table ever published and a reader would draw a scent
+%% sensor where a ground sensor is. `I.6' with a wire between.
+%%
+%% WATER IS THE FIFTH AND IT ARRIVED WITH WORLD 23. A requirement nobody can
+%% sense is a lottery rather than a selection pressure, so a world that makes
+%% breeding depend on water has to let a creature perceive it. Inseparable from
+%% the rule, exactly as world 15's mouth was inseparable from `eat'.
+-define(FIELDS, [creatures, ground, scent, self, water]).
 
 %% How large a reading may be. Generous, because in natural units a wide sensor
 %% over full ground legitimately reaches sixty-odd and clipping that would hide
@@ -72,6 +81,9 @@ sensor_count(Body) -> length(Body).
 
 %% @doc Whether a field is something measured over CELLS, or about the creature
 %% itself. The caller has to gather the first kind and simply knows the second.
+%%
+%% Water is spatial and is the whole point of it: it is the first thing in this
+%% world that exists in some PLACES and not others and cannot move.
 -spec spatial(field()) -> boolean().
 spatial(self) -> false;
 spatial(_Field) -> true.
@@ -93,6 +105,14 @@ spatial(_Field) -> true.
 %% Derived from two constants that already exist rather than being a third.
 -spec unit(field(), map()) -> pos_integer().
 unit(scent, Econ) -> maps:get(scent_per_tick, Econ);
+%% ⚠ WATER IS PRESENT OR ABSENT, NOT AN AMOUNT, so it needs no scale of its own.
+%% A watered cell contributes the reading ceiling and the unit is one, which
+%% makes a reach-0 sensor standing on water read 63 and standing anywhere else
+%% read 0. A reach-1 sensor with two of its seven cells watered reads 18.
+%%
+%% NO NEW CONSTANT. Every other field divides by a quantity the economy already
+%% sets; this one divides by nothing because there is nothing to divide.
+unit(water, _Econ) -> 1;
 unit(_Energy, Econ) ->
     max(1, maps:get(ground_ceiling, Econ) div maps:get(sense_scale, Econ)).
 

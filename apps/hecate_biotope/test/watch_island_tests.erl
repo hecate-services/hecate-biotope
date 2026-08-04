@@ -341,17 +341,18 @@ a_kind_colour_is_visible_test() ->
 %%
 %% **THE FIXTURE WAS THE FLAW, NOT THE ASSERTION.** It needs a board where kinds
 %% are SHARED, so the assertion below states the ratio it needs and the fixture
-%% has to earn it. Seed 77 at 600 ticks holds 89 creatures across 14 kinds.
+%% has to earn it. Seed 11 at 600 ticks holds 86 creatures across 15 kinds.
 %%
 %% ⚠ AND THE GUARD HAS EARNED ITS KEEP THREE TIMES. The fixture was seed 101
-%% until world 20, seed 3 until world 21 and seed 55 until historical marking,
+%% until world 20, seed 3 until world 21, seed 55 until historical marking and
+%% seed 77 until thirst,
 %% and each time the changed world left that seed holding a handful of creatures
 %% each of its own kind. Every assertion above
 %% would have passed on it, vacuously, and the guard is the only thing that
 %% noticed. **A world change invalidates every fixture chosen by running the
 %% world**, which is a cost of testing against the real thing and worth paying.
 one_kind_is_one_colour_on_the_board_test() ->
-    W = world:tick(world:new(#{seed => 77, population => 40}), 600),
+    W = world:tick(world:new(#{seed => 11, population => 40}), 600),
     Chart = world:chart(W),
     D = island_disc:packed(Chart, 400),
     Kinds = maps:get(kind_of, Chart),
@@ -360,9 +361,19 @@ one_kind_is_one_colour_on_the_board_test() ->
     Pairs = lists:usort(lists:zip(Kinds, Painted)),
     %% One colour per kind: no kind index appears twice with different colours.
     ?assertEqual(length(lists:usort([K || {K, _C} <- Pairs])), length(Pairs)),
-    %% AND AS MANY COLOURS AS KINDS. Distinct architectures must be distinct on
-    %% the board or the drawing says less than the census it is drawn from.
-    ?assertEqual(length(lists:usort(Kinds)), length(lists:usort(Painted))),
+    %% ⚠ "AND AS MANY COLOURS AS KINDS" STOOD HERE AND WAS WRONG, so it is
+    %% written down rather than quietly deleted. `kind_rgb/1' hashes into 360
+    %% hues; by the birthday bound fifteen kinds collide about a QUARTER of the
+    %% time, so that assertion demanded a property a 360-bucket hash does not
+    %% have and cannot be given. It passed for as long as the fixture held
+    %% fourteen kinds, which is luck, and world 23 moved the fixture to fifteen
+    %% and two of them landed on one hue.
+    %%
+    %% The claim the code makes is "two architectures RARELY collide", which is a
+    %% statement about the hash and not about any one board, and it is tested as
+    %% one in `two_architectures_rarely_share_a_colour_test'. What is exact on a
+    %% board is asserted here and nothing more.
+    %%
     %% AND NOT ONE FALLBACK. Grey means an index missed a table that has
     %% entries, which is two parallel lists disagreeing rather than a display
     %% case.
@@ -444,3 +455,37 @@ with_port(Value, F) ->
     Result = F(),
     os:unsetenv("HECATE_BIOTOPE_UI_PORT"),
     Result.
+
+%% ⚠ THE CLAIM `island_disc' ACTUALLY MAKES, TESTED WHERE IT CAN BE.
+%%
+%% "Two creatures of one architecture get one colour, and two architectures
+%% rarely collide." The first half is exact and is asserted on a live board. The
+%% second half is a property of the HASH and no single board can test it: a board
+%% with fifteen kinds either collides or does not, and both outcomes are ordinary.
+%%
+%% So it is measured over enough distinct architectures to say something. Over
+%% 180 records into 360 hues, a hash that spreads evenly occupies
+%% `360 * (1 - (1 - 1/360)^180)' ~= 142 of them. A hash that clumped - one that
+%% ignored most of the record, or keyed on its length - would come out far below
+%% that, and this is the assertion that would notice.
+%%
+%% ⚠ 360 IS ALSO AN ADMISSION. The eye cannot separate hue 100 from hue 103
+%% either, so the board distinguishes far fewer kinds than the arithmetic here
+%% suggests. Colour is a hint about which creatures are alike and it is not a
+%% census; `kind_of' on the wire is the census.
+two_architectures_rarely_share_a_colour_test() ->
+    %% 180 records, half the hue space, so "distinct hues" has room to be
+    %% anywhere between clumped and near-perfect and the assertions can bracket
+    %% it. A set LARGER than the hue space could not satisfy them at all.
+    Records = [[N, F, R, H, 1, 0]
+               || N <- [1, 2], F <- lists:seq(0, 4), R <- lists:seq(1, 6),
+                  H <- [0, 1, 2]],
+    Hues = [island_disc:kind_rgb(R) || R <- Records],
+    Distinct = length(lists:usort(Hues)),
+    %% Every record here IS distinct, so any collision is the hash's doing and
+    %% not the fixture's.
+    ?assertEqual(length(Records), length(lists:usort(Records))),
+    %% Well above what a clumping hash gives and comfortably under what a
+    %% collision-free one would, which is the honest shape of the claim.
+    ?assert(Distinct > length(Records) div 2),
+    ?assert(Distinct < length(Records)).

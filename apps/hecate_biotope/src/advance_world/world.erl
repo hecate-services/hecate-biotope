@@ -136,6 +136,8 @@
                   %% What being ABLE to act costs, per unit of output wiring.
                   %% World 18. Zero is world 17.
                   act_cost := non_neg_integer(),
+                  water_holes := non_neg_integer(),
+                  thirst := non_neg_integer(),
                   max_sensors := pos_integer(),
                   max_sensor_range := non_neg_integer(),
                   scent_per_tick := non_neg_integer(),
@@ -162,6 +164,21 @@
 -record(world, {tick = 0 :: non_neg_integer(),
                 econ :: econ(),
                 ground :: ground:ground(),
+                %% ==========================================================
+                %% WHERE THE WATER IS, WORLD 23
+                %% ==========================================================
+                %%
+                %% A fixed set of cells, never consumed and never depleted. The
+                %% first thing in twenty-three worlds that exists in some PLACES
+                %% and not others: energy appears everywhere the sun reaches, and
+                %% `J.1' is that a creature with one requirement has nothing to
+                %% decide because the scarcest thing is always the same thing.
+                %%
+                %% Breeding requires standing on one. Not thirst: a store that
+                %% drains would require commuting, and a creature that lives ten
+                %% ticks and moves one cell a tick cannot commute anywhere at any
+                %% arrangement of holes. Measured before the rule was written.
+                water = #{} :: #{{integer(), integer()} => true},
                 %% Where something has walked and how recently, each mark
                 %% carrying the signature of what left it.
                 scent = #{} :: #{hex() => scent:mark()},
@@ -212,6 +229,10 @@
                 %% and this counter is the dose. Without it a null result cannot
                 %% be told from a rule that never fired.
                 outcrossed = 0 :: non_neg_integer(),
+                %% Died of thirst. THE DOSE OF WORLD 23: without it, "the rule
+                %% changed nothing" and "the rule killed everything" are the same
+                %% in every other column.
+                parched = 0 :: non_neg_integer(),
                 %% ==========================================================
                 %% EVERY WAY OF LIVING THIS WORLD HAS EVER FOUND
                 %% ==========================================================
@@ -276,7 +297,7 @@
 %% and PREREGISTRATION.md the reasoning; this is the label on the tin.
 -spec ruleset() -> #{number := pos_integer(), line := binary()}.
 ruleset() ->
-    #{number => 22,
+    #{number => 23,
       %% ⚠ THE LINE MUST BE TRUE AT THE VALUE THE FLEET RUNS. A first version
       %% said "being able to act costs something", written while the default was
       %% still 0, and it would have gone out on every published fact describing
@@ -286,10 +307,10 @@ ruleset() ->
       %% True at 16: four purposes cost more than none. It does NOT say a
       %% creature sheds what it cannot afford, because at 16 it does not; that
       %% needs four times the price and RESULTS_WORLD18.md says so.
-      line => <<"A creature carries what it just thought into the next tick, "
-                "its hidden nodes have names so two lineages can recombine "
-                "their versions of the same one, and it breeds with whoever "
-                "smells most like itself.">>}.
+      line => <<"There is water, it is only in some places, and a creature "
+                "dries out and must go back to drink, so for the first time "
+                "staying where the food is and leaving to survive pull against "
+                "each other.">>}.
 
 -spec defaults() -> econ().
 defaults() ->
@@ -530,6 +551,46 @@ defaults() ->
       %% LOWERS the sensor mean, from 5.10 to 4.60, rather than raising it.
       %% Deaths are unchanged at 14 of 32 seeds, so nothing about survival turned
       %% on this.
+      %% ⚠ HOW MANY WATERING HOLES, AND IT IS THE EXPERIMENT RATHER THAN A
+      %% SETTING. Few big holes concentrate hardest and are furthest away; many
+      %% small ones are reachable and concentrate least. Measured before the
+      %% world was built: the share of creatures able to reach one INSIDE A LIFE
+      %% is 26% at one hole, 50% at seven, 66% at nineteen and 86% at
+      %% thirty-seven. Swept, with every value published.
+      %%
+      %% 61 on the same viability criterion as `thirst': 7 seeds dead of 12
+      %% against 9 at nineteen holes. **It is the least concentrated arrangement
+      %% and it is what survives**, which is already an uncomfortable answer for
+      %% `J.1' and is the reason the sweep runs over every count rather than
+      %% settling here.
+      water_holes       => 61,
+      %% ⚠ HOW FAST A CREATURE DRIES OUT, per tick, and it is SWEPT because
+      %% nothing derives it. Capacity is the creature's own `structure', so a
+      %% bigger animal carries more water and no second constant is needed, and
+      %% the interval between drinks is `structure / thirst' ticks.
+      %%
+      %% THE LEASH THIS SETS IS THE EXPERIMENT. A creature must return to water
+      %% every `structure / thirst' ticks, so it can live that many cells out and
+      %% no further. Wander beyond the leash and you die; stay inside it and you
+      %% compete with everything else that is also inside it. That is a watering
+      %% hole.
+      %%
+      %% ⚠ CHOSEN ON VIABILITY AND NOTHING ELSE, and the first guess was lethal.
+      %% 40 was written down by hand and **killed every seed at every hole
+      %% count**. Measured over 12 seeds to 4,000 ticks, deaths of 12:
+      %%
+      %%   thirst   19 holes   61 holes
+      %%       40       12         12      every world dead
+      %%       20       12         12      every world dead
+      %%       10        9          7      quarter of all deaths are thirst
+      %%        5        9          8
+      %%        0        6          -      world 22, the control
+      %%
+      %% So 10, which costs ONE extra dead seed against a world with no thirst at
+      %% all and still kills a quarter of everything that dies. No part of that
+      %% choice refers to sensors, brains, distance or the frontier; the whole
+      %% table is here so the criterion can be checked rather than trusted.
+      thirst            => 10,
       max_sensors       => 12,
       max_sensor_range  => 4,
       max_hidden        => 6,
@@ -603,6 +664,7 @@ new(Opts) ->
     Radius = maps:get(radius, Econ),
     populate(maps:get(population, Opts, 40), Opts,
              #world{econ = Econ, ground = ground:new(Radius, Econ), rng = Rng,
+                    water = water(maps:get(water_holes, Econ), Radius),
                     seed = Seed}).
 
 populate(0, _Opts, W) -> W;
@@ -616,6 +678,32 @@ populate(N, Opts, #world{econ = Econ, rng = Rng0, next_mark = M0} = W) ->
     populate(N - 1, Opts,
              add_creature(At, Start div 2, Start - Start div 2, none, Traits,
                           W#world{rng = Rng2, next_mark = M1})).
+
+%% ==========================================================================
+%% WHERE THE WATER GOES
+%% ==========================================================================
+%%
+%% Rings outward from the centre, which concentrates hardest for a given count
+%% and is the arrangement `PLAN.md' named before any of this was measured. NOT
+%% random: a random scatter would give every seed a different geometry and make
+%% the hole count and the luck of the draw inseparable.
+%%
+%% Zero holes is a legal and meaningful setting: it is world 22 with an extra
+%% field nobody can use, and it is the control arm of the sweep.
+water(0, _Radius) -> #{};
+water(Holes, Radius) -> maps:from_keys(lists:sublist(rings(Radius), Holes), true).
+
+%% The centre, then each ring in turn, so `water(7, R)' is the centre and its six
+%% neighbours and `water(19, R)' adds the ring beyond.
+rings(Radius) ->
+    [{0, 0} | lists:append([ring(D) || D <- lists:seq(spacing(Radius),
+                                                      Radius, spacing(Radius))])].
+
+%% Rings are spaced so that a creature living ten ticks and moving one cell a
+%% tick can reach the next one. Derived from the board rather than chosen.
+spacing(Radius) -> max(1, Radius div 4).
+
+ring(D) -> [C || C <- hex:disc(D), hex:distance(C, {0, 0}) =:= D].
 
 %% Everything heritable, drawn fresh and SPREAD. The first generation should
 %% already contain every shape of creature the rules allow, so selection has
@@ -693,6 +781,11 @@ add_creature(At, Energy, Structure, Parent, Traits, #world{next_id = Id, creatur
                      %% behaviour descriptor needs and the only two the world
                      %% was not already keeping.
                      origin => At, moved => 0, bred => 0,
+                     %% BORN FULL, from the parent that carried it there. A
+                     %% newborn that had to find water in its first tick would
+                     %% make being born away from a hole immediately fatal, which
+                     %% is a rule about birth rather than about thirst.
+                     water => Structure,
                      lineage => Line, generation => Gen,
                      %% A NEWBORN OWES NOTHING, which slightly under-charges the
                      %% very short-lived. At a generation time near forty ticks
@@ -734,7 +827,7 @@ tick(W) -> tick(W, 1).
 tick(W, 0) -> W;
 tick(W, N) ->
     W1 = charge(W),
-    W2 = move_all(W1),
+    W2 = drink(move_all(W1)),
     W3 = consume(W2),
     W4 = build(breed(W3)),
     W5 = reap(W4),
@@ -747,6 +840,19 @@ tick(W, N) ->
     W8 = recall(W7),
     W9 = note_behaviours(W8),
     tick(W9#world{tick = W9#world.tick + 1}, N - 1).
+
+%% Mean hex distance from a creature to its nearest hole, times a hundred. Zero
+%% holes reports zero rather than infinity: a world with no water has nothing to
+%% be far from, and it is the control arm.
+to_water(#world{water = Water}) when map_size(Water) =:= 0 -> 0;
+to_water(#world{creatures = Cs}) when map_size(Cs) =:= 0 -> 0;
+to_water(#world{creatures = Cs, water = Water}) ->
+    Holes = maps:keys(Water),
+    Sum = lists:sum([nearest_hole(maps:get(at, C), Holes)
+                     || C <- maps:values(Cs)]),
+    Sum * 100 div map_size(Cs).
+
+nearest_hole(At, Holes) -> lists:min([hex:distance(At, H) || H <- Holes]).
 
 %% HOW MANY WAYS OF LIVING TURNED UP RECENTLY. Measured over a window rather
 %% than since the beginning, because a total can only rise and would report a
@@ -821,6 +927,47 @@ note_one(C, Radius, Tick, Acc) ->
     maps:update_with(Cell, deepen(Depth), {Tick, Depth}, Acc).
 
 deepen(Depth) -> fun({First, Best}) -> {First, max(Best, Depth)} end.
+
+%% ==========================================================================
+%% DRINKING, WHICH IS WORLD 23
+%% ==========================================================================
+%%
+%% AFTER MOVING, because a creature that walks to the water drinks when it
+%% arrives rather than next tick. Everyone dries out by `thirst'; anyone standing
+%% on water is full again regardless.
+%%
+%% ⚠ WATER IS NOT ENERGY AND IS NOT IN THE BOOKS. It is not eaten, not
+%% transferred, not dissipated and not conserved: a hole is inexhaustible and a
+%% corpse returns none of it. Running dry kills you, and that is the whole of its
+%% economy. Threading it through the energy accounts would have made every
+%% conservation test in this file a test of two currencies at once.
+%%
+%% CAPACITY IS `structure', so a bigger creature goes longer between drinks and
+%% no constant says so. The leash a creature lives on is `structure / thirst'
+%% ticks of walking, out and back.
+%%
+%% ⚠ AND THAT MAKES THIS A SIZE FILTER BEFORE IT IS A DISTANCE ONE, which was not
+%% the intent. Measured over 603 creatures at 12 seeds, `structure' runs from 1 to
+%% 8,181 with a median of 215, so at `thirst' 10 the leash runs from a TENTH OF A
+%% TICK to eight hundred. Thirst is nearly free for a large creature and
+%% immediately fatal to a small one, and the trait it selects on is therefore body
+%% size, which is heritable and already under selection for other reasons.
+%%
+%% It is left as it is rather than quietly replaced by a flat capacity: reusing
+%% `structure' is what kept this world to one new constant, the consequence is
+%% measured and written down in `PREREGISTRATION_WORLD23.md', and a constant
+%% swapped after seeing what it did is `I.3'.
+%%
+%% `maps:map' is safe: nothing here draws a random number.
+drink(#world{creatures = Cs, econ = Econ, water = Water} = W) ->
+    Thirst = maps:get(thirst, Econ),
+    W#world{creatures = maps:map(fun(_Id, C) -> sip(C, Water, Thirst) end, Cs)}.
+
+sip(#{at := At, structure := S, water := Held} = C, Water, Thirst) ->
+    C#{water => filled(maps:is_key(At, Water), S, Held - Thirst)}.
+
+filled(true, Structure, _Left) -> max(0, Structure);
+filled(false, _Structure, Left) -> Left.
 
 %% ==========================================================================
 %% WHAT A CREATURE CARRIES INTO THE NEXT TICK, WHICH IS WORLD 21
@@ -1181,6 +1328,14 @@ read({Field, Range}, Cell, C, Herd, #world{econ = Econ} = W) ->
 
 gather(ground, Cell, Range, _C, _Herd, #world{ground = G, econ = Econ}) ->
     ground:within(Cell, Range, maps:get(radius, Econ), G);
+%% A WATERED CELL READS AT THE CEILING AND A DRY ONE AT NOTHING. Summed over the
+%% cells in reach and divided by how many there are, like every other spatial
+%% field, so a reach-2 sensor reports the SHARE of its neighbourhood that is wet
+%% rather than how many wet cells it can see. That is what makes reach mean
+%% "how far do I average over" here as it does everywhere else, `F.2'.
+gather(water, Cell, Range, _C, _Herd, #world{water = Water, econ = Econ}) ->
+    Cells = hex:within(Cell, Range, maps:get(radius, Econ)),
+    body:reading_ceiling() * length([C || C <- Cells, maps:is_key(C, Water)]);
 %% A CREATURE DOES NOT PERCEIVE ITSELF AS SOMETHING IN THE WORLD. Its own energy
 %% is subtracted from its own cell, or every creature would read the largest
 %% concentration of flesh as wherever it is standing.
@@ -1747,6 +1902,14 @@ reap_one(_Id, #{energy := E, structure := St, at := At} = C, _MaxAge,
          #world{starved = S} = W)
   when E =< 0, St =< 0 ->
     bury(At, whole(C), W#world{starved = S + 1});
+%% ⚠ RUNNING DRY IS ITS OWN CAUSE OF DEATH AND IS COUNTED SEPARATELY. Folded
+%% into starvation it would be invisible, and "the world got harsher" and "the
+%% world got thirsty" are different findings. Checked before age and after
+%% starvation, so a creature that is both empty and dry is recorded as starved,
+%% which is the older cause.
+reap_one(_Id, #{water := Dry, at := At} = C, _MaxAge,
+         #world{parched = P} = W) when Dry =< 0 ->
+    bury(At, whole(C), W#world{parched = P + 1});
 reap_one(_Id, #{age := A, at := At} = C, MaxAge,
          #world{aged_out = O} = W) when A > MaxAge ->
     bury(At, whole(C), W#world{aged_out = O + 1});
@@ -1798,6 +1961,28 @@ snapshot(#world{econ = Econ} = W) ->
       consumed => W#world.consumed,
       absorbed => W#world.absorbed,
       births_refused => W#world.births_refused,
+      %% ==================================================================
+      %% WORLD 23: THE DOSE, AND THE ONE NUMBER THAT TELLS A CULL FROM AN
+      %% ADAPTATION
+      %% ==================================================================
+      %%
+      %% `parched' counts creatures that ran dry. Without it, "the rule changed
+      %% nothing" and "the rule killed everything" are indistinguishable in
+      %% every other column.
+      %%
+      %% ⚠ `to_water_mean' IS THE FINDING. The pre-registration predicts a
+      %% FILTER rather than an adaptation: at seven holes half the population
+      %% cannot reach water in a lifetime, so world 23 may simply kill whatever
+      %% was born too far out and select on birthplace. That would look like a
+      %% result and would be a cull.
+      %%
+      %% Creatures are scattered at random when a world is founded, so the mean
+      %% distance to the nearest hole AT TICK ZERO is the null. If it falls,
+      %% creatures are approaching water and that is adaptation. If it holds,
+      %% the rule is a sieve.
+      parched => W#world.parched,
+      to_water_mean => to_water(W),
+      water_holes => map_size(W#world.water),
       %% THE DOSE, AND A NULL IS UNREADABLE WITHOUT IT. Outcrossing is
       %% facultative: it fires only when somebody is in reach, so "recombination
       %% changed nothing" and "recombination almost never happened" look

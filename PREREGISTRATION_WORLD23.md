@@ -3,12 +3,22 @@
 **Written before world 23 was built.** Addresses register entries **J.1** and
 **J.2**. World 22 is superseded, not edited.
 
-**A creature can only breed while it is standing on water.**
+**Water is in some places only, a creature dries out, and it must go back to
+drink.**
+
+Two earlier drafts of this world are withdrawn and named here rather than
+quietly replaced.
 
 The spoiling world that briefly held this number is
 [withdrawn](PREREGISTRATION_SPOIL_WITHDRAWN.md): its gate was computed against an
 `Ne` nobody had measured, and it was gated as a trait when it was a change to the
 world.
+
+**And the version of THIS file that said "a creature can only breed while it is
+standing on water" is withdrawn as absurd.** Nothing in nature has ever bred only
+while drinking. It was reached by a chain of correct-looking reasoning from a
+measurement taken at the wrong moment, which is `I.17` below, and it is a better
+example of how this project goes wrong than any of the physics.
 
 ---
 
@@ -27,14 +37,61 @@ which is the wrong question here and reported a failure that was not there.
 | **can a creature perceive it** | **NOT YET — and that makes it part of this world** | `?FIELDS` is `[creatures, ground, scent, self]` and contains no water |
 | what it costs in new constants | **one, the number of holes, and it is SWEPT** | every value published |
 
-**⚠ A ROUND TRIP IS IMPOSSIBLE AND THAT IS WHY THE RULE IS SHAPED THIS WAY.**
-Measured: at one hole the mean distance is 13 cells, and a creature that lives
-ten ticks and moves one cell a tick **cannot get there and back at any
-arrangement**. Thirst — a store that drains and must be topped up — would require
-exactly that and is therefore unbuildable in this world. **A rule that requires
-reaching water ONCE is affordable where a rule that requires reaching it
-repeatedly is not.** That is a design decision the gate forced, and the first
-version of this world would have been built without it.
+### ⚠ I.17: HOW THE ABSURD RULE WAS REACHED, AND HOW THE FIRST FIX WAS ALSO WRONG
+
+Two errors, the second inside the correction for the first. Both are here because
+both were reasoned rather than guessed, which is what makes them worth recording.
+
+**The first.** I measured the distance from a creature to its nearest hole,
+compared it to a ten-tick life at one cell a tick, concluded a round trip is
+unaffordable, and from that concluded **thirst is unbuildable and the rule must
+be something reachable once.** That produced "breeding requires standing on
+water".
+
+⚠ **The step that does not follow is the middle one.** A water store does not
+have to be refilled once per lifetime. Its leash is `structure / thirst`, and
+**both of those are mine to choose**: measured over 603 creatures at 12 seeds,
+`structure` has a median of 215, so at the `thirst` of 10 this world settled on a
+full store lasts about **21 ticks at the median and 32 at the mean**, against a
+mean life of ten. I had
+silently fixed the leash at one lifetime, which nothing in the design required,
+and then reasoned impeccably from it.
+
+**The second, which is worse.** Correcting the first, I wrote that a SETTLED
+world sits **3.21 cells** from water where founders sit 6.57, and used that to
+justify the replacement. **That figure is not reproducible.** Measured properly,
+`scripts/does_the_rule_move_them_to_water.escript`, 12 seeds to 2,000 ticks:
+
+| holes | founders | settled, rule OFF | settled, rule ON |
+|---|---|---|---|
+| 7 | 11.85 | 11.25 | 11.76 |
+| 19 | 9.87 | 9.83 | 9.76 |
+| 37 | 8.20 | 7.16 | **8.77** |
+| 61 | 6.22 | 5.86 | **6.27** |
+
+**Settling barely moves a creature toward water at all, and the rule moves it
+very slightly away.** The claim went into four documents before anything measured
+it.
+
+### ⚠ AND THE SAME MEASUREMENT NAMES WHICH FILTER THIS IS
+
+`structure` runs from **1 to 8,181** with a median of 215, so the leash runs from
+**a tenth of a tick to eight hundred**. Capacity being body size means thirst is
+nearly free for a large creature and instantly fatal to a small one.
+
+**So the trait this rule actually selects on is SIZE, not position** — and size
+is heritable and already under selection for other reasons. That is a coherent
+explanation for both readings above at once: the world culls, the survivors are
+no nearer water, and nothing had to learn anything. It was not predicted, it
+follows from a constant chosen to avoid inventing a new one, and it is written
+down before the sweep so the sweep cannot be read as having discovered it.
+
+**What survives is the method and not the claim.** An environmental change must
+be gated against a world settled WITH the change and the same world with it
+switched OFF. The middle column is the null and nothing had ever computed it:
+comparing against founders credits the rule with every bit of clustering the
+world does anyway, and comparing against a remembered number credits it with
+whatever I hoped.
 
 ### The representability check, which this world fails without a second change
 
@@ -92,11 +149,24 @@ tenfold**.
 
 ## The single change
 
-**Breeding requires standing on a water cell.** Water is a fixed set of cells,
-never consumed, never depleted. There is no thirst store, no drain, no death from
-dryness and no new rule about any of those.
+**A creature carries water, it drains, and standing on a water cell fills it.**
+Water cells are fixed, never consumed and never depleted; what is scarce is not
+the water but the trip.
 
-**ONE NEW CONSTANT, AND IT IS SWEPT: the number of holes.** Few big holes
+- Capacity is `structure`, **which is not a new constant**: a bigger creature
+  holds more, as it already carries more energy, and nothing new had to be
+  invented to say so.
+- It drains by `thirst` each tick. At zero the creature dies, counted separately
+  as **parched** so a thirst death is never read as a starvation.
+- Standing on water fills it to capacity. There is no partial sip, no queue and
+  no competition for the water itself.
+
+**The leash is therefore `structure / thirst` cells and the creature must live
+inside it.** That is what makes this a second requirement rather than a second
+kind of food: energy is where the ground is rich and water is where the holes
+are, and they are not the same place.
+
+**TWO SWEPT CONSTANTS: the number of holes and `thirst`.** Few big holes
 concentrate hardest and are furthest away; many small ones are reachable and
 concentrate least. **That tension is the experiment**, which `PLAN.md` named
 before any of it was measured, and every value is published.
@@ -104,16 +174,47 @@ before any of it was measured, and every value is published.
 Holes are placed as rings from the centre outward, which concentrates most for a
 given count.
 
+### ⚠ THE FIRST DEFAULT WAS LETHAL AND THE WHOLE TABLE IS PUBLISHED
+
+`thirst => 40` was written down by hand and killed **every seed at every hole
+count.** Measured over 12 seeds to 4,000 ticks, dead of 12:
+
+| thirst | 19 holes | 61 holes | share of deaths that are thirst |
+|---|---|---|---|
+| 40 | **12** | **12** | the world is a prohibition |
+| 20 | **12** | **12** | the world is a prohibition |
+| 10 | 9 | **7** | 23-25% |
+| 5 | 9 | 8 | 7-9% |
+| 0 | 6 | - | world 22, the control |
+
+**The default is 10 at 61 holes**, chosen on fewest extinctions and nothing else:
+one more dead seed than a world with no thirst at all, with a quarter of all
+deaths from thirst, so the rule bites without being a wall.
+
+**And 61 is the LEAST concentrated arrangement measured.** That is already an
+uncomfortable answer for `J.1`, it was not the arrangement I expected to survive,
+and it is why the sweep runs over every hole count rather than stopping here.
+
 ## What would count as a finding
+
+0. **⚠ THE FIRST FINDING IS ALREADY IN: A LETHAL DEFAULT.** Stated here because
+   it was measured before the sweep and would otherwise vanish into a constant.
+   Thirst at 20 or above is not a pressure, it is an execution, and the band in
+   which this world is a tradeoff at all is narrow — between roughly 5 and 10.
 
 1. **Creatures evolve to sense water.** The `water` field is carried by more
    creatures than chance. **Instrument:** `body:census/1`, which already reports
    carriers, reach and attention per field. Exists.
 
 2. **They evolve to move toward it.** Carrying a sensor and acting on it are
-   different things, which is `world 16`'s entry. **Instrument:** mean distance
-   from a breeder to its nearest hole, against the same figure for the population
-   at large. **Does not exist and is part of this world.**
+   different things, which is `world 16`'s entry. **Instrument:** `to_water_mean`
+   in the snapshot, in HUNDREDTHS of a cell, against the same world with `thirst`
+   at zero. Built, and `scripts/does_the_rule_move_them_to_water.escript` runs
+   all three arms.
+   ⚠ **AND ITS FIRST READING IS NEGATIVE**, at 12 seeds to 2,000 ticks: with the
+   rule on, creatures sit no closer to water than founders do, and slightly
+   further than a settled world with the rule off. Recorded here, before the
+   sweep, so that a later run cannot quietly become the first reading.
 
 3. **Predation rises.** `D.7`'s prediction, made before the watering hole
    existed. **Instrument:** `from_creatures_pct`, already reported, against
@@ -140,7 +241,8 @@ given count.
 | `world_facts:world_charted/2` | `field_code/1` indexes into `body:fields/0` | world 20, pinned by a test; **appending is safe, inserting is not** |
 | `sweep_senses.escript` | `?FIELDS` | world 17; same five-versus-four hazard |
 | `behaviour.erl` | the three behaviour axes | world 22; water is not an axis and the archive keeps its 125 cells |
-| `can_they_reach_the_water.escript` | fare, income, lifespan | **today** |
+| `can_they_reach_the_water.escript` | fare, income, lifespan | **today, and it reports the FOUNDER distribution: `I.17`, read the settled figure beside it** |
+| `sweep_water.escript` | `thirst`, `water_holes`, `parched` | **today** |
 | `is_it_still_discovering.escript` | the archive | world 22, unchanged |
 
 **And believe a test result only from `rm -rf _build`, whole.** `I.8`.
@@ -155,10 +257,11 @@ would look like a result and would be a cull.** Finding 2 is the one that
 separates them, and it is the reason a new instrument is owed before the sweep.
 
 **Extinction is expected to rise, possibly sharply.** Half the seeds already die.
-A rule that forbids breeding away from water can only reduce the number of
-successful births, and at one hole it may kill every seed. **If every arm dies,
-the sweep has measured a prohibition and not a tradeoff**, and the answer is more
-holes, not a different conclusion.
+A rule that kills a creature away from water can only reduce the number that
+breed, and at few holes it may kill every seed. **If every arm dies, the sweep
+has measured a prohibition and not a tradeoff**, and the answer is more holes or
+a slower drain, not a different conclusion. ⚠ **This has already happened once**,
+at `thirst` 20 and 40, and it is the reason the table above exists.
 
 **And the strongest negative, written so it cannot be reinterpreted:** if
 creatures carry the water field at chance, breeders are no closer to water than
@@ -183,7 +286,14 @@ more than a success.
    filter from an adaptation.
 9. **`water` is appended to `?FIELDS`, never inserted**, and the wire test is
    extended to pin the five-element order before the rule is written.
-10. **Medians are taken over LIVING worlds, and the dead are counted separately.**
+10. **A constant is chosen on VIABILITY and the whole sweep is published**,
+    including the arms that killed everything. The default written into
+    `world.erl` carries the table in a comment beside it, so the criterion can be
+    checked rather than trusted.
+11. **An environmental change is gated against the SETTLED world, never the
+    founders.** `I.17`. The distribution the rule acts on is the one the rule
+    creates.
+12. **Medians are taken over LIVING worlds, and the dead are counted separately.**
     A median over all seeds is dominated by graveyards: it read 21 cells where
     living worlds had reached 76, and it nearly confirmed a finding of mine by a
     factor of five on the strength of that.

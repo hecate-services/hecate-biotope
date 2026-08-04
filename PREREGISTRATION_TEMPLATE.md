@@ -74,17 +74,39 @@ there. See `I.16`.
 | the differential the change creates, as a share of fitness | | breeding or not, eating or not, living or not: usually tens of percent |
 | **is that above the drift floor** | | `1/(2·Ne)`, and **`Ne` is 7.44, so the floor is 6.72%** — `G.10` |
 | **can a creature PHYSICALLY respond within one life** | | **the binding question.** Mean life is ten ticks and a creature moves one cell per tick |
+| **measured on the SETTLED world, not the founders** | | ⚠ `I.17`. Founders are scattered uniformly because the world has just started; the answer is different and the founder figure is the wrong one |
 | what share of the population could respond | | **if it is low, the change is a filter and not a pressure** |
 | **can a creature PERCEIVE the change** | | a requirement nobody can sense is a lottery, not a selection pressure. `?FIELDS` is fixed and adding to it is part of the world |
 | what the change costs in new constants | | swept, with every value published, or derived from something that exists |
 
 **⚠ THE PHYSICAL BOUND IS NOT ABOUT MONEY AND IS USUALLY THE ONE THAT BITES.**
-The watering hole's first gate found a round trip costs 22–48% of a lifetime's
-earnings, which is affordable, and then that **no arrangement of holes is
-reachable round-trip at all**: ten ticks of life against one cell per tick. The
-money was never the problem. **A rule requiring a creature to reach something
-ONCE is affordable where a rule requiring it repeatedly is not**, and that
-distinction is a design decision the gate must force.
+The watering hole's gate found a round trip costs 22–48% of a lifetime's
+earnings, which is affordable, and then asked whether ten ticks of life at one
+cell a tick is enough distance. The money was never the problem.
+
+**⚠⚠ AND THE LEASH IS USUALLY YOURS TO SET. `I.17`.** The watering-hole gate
+found that a creature cannot make a round trip inside a ten-tick life and
+concluded from that that **thirst could not be built at all**, which does not
+follow: a store's leash is `capacity / drain` and both are constants the designer
+picks. Fixing the leash at one lifetime was an assumption nothing required, and
+the absurd rule that followed — "breeding requires standing on water" — was
+reasoned impeccably from it. **Before concluding a mechanism is impossible, ask
+which of the numbers in the argument you are free to change.**
+
+**⚠⚠ AND THE NULL IS THE SAME WORLD WITH THE CHANGE SWITCHED OFF.** Not founders,
+who are scattered because the world has just started, and never a remembered
+figure. Three arms, always:
+
+| arm | what it is |
+|---|---|
+| founders | tick zero. A uniform scatter, and it says nothing about the change |
+| **settled, change OFF** | **the null.** Everything else identical, only the pressure missing |
+| settled, change ON | the measurement |
+
+Comparing against founders credits the change with every bit of clustering the
+world does anyway. In world 23 the middle column had never been computed, and
+when it was, the rule turned out to move creatures very slightly AWAY from water
+rather than toward it.
 
 **AND A FILTER IS NOT A PRESSURE.** If only a quarter of the population can
 respond, the change kills three quarters and selects on where they happened to be

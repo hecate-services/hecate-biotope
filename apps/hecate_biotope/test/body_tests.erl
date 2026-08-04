@@ -29,7 +29,12 @@ always() -> with(#{body_mutation => 1}).
 %% `plants' is gone, because a plant was never a kind of thing. It is a way of
 %% living, and a creature that stays put taking what the ground offers IS one.
 the_fields_are_the_kinds_of_thing_that_exist_test() ->
-    ?assertEqual([creatures, ground, scent, self], lists:sort(body:fields())).
+    ?assertEqual([creatures, ground, scent, self, water],
+                 lists:sort(body:fields())),
+    %% ⚠ WATER IS FIFTH AND MUST STAY FIFTH. `lists:sort/1` above says WHICH
+    %% fields exist; this says which ORDER they are in, because the position is a
+    %% wire code carried inside every kind table ever published.
+    ?assertEqual(water, lists:last(body:fields())).
 
 %% `self' is the one world 1 did not have, and its absence was fatal to a whole
 %% class of strategy: the central rule is that the stronger consumes the weaker,

@@ -211,10 +211,15 @@ a_shared_node_is_recognised_wherever_it_sits_test() ->
 
 %% A MARK IS NEVER REUSED, so two nodes grown in different lineages are never
 %% mistaken for one. The counter is per world and monotone.
+%%
+%% ⚠ AND THE FIXTURE IS ASSERTED, because `lists:foreach' over an empty world
+%% passes and says nothing. World 23 killed seed 77 down to ONE creature and this
+%% test went on passing, having checked a single brain.
 marks_are_handed_out_once_and_never_returned_test() ->
-    W = world:tick(world:new(#{seed => 77, population => 40}), 300),
+    W = world:tick(world:new(#{seed => 11, population => 40}), 300),
     All = [brain:marks(maps:get(brain, C))
            || C <- maps:values(world:creatures(W))],
+    ?assert(length(All) > 20),
     %% Within any one brain a mark appears at most once: a node is one node.
     lists:foreach(fun(M) -> ?assertEqual(lists:usort(M), lists:sort(M)) end,
                   All).
@@ -224,7 +229,8 @@ marks_are_handed_out_once_and_never_returned_test() ->
 %% bug this project keeps hitting. Only four operations change the node count and
 %% this asserts all four kept step, over a whole live world.
 a_brain_has_exactly_one_mark_per_node_test() ->
-    W = world:tick(world:new(#{seed => 77, population => 40}), 400),
+    W = world:tick(world:new(#{seed => 11, population => 40}), 400),
+    ?assert(maps:size(world:creatures(W)) > 20),
     lists:foreach(
       fun(C) ->
               Brain = maps:get(brain, C),

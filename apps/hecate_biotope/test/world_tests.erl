@@ -51,8 +51,17 @@ predatory() ->
                          outputs => #{eat => #{inputs => [1], hidden => []}}}}.
 
 %% As above but it will breed on the first tick it can.
+%% ⚠ AND THE WHOLE BOARD IS WATER, SINCE WORLD 23. Breeding now requires standing
+%% on it, and every test using this fixture is about the ENERGY BOOKS or about
+%% predation rather than about geography. Asking for more holes than the board has
+%% cells simply waters all of them, so the rule is satisfied everywhere and these
+%% tests measure the thing they were written for.
+%%
+%% Commitment 6: a test of a rule involving a swept constant sets that constant
+%% explicitly rather than inheriting it.
 fertile() ->
-    #{founder_body => [],
+    #{water_holes => 999,
+      founder_body => [],
       founder_brain => #{hidden => [],
                          outputs => #{breed => #{inputs => [1], hidden => []}}}}.
 
@@ -62,9 +71,15 @@ fertile() ->
 %% twenty-four a tick and every sum below would be off by an amount that varied
 %% with how fed it was. The cost gets its own tests rather than contaminating
 %% these.
+%% ⚠ AND `thirst' IS ZERO HERE FOR THE SAME REASON `upkeep_divisor' IS OUT OF
+%% REACH. World 23 makes a creature dry out and die away from water, and eleven
+%% tests that measure starvation, predation and the energy books immediately
+%% started measuring thirst instead. A test of a rule involving a swept constant
+%% sets that constant explicitly rather than inheriting it, which is commitment
+%% 6, and the water tests set it themselves.
 quiet(Opts) ->
     world:new(maps:merge(#{population => 1, radius => 3, seed => 7,
-                           upkeep_divisor => 1000000}, Opts)).
+                           thirst => 0, upkeep_divisor => 1000000}, Opts)).
 
 %% Everything in the world is in the ground, in a creature's store, or built into
 %% its structure. THREE TERMS SINCE WORLD 6, because structure is energy in
@@ -755,10 +770,13 @@ the_line_does_not_overclaim_the_default_test() ->
     %% World 22 states three RULES: memory is carried, nodes have names, and a
     %% creature breeds with its own kind. It must not claim any of the findings,
     %% which the measurements may refute and two of them already have.
-    ?assertEqual(nomatch, binary:match(Line, <<"diver">>)),
+    %% World 23 states a RULE: water exists in places, a creature dries out, and
+    %% it must go back. It must not claim any of the findings, and the
+    %% pre-registration predicts a cull rather than an adaptation.
+    ?assertEqual(nomatch, binary:match(Line, <<"adapt">>)),
+    ?assertEqual(nomatch, binary:match(Line, <<"learn">>)),
     ?assertEqual(nomatch, binary:match(Line, <<"better">>)),
-    ?assertEqual(nomatch, binary:match(Line, <<"protect">>)),
-    ?assertNotEqual(nomatch, binary:match(Line, <<"next tick">>)).
+    ?assertNotEqual(nomatch, binary:match(Line, <<"dries out">>)).
 
 the_number_agrees_with_the_register_test() ->
     #{number := Claimed} = world:ruleset(),
@@ -1368,6 +1386,100 @@ a_walk_terminates_test() ->
 %% What kind each creature is, on the wire
 
 %%==============================================================================
+%% World 23: there is water, and breeding needs it
+%%==============================================================================
+
+%% A willing creature on a one-cell board with nothing else happening, so the
+%% only thing that can stop it breeding is the water rule.
+still() ->
+    maps:merge(#{radius => 0, recolonise_pct => 0, ground_growth_pct => 0,
+                 metabolism => 0, max_age => 100000, start_energy => 400},
+               fertile()).
+
+%% ⚠ THE WHOLE OF WORLD 23 IN ONE ASSERTION: a creature dries out and dies away
+%% from water, and lives on top of it.
+%%
+%% ⚠⚠ AND THE FIRST VERSION OF THIS RULE WAS "a creature can only BREED while
+%% standing on water", which is not how anything works. Animals drink at the
+%% waterhole; they do not breed only there. It was chosen because it made the
+%% experiment convenient — a requirement met ONCE rather than repeatedly — and
+%% that is a biological conclusion written into the physics, which is exactly
+%% what `body.erl` says cost world 1 its named organs.
+a_creature_away_from_water_dries_out_and_dies_test() ->
+    Wet = quiet(maps:merge(still(), #{water_holes => 1, thirst => 100})),
+    Dry = quiet(maps:merge(still(), #{water_holes => 0, thirst => 100})),
+    #{population := Alive} = world:snapshot(world:tick(Wet, 12)),
+    #{population := Gone, parched := Died} = world:snapshot(world:tick(Dry, 12)),
+    ?assert(Alive > 0),
+    ?assertEqual(0, Gone),
+    %% AND THE CAUSE IS COUNTED SEPARATELY. Folded into starvation it would be
+    %% invisible, and "the world got harsher" and "the world got thirsty" are
+    %% different findings.
+    ?assert(Died > 0).
+
+%% A CREATURE ON WATER NEVER RUNS DRY, however long it stands there. Water is a
+%% place, not a supply.
+water_is_a_place_and_not_a_supply_test() ->
+    W = quiet(maps:merge(still(), #{water_holes => 1, thirst => 100,
+                                    start_energy => 4000})),
+    #{parched := Died, water_holes := Holes} = world:snapshot(world:tick(W, 40)),
+    ?assertEqual(0, Died),
+    ?assertEqual(1, Holes).
+
+%% ⚠ WATER IS NOT IN THE ENERGY BOOKS AND MUST NEVER BE. It is not eaten, not
+%% transferred, not dissipated and not conserved: a hole is inexhaustible and a
+%% corpse returns none of it. Threading it through the accounts would make every
+%% conservation test in this file a test of two currencies at once.
+thirst_does_not_touch_the_energy_books_test() ->
+    Opts = #{recolonise_pct => 0, ground_growth_pct => 0, ground_ceiling => 0,
+             metabolism => 0, max_age => 100000, start_energy => 400,
+             water_holes => 999, thirst => 40},
+    W = quiet(maps:merge(#{founder_body => [],
+                           founder_brain => #{hidden => [], outputs => #{}}},
+                         Opts)),
+    ?assertEqual(books(W), books(world:tick(W, 5))).
+
+%% A CREATURE CAN SEE IT, WHICH IS WHAT SEPARATES A PRESSURE FROM A LOTTERY.
+%% World 16's entry is pricing a shape the genome cannot express; a requirement
+%% nobody can sense is the same defect wearing the other face. Standing on water
+%% reads at the ceiling and standing anywhere else reads nothing.
+water_is_something_a_sensor_can_measure_test() ->
+    ?assert(lists:member(water, body:fields())),
+    ?assert(body:spatial(water)),
+    %% Present or absent, so the unit is one and needs no constant of its own.
+    ?assertEqual(1, body:unit(water, world:defaults())),
+    ?assertEqual(body:reading_ceiling(),
+                 body:reading(water, body:reading_ceiling(), 1,
+                              world:defaults())),
+    ?assertEqual(0, body:reading(water, 0, 1, world:defaults())).
+
+%% ⚠ THE INSTRUMENT THAT TELLS A CULL FROM AN ADAPTATION, and the
+%% pre-registration predicts a cull. Creatures are scattered at random when a
+%% world is founded, so the mean distance to the nearest hole at tick zero IS the
+%% null. If it falls, creatures are approaching water. If it holds, the rule is a
+%% sieve that kills whatever was born too far out.
+the_distance_to_water_is_measured_from_the_first_tick_test() ->
+    W = world:new(#{seed => 77, population => 40, water_holes => 7}),
+    #{to_water_mean := AtBirth, water_holes := Holes} = world:snapshot(W),
+    ?assertEqual(7, Holes),
+    ?assert(AtBirth > 0),
+    %% A world with no water has nothing to be far from and says zero rather
+    %% than infinity.
+    Dry = world:new(#{seed => 77, population => 40, water_holes => 0}),
+    ?assertEqual(0, maps:get(to_water_mean, world:snapshot(Dry))).
+
+%% MORE HOLES MEANS SHORTER JOURNEYS, which is geometry and not evolution, and is
+%% asserted so that a fall in the distance column can never be read as adaptation
+%% when it is only a change of arrangement.
+more_holes_are_nearer_test() ->
+    Near = fun(N) ->
+                   W = world:new(#{seed => 77, population => 40,
+                                   water_holes => N}),
+                   maps:get(to_water_mean, world:snapshot(W))
+           end,
+    ?assert(Near(61) < Near(7)).
+
+%%==============================================================================
 
 %% ⚠ THE TWO ORDERS THE WIRE DEPENDS ON, PINNED. `kind_table` encodes a sensor's
 %% field and an actuator's purpose as INDEXES into `body:fields/0` and
@@ -1376,7 +1488,7 @@ a_walk_terminates_test() ->
 %% reader would draw a scent sensor where a ground sensor is. `I.6` with a wire
 %% between the instrument and the rule.
 the_wire_codes_for_fields_and_purposes_are_fixed_test() ->
-    ?assertEqual([creatures, ground, scent, self], body:fields()),
+    ?assertEqual([creatures, ground, scent, self, water], body:fields()),
     ?assertEqual([move, breed, grow, eat], brain:purposes()).
 
 %% ONE INDEX PER CREATURE, PARALLEL TO `ids`, like every other per-creature array
