@@ -106,3 +106,45 @@ supervisor_starts_a_running_world_test() ->
         exit(Pid, shutdown)
     after os:unsetenv("HECATE_BIOTOPE_SCREEN_TRIES")
     end.
+%%==============================================================================
+%% The config the store cannot boot without
+%%==============================================================================
+
+%% ⚠ THE FLEET CRASH-LOOPED ON TWO OF THREE NODES FOR WANT OF THIS BLOCK.
+%%
+%% Exporting `store_id/0' makes `hecate_om:boot/1' start the store AND a
+%% per-store evoq subscription. That subscription reads through evoq, which
+%% raises `{not_configured, event_store_adapter}' unless sys.config names the
+%% adapter. evoq starts as a release-boot application before any service's
+%% `start/2' runs, so nothing can inject it later.
+%%
+%% `hecate_om_store' documents this precisely, in its own module header, calling
+%% it MANDATORY. The callbacks were added without reading it.
+%%
+%% This test reads the shipped config template, because the failure is a MISSING
+%% BLOCK and no amount of exercising the code can notice something that is not
+%% there.
+the_evoq_adapter_is_configured_wherever_a_store_is_opened_test() ->
+    {ok, Text} = file:read_file(alongside("config/sys.config.src")),
+    ?assert(erlang:function_exported(hecate_biotope_service, store_id, 0)),
+    lists:foreach(
+      fun(Needed) ->
+              ?assertNotEqual(nomatch, binary:match(Text, Needed),
+                              {missing_from_sys_config, Needed})
+      end,
+      [<<"{evoq,">>, <<"event_store_adapter">>, <<"subscription_adapter">>,
+       <<"reckon_evoq_adapter">>]).
+
+%% Relative to the beam rather than the working directory, because eunit runs
+%% from wherever the developer happens to be standing.
+alongside(Name) -> climb(filename:dirname(code:which(?MODULE)), Name, 8).
+
+climb(_Dir, Name, 0) -> Name;
+climb(Dir, Name, Left) ->
+    Candidate = filename:join(Dir, Name),
+    found(filelib:is_regular(Candidate), Candidate, Dir, Name, Left).
+
+found(true, Candidate, _Dir, _Name, _Left) -> Candidate;
+found(false, _Candidate, Dir, Name, Left) ->
+    climb(filename:dirname(Dir), Name, Left - 1).
+
