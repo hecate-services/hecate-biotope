@@ -48,6 +48,7 @@
 -export([ruleset/0]).
 -export([population/1, ground_energy/1, at_tick/1, alive/2]).
 -export([appraise/3, consider/3, creatures/1]).
+-export([depart/2, arrive/2]).
 
 -type hex() :: hex:hex().
 -type id() :: pos_integer().
@@ -240,6 +241,30 @@
                 %% changed nothing" and "the rule killed everything" are the same
                 %% in every other column.
                 parched = 0 :: non_neg_integer(),
+                %% ⚠ THE TWO NUMBERS THAT KEEP THE FIRST LAW ACROSS A SEA.
+                %%
+                %% Energy carried off this island by migrants, and energy carried
+                %% onto it. Every joule has been in the ground, in a store or in
+                %% a structure for twenty-four worlds, and a creature leaving is
+                %% the first thing that can take some somewhere this world cannot
+                %% see. Without these two the island's own books still balance
+                %% while the archipelago quietly gains or loses whatever was in
+                %% transit.
+                departed = 0 :: non_neg_integer(),
+                arrived = 0 :: non_neg_integer(),
+                %% ⚠ EVERY CROSSING THIS ISLAND HAS ALREADY ACCEPTED.
+                %%
+                %% At-most-once is enforced HERE, at the destination, and not by
+                %% hoping the transport never retries. A retry is a normal event
+                %% on a mesh: an acknowledgement can be lost after the creature
+                %% landed, and the sender is then obliged to try again.
+                %%
+                %% The receipts alone cannot catch a double delivery, and that is
+                %% worth stating because it was the first design: `arrived' rises
+                %% by exactly what the stores rise by, so the books balance just
+                %% as neatly for a creature admitted twice as for one admitted
+                %% once. A guard that cannot fail is not a guard.
+                seen = #{} :: #{integer() => true},
                 %% ==========================================================
                 %% EVERY WAY OF LIVING THIS WORLD HAS EVER FOUND
                 %% ==========================================================
@@ -936,6 +961,77 @@ descent(none, Id, _Cs) -> {Id, 0};
 descent(Parent, _Id, Cs) ->
     #{lineage := Line, generation := Gen} = maps:get(Parent, Cs),
     {Line, Gen + 1}.
+
+%%==============================================================================
+%% Leaving, and arriving
+%%==============================================================================
+%%
+%% ⚠ THESE TWO ARE THE ONLY DOORS IN OR OUT OF A WORLD, and they are the only
+%% place the first law can be broken. Every other joule in this file moves
+%% between the ground, a store and a structure, and `world_tests' asserts the
+%% total never changes. A migrant takes some of it somewhere this island cannot
+%% see.
+%%
+%% So both sides keep a receipt. `departed' and `arrived' appear on the snapshot,
+%% and the invariant that replaces conservation-on-one-island is
+%%
+%%     books + dissipated + departed - arrived
+%%
+%% which is fixed per island, and sums across the archipelago to a total that
+%% moves only if a creature was duplicated or lost in transit.
+%%
+%% ⚠⚠ AND DEPARTURE IS NOT DEATH. A departing creature is not reaped, does not
+%% return its body to the ground, and is not counted in `starved', `consumed',
+%% `aged_out' or `parched'. Folding it into any of those would make an island
+%% that exports well look like an island that dies well, which are opposite
+%% findings.
+
+%% @doc Take a creature off this island, packed for the crossing.
+%%
+%% The world loses it here and NOTHING has it yet. That is deliberate and it is
+%% the whole safety argument: the caller holds the only copy and must not drop it
+%% until a receiver has acknowledged, because a migrant delivered twice is free
+%% energy and one lost in flight is energy destroyed.
+-spec depart(id(), world()) -> {ok, migrant:packed(), world()} | {error, atom()}.
+depart(Id, #world{creatures = Cs} = W) ->
+    leaving(maps:find(Id, Cs), Id, W).
+
+leaving(error, _Id, _W) ->
+    {error, no_such_creature};
+leaving({ok, C}, Id, #world{creatures = Cs, departed = Out, rng = Rng0} = W) ->
+    %% Drawn from the world's own stream, so an island remains a pure function of
+    %% its seed and two departures never share a crossing.
+    {Crossing, Rng1} = rand:uniform_s(1 bsl 60, Rng0),
+    Packed = migrant:pack(C, Crossing),
+    {ok, Packed, W#world{creatures = maps:remove(Id, Cs), rng = Rng1,
+                         departed = Out + migrant:energy_of(Packed)}}.
+
+%% @doc Put a creature that came from somewhere else onto this island.
+%%
+%% ⚠ THE MIGRANT IS VALIDATED AND MAY BE REFUSED. This is the first input to a
+%% world that the world did not produce, it arrives from a node anybody may be
+%% running, and a body and a brain that disagree on width crash the tick rather
+%% than drawing oddly. `migrant:unpack/1' checks the shape; this refuses what it
+%% rejects and the caller declines the animal.
+-spec arrive(migrant:packed(), world()) -> {ok, world()} | {error, atom()}.
+arrive(Packed, W) ->
+    landed(migrant:unpack(Packed), Packed, W).
+
+landed({error, Why}, _Packed, _W) ->
+    {error, Why};
+landed({ok, _C}, #{crossing := X}, #world{seen = Seen}) when is_map_key(X, Seen) ->
+    {error, already_arrived};
+landed({ok, C}, #{crossing := X} = Packed,
+       #world{creatures = Cs, econ = Econ, next_id = Id, seen = Seen,
+              rng = Rng0, tick = T, arrived = In} = W) ->
+    %% A MIGRANT MAKES LANDFALL AT RANDOM, because nothing in this world knows
+    %% which way it came and inventing a shore would be inventing a geography.
+    {At, Rng1} = random_cell(maps:get(radius, Econ), Rng0),
+    Settled = C#{id => Id, at => At, born => T, parent => none, still => true,
+                 origin => At},
+    {ok, W#world{creatures = Cs#{Id => Settled}, next_id = Id + 1, rng = Rng1,
+                 seen = Seen#{X => true},
+                 arrived = In + migrant:energy_of(Packed)}}.
 
 %%==============================================================================
 %% The tick
@@ -2106,6 +2202,13 @@ snapshot(#world{econ = Econ} = W) ->
       %% creatures are approaching water and that is adaptation. If it holds,
       %% the rule is a sieve.
       parched => W#world.parched,
+      %% Energy that left with migrants and energy that came with them. A reader
+      %% adding `energy_total + structure_total + ground_total + dissipated +
+      %% departed - arrived' gets a number that does not move, on any island, and
+      %% summing it over the archipelago is the only place the crossing itself is
+      %% audited.
+      departed => W#world.departed,
+      arrived => W#world.arrived,
       to_water_mean => to_water(W),
       water_holes => map_size(W#world.water),
       %% THE DOSE, AND A NULL IS UNREADABLE WITHOUT IT. Outcrossing is
