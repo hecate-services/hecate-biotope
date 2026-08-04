@@ -31,19 +31,22 @@
 %% into one.
 -module(world_facts).
 
--export([topic/1, namespace/0, island/0, set_island/1]).
+-export([topic/1, namespace/0, island/0, island_id/0, set_island/1]).
 -export([world_advanced/2, world_advanced/5, world_advanced/6,
          world_charted/2, world_narrated/3]).
 
 -define(DEFAULT_NS, <<"biotope">>).
-%% ⚠ BUMPED WHENEVER THE SHAPE CHANGES, INCLUDING AN APPEND. 19 adds `parched',
+%% ⚠ BUMPED WHENEVER THE SHAPE CHANGES, INCLUDING AN APPEND. 20 adds `island_id'
+%% to every fact: the island's identity, as against `island' which is a nickname
+%% a person types and two islands can share.
+%% 19 adds `parched',
 %% death by drying out, to the counts fact: world 23's whole subject, counted
 %% separately on the island since it was built and published to nobody.
 %% 18 added `water', `senses' and `nodes' to the chart fact. Appending is backward compatible, so
 %% an old reader keeps working, and that is exactly why the number has to move:
 %% a reader has no other way to ask "is the field I want in this frame, or am I
 %% talking to an island that predates it".
--define(FACT_VERSION, 19).
+-define(FACT_VERSION, 20).
 
 %% Topics are `<namespace>/<leaf>'. The namespace tells one deployment from
 %% another, for instance a laptop from the fleet, and is NOT how islands are
@@ -76,8 +79,81 @@ opted_in("1") -> true;
 opted_in("true") -> true;
 opted_in(_Unset) -> false.
 
+%% ==========================================================================
+%% AN ISLAND'S NAME IS NOT ITS IDENTITY
+%% ==========================================================================
+%%
+%% `island/0' is a LABEL. It comes from an environment variable, falls back to
+%% the hostname, and `set_island/1' changes it at runtime from this island's own
+%% web form. A person types it and it is meant to be typed.
+%%
+%% ⚠ SO TWO ISLANDS CAN CARRY THE SAME ONE, and in a world made of nodes run by
+%% different people they eventually will. Four things break when they do:
+%%
+%%   - A SPECTATOR MERGES THEM. Facts are filed under the name, so two islands
+%%     called `beam01' overwrite each other and the map shows one island
+%%     flickering between two different worlds.
+%%   - THEY LAND ON ONE SQUARE, because the map hashes what it is given, so one
+%%     of them is simply invisible.
+%%   - MIGRATION BECOMES AMBIGUOUS. "Send this creature to beam01" can deliver
+%%     it to the wrong world, lose it, or deliver it twice, and a creature
+%%     duplicated in transit is FREE ENERGY in a world whose books have balanced
+%%     for twenty-four of them.
+%%   - AND IT IS NOT ONLY AN ACCIDENT. Anyone may type your island's name into
+%%     their own web form and begin collecting your migrants.
+%%
+%% So identity is `island_id/0', which nobody types, and the name is a nickname.
+%% Two islands may both be called `beam01' exactly as two people may both be
+%% called Raf.
 -spec island() -> binary().
 island() -> island_name(os:getenv("HECATE_BIOTOPE_ISLAND")).
+
+%% @doc WHICH ISLAND THIS IS, as against what it is called.
+%%
+%% 128 bits of randomness, minted once and kept in the data directory. Unique by
+%% construction, so no two islands collide by accident however they are named,
+%% and stable across restarts and redeploys because the fleet binds that
+%% directory from the host.
+%%
+%% ⚠ THIS DEFEATS ACCIDENT AND NOT IMPERSONATION, and the difference is worth
+%% stating rather than glossing over. Nothing signs this, so a node that wanted
+%% to claim another island's identity could copy the file. Doing better needs the
+%% mesh keypair, and `hecate_om' loads a stable one only when `identity_key_path'
+%% is configured, which the biotope does not set: the pool's key is EPHEMERAL, so
+%% an island keyed on it would become a NEW island at every restart. Binding
+%% identity to a persisted keypair is the next step and is named in `CHARTER.md'
+%% under trust.
+%%
+%% Read once and remembered, because a fact goes out twice a second and this must
+%% not become a file read per publish.
+-spec island_id() -> binary().
+island_id() -> remembered(persistent_term:get({?MODULE, island_id}, undefined)).
+
+remembered(undefined) ->
+    Id = minted_or_read(),
+    persistent_term:put({?MODULE, island_id}, Id),
+    Id;
+remembered(Id) ->
+    Id.
+
+minted_or_read() ->
+    Path = filename:join(hecate_biotope_service:data_dir(), "island.id"),
+    kept(file:read_file(Path), Path).
+
+%% A file that exists and holds nothing usable is treated as absent rather than
+%% trusted. A write torn by a crash would otherwise give this island a blank
+%% identity for ever, which is the collision it exists to prevent.
+kept({ok, Raw}, Path) -> usable(string:trim(Raw), Path);
+kept({error, _Absent}, Path) -> mint(Path).
+
+usable(<<Id:32/binary>>, _Path) -> Id;
+usable(_Unusable, Path) -> mint(Path).
+
+mint(Path) ->
+    Id = binary:encode_hex(crypto:strong_rand_bytes(16), lowercase),
+    ok = filelib:ensure_dir(Path),
+    ok = file:write_file(Path, Id),
+    Id.
 
 %% @doc Rename this island, until it restarts.
 %%
@@ -163,6 +239,11 @@ world_advanced(Snapshot, Pace, Run, PreviousEnd, Rejected, Station) ->
     Fact = #{type => world_advanced,
       fact_version => ?FACT_VERSION,
       island => island(),
+      %% ⚠ THE NAME IS A LABEL AND THIS IS THE IDENTITY. A reader files facts
+      %% under the id, never the name, or two islands sharing a nickname
+      %% overwrite one another and the map shows one place flickering between
+      %% two worlds.
+      island_id => island_id(),
       %% WHETHER THIS ISLAND WOULD TAKE A MIGRANT, on every fact rather than in a
       %% separate `island_opened' event. An island that announces itself open and
       %% then crashes leaves a record saying open for ever; a flag arriving every
@@ -442,6 +523,11 @@ world_charted(Chart, Pace) ->
     #{type => world_charted,
       fact_version => ?FACT_VERSION,
       island => island(),
+      %% ⚠ THE NAME IS A LABEL AND THIS IS THE IDENTITY. A reader files facts
+      %% under the id, never the name, or two islands sharing a nickname
+      %% overwrite one another and the map shows one place flickering between
+      %% two worlds.
+      island_id => island_id(),
       %% WHETHER THIS ISLAND WOULD TAKE A MIGRANT, on every fact rather than in a
       %% separate `island_opened' event. An island that announces itself open and
       %% then crashes leaves a record saying open for ever; a flag arriving every
@@ -589,6 +675,11 @@ world_narrated(Text, Model, Brief) ->
     #{type => world_narrated,
       fact_version => ?FACT_VERSION,
       island => island(),
+      %% ⚠ THE NAME IS A LABEL AND THIS IS THE IDENTITY. A reader files facts
+      %% under the id, never the name, or two islands sharing a nickname
+      %% overwrite one another and the map shows one place flickering between
+      %% two worlds.
+      island_id => island_id(),
       tick => maps:get(tick, Brief, 0),
       said_by => Model,
       text => Text,

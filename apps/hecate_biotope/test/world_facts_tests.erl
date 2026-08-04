@@ -115,6 +115,11 @@ carries_totals_rather_than_rates_test() ->
 %% eighteen worlds read its 1 as a monoculture. Measured, a world reading one
 %% lineage routinely carries five to twenty-seven body plans at once.
 %%
+%% Version 20 put `island_id' on every fact. `island' is a LABEL: an environment
+%% variable, falling back to the hostname, changeable at runtime from the
+%% island's own web form. Two islands can carry the same one, by accident or on
+%% purpose, and then a reader filing facts under it merges two different worlds
+%% into one flickering place.
 %% Version 19 put `parched' on the counts fact: death by drying out, which world
 %% 23 was built to cause and counted separately from the beginning so that "the
 %% world got harsher" and "the world got thirsty" could be told apart. It reached
@@ -132,7 +137,7 @@ carries_totals_rather_than_rates_test() ->
 reports_its_own_version_test() ->
     #{type := Type, fact_version := V} = fact(),
     ?assertEqual(world_advanced, Type),
-    ?assertEqual(19, V).
+    ?assertEqual(20, V).
 
 %% ⚠ THE SAME GUARD AS THE CHART'S, FOR THE COUNTS FACT.
 %%
@@ -399,3 +404,31 @@ the_chart_carries_everything_the_picture_needs_test() ->
                           ?assertEqual({K, Creatures}, {K, length(maps:get(K, F))})
                   end,
                   [ids, energies, structures, signatures, uptakes]).
+
+%% ⚠ AN ISLAND'S NAME IS NOT ITS IDENTITY, AND BOTH TRAVEL.
+%%
+%% Nobody types the identity, so two islands cannot collide by accident however
+%% they are named. The name still travels because a person has to be able to
+%% read the map, and a 32-character digest is not a name.
+every_fact_carries_an_identity_as_well_as_a_name_test() ->
+    lists:foreach(fun(F) ->
+                          #{island := Name, island_id := Id} = F,
+                          ?assert(byte_size(Name) > 0),
+                          %% 128 bits, hex.
+                          ?assertEqual(32, byte_size(Id)),
+                          ?assertMatch({match, _}, re:run(Id, "^[0-9a-f]{32}$"))
+                  end, [fact(), chart()]).
+
+%% AND IT IS THE SAME ISLAND EVERY TIME IT IS ASKED. An identity that changed
+%% between two facts would make one island look like a stream of new ones, which
+%% is exactly what keying on the mesh pool's key would have done: `hecate_om'
+%% only loads a stable keypair when `identity_key_path' is set, and the biotope
+%% does not set it.
+the_identity_does_not_change_between_facts_test() ->
+    #{island_id := First} = fact(),
+    #{island_id := Again} = fact(),
+    #{island_id := OnTheChart} = chart(),
+    ?assertEqual(First, Again),
+    ?assertEqual(First, OnTheChart),
+    ?assertEqual(First, world_facts:island_id()).
+
