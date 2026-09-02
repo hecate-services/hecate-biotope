@@ -34,14 +34,15 @@
 
 %% Both providers speak the OpenAI chat shape, so the default fits either and
 %% the URL is the only thing that has to change.
--define(DEFAULT_URL, "https://api.melious.ai/v1/chat/completions").
+%% NVIDIA's free endpoint is the fleet's LLM backend (2026-09-02); melious is out on cost.
+-define(DEFAULT_URL, "https://integrate.api.nvidia.com/v1/chat/completions").
 %% ⚠ A MODEL NAME THAT WAS VERIFIED TO EXIST, which the first one was not. The
 %% default was `mistral-small-latest' and Melious answers that with a 404 and
 %% `model_not_found', which this module turns into `silent' exactly as it does an
 %% expired key or an unreachable host. **An island shipped with a default that
 %% could only ever be quiet**, and quiet is indistinguishable from working here
 %% by design.
--define(DEFAULT_MODEL, "mistral-small-3.2-24b-instruct").
+-define(DEFAULT_MODEL, "moonshotai/kimi-k3").
 %% ⚠ GENEROUS, BECAUSE A LOCAL MODEL IS NOT A CLOUD MODEL. A 7B running on a
 %% machine in the same room takes about twenty seconds for this many tokens
 %% where a hosted 70B takes two. The first attempt at pointing this at Ollama
