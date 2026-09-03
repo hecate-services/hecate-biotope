@@ -8,6 +8,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- A second model for the narrator (`HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY`,
+  `_FALLBACK_URL`, `_FALLBACK_MODEL`, defaults DeepSeek / `deepseek-chat`).
+  When the island's own model does not answer, the same prompt goes to the
+  second one, and the hand-over is logged; an island holding only the
+  second key narrates on it alone. NVIDIA's free endpoint answered 429 to
+  everything for a day (2026-09-02/03) and an island with one backend was
+  silent for that day, indistinguishable from working by this module's own
+  design.
 
 - The scaffold: an OTP release that boots on `hecate_om`, joins the mesh, and
   answers `/health` on port 8483. It holds no world.

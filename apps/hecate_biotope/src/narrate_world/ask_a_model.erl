@@ -30,7 +30,7 @@
 %% returns `silent' rather than raising.
 -module(ask_a_model).
 
--export([configured/0, describe/2]).
+-export([configured/0, describe/2, backends/0]).
 
 %% Both providers speak the OpenAI chat shape, so the default fits either and
 %% the URL is the only thing that has to change.
@@ -43,6 +43,12 @@
 %% could only ever be quiet**, and quiet is indistinguishable from working here
 %% by design.
 -define(DEFAULT_MODEL, "moonshotai/kimi-k3").
+%% THE SECOND MODEL, for the day the first one answers nothing. NVIDIA's free
+%% endpoint answered 429 to everything for a day (2026-09-02/03), and an island
+%% with one backend was quiet for that day, which by this module's own design
+%% looks exactly like working. DeepSeek is the fleet's paid fallback.
+-define(FALLBACK_URL, "https://api.deepseek.com/v1/chat/completions").
+-define(FALLBACK_MODEL, "deepseek-chat").
 %% ⚠ GENEROUS, BECAUSE A LOCAL MODEL IS NOT A CLOUD MODEL. A 7B running on a
 %% machine in the same room takes about twenty seconds for this many tokens
 %% where a hosted 70B takes two. The first attempt at pointing this at Ollama
@@ -125,22 +131,54 @@
           "described as barren or starving may simply be newborn. "
           "Read every figure off the list; do not recite these definitions.">>).
 
+-type backend() :: #{name := binary(), url := string(), model := string(),
+                     key := string() | false}.
+
 %% @doc Whether an island has been given what it needs to narrate.
 -spec configured() -> boolean().
-configured() -> key() =/= false.
+configured() -> backends() =/= [].
+
+%% @doc The models this island may ask, first choice first: every backend
+%% that holds a key. An island holding only the second one's key narrates on
+%% it alone, and an island holding neither starts no narrator.
+-spec backends() -> [backend()].
+backends() ->
+    [B || #{key := Key} = B <- [narrator(), fallback()], Key =/= false].
+
+narrator() ->
+    #{name  => <<"narrator">>,
+      url   => env("HECATE_BIOTOPE_NARRATOR_URL", ?DEFAULT_URL),
+      model => env("HECATE_BIOTOPE_NARRATOR_MODEL", ?DEFAULT_MODEL),
+      key   => key("HECATE_BIOTOPE_NARRATOR_KEY_FILE", "HECATE_BIOTOPE_NARRATOR_KEY")}.
+
+fallback() ->
+    #{name  => <<"fallback">>,
+      url   => env("HECATE_BIOTOPE_NARRATOR_FALLBACK_URL", ?FALLBACK_URL),
+      model => env("HECATE_BIOTOPE_NARRATOR_FALLBACK_MODEL", ?FALLBACK_MODEL),
+      key   => key("HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY_FILE",
+                   "HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY")}.
 
 %% @doc Two or three sentences about this brief, or `silent'.
 -spec describe(map(), binary()) -> {ok, binary(), binary()} | silent.
 describe(Brief, Island) ->
-    speak(key(), Brief, Island).
+    speak(backends(), prompt(Brief, Island)).
 
-speak(false, _Brief, _Island) -> silent;
-speak(Key, Brief, Island) ->
-    Model = env("HECATE_BIOTOPE_NARRATOR_MODEL", ?DEFAULT_MODEL),
-    sent(post(Key, Model, prompt(Brief, Island)), list_to_binary(Model)).
+%% ⚠ SILENCE FROM ONE MODEL IS NOT SILENCE FROM THE ISLAND. When a backend has
+%% nothing to say the next one is asked the same thing, and only when none
+%% answers is the island silent. The hand-over is logged, because a fallback
+%% that is always taken is a primary that is always down, and that is worth a
+%% line even here.
+speak([], _Prompt) -> silent;
+speak([Backend | Rest], Prompt) ->
+    heard(post(Backend, Prompt), Backend, Rest, Prompt).
 
-sent({ok, Text}, Model) -> {ok, Text, Model};
-sent(silent, _Model) -> silent.
+heard({ok, Text}, #{model := Model}, _Rest, _Prompt) ->
+    {ok, Text, list_to_binary(Model)};
+heard(silent, _Backend, [], _Prompt) ->
+    silent;
+heard(silent, #{name := Name}, [#{name := Next} | _] = Rest, Prompt) ->
+    logger:info("biotope: the ~s model did not answer; asking the ~s one", [Name, Next]),
+    speak(Rest, Prompt).
 
 %% ⚠ THE ISLAND'S NAME IS THE ONLY THING HERE AN OUTSIDER CHOSE, and it is
 %% carried as a plain label rather than woven into the instruction, then cut to
@@ -153,7 +191,7 @@ prompt(Brief, Island) ->
 %% ==========================================================================
 %% The wire
 %% ==========================================================================
-post(Key, Model, Prompt) ->
+post(#{url := Url, model := Model, key := Key}, Prompt) ->
     %% ⚠ A BINARY, NOT AN IOLIST. `httpc:request/4' takes `string() | binary()'
     %% for a body and returns `{error, _}' for anything else, which this module
     %% turns into `silent' like every other failure. So the first live call
@@ -162,7 +200,6 @@ post(Key, Model, Prompt) ->
     %% possible behaviour for a bug**, which is why the escript that exercises
     %% this prints the reason.
     Body = iolist_to_binary(body(Model, Prompt)),
-    Url = env("HECATE_BIOTOPE_NARRATOR_URL", ?DEFAULT_URL),
     Headers = [{"authorization", "Bearer " ++ Key}],
     answered(httpc:request(post,
                            {Url, Headers, "application/json", Body},
@@ -223,11 +260,11 @@ unescape(B) ->
 %% is in the process table and in every crash dump; a key in a file the container
 %% mounts is read once and stays where it was put. Both are accepted because a
 %% variable is what most people will reach for, and neither is ever logged.
-key() ->
-    from_file(os:getenv("HECATE_BIOTOPE_NARRATOR_KEY_FILE")).
+key(FileVar, EnvVar) ->
+    from_file(os:getenv(FileVar), EnvVar).
 
-from_file(false) -> from_env(os:getenv("HECATE_BIOTOPE_NARRATOR_KEY"));
-from_file(Path) -> read(file:read_file(Path)).
+from_file(false, EnvVar) -> from_env(os:getenv(EnvVar));
+from_file(Path, _EnvVar) -> read(file:read_file(Path)).
 
 from_env(false) -> false;
 from_env("") -> false;

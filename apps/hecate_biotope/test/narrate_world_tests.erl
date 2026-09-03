@@ -162,18 +162,47 @@ a_remark_obeys_the_wire_rules_test() ->
 %% that made an API key REQUIRED would break that, so an island without one runs
 %% identically and starts no narrator at all.
 an_island_with_no_model_starts_no_narrator_test() ->
-    Was = os:getenv("HECATE_BIOTOPE_NARRATOR_KEY"),
-    os:unsetenv("HECATE_BIOTOPE_NARRATOR_KEY"),
-    os:unsetenv("HECATE_BIOTOPE_NARRATOR_KEY_FILE"),
-    try
+    with_narrator_keys([], fun() ->
         ?assertNot(ask_a_model:configured()),
+        ?assertEqual([], ask_a_model:backends()),
         ?assertEqual([], narrator:child_specs()),
         %% And asking anyway is silence rather than a crash.
         ?assertEqual(silent, ask_a_model:describe(#{tick => 1}, <<"an-island">>))
-    after restore("HECATE_BIOTOPE_NARRATOR_KEY", Was)
+    end).
+
+%% A SECOND MODEL, FOR THE DAY THE FIRST ONE ANSWERS NOTHING. NVIDIA's free
+%% endpoint answered 429 to everything for a day (2026-09-02/03) and an island
+%% with one backend was quiet for that day, indistinguishable from working. An
+%% island holding only the second key narrates on it alone, and one holding
+%% both asks its own model first.
+an_island_with_only_the_second_key_still_narrates_test() ->
+    with_narrator_keys([{"HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY", "k2"}], fun() ->
+        ?assert(ask_a_model:configured()),
+        ?assertMatch([#{name := <<"fallback">>, model := "deepseek-chat"}],
+                     ask_a_model:backends())
+    end).
+
+an_island_asks_its_own_model_before_the_second_test() ->
+    with_narrator_keys([{"HECATE_BIOTOPE_NARRATOR_KEY", "k1"},
+                        {"HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY", "k2"}], fun() ->
+        ?assertMatch([#{name := <<"narrator">>, model := "moonshotai/kimi-k3"},
+                      #{name := <<"fallback">>, model := "deepseek-chat"}],
+                     ask_a_model:backends())
+    end).
+
+-define(NARRATOR_KEY_VARS, ["HECATE_BIOTOPE_NARRATOR_KEY", "HECATE_BIOTOPE_NARRATOR_KEY_FILE",
+                            "HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY",
+                            "HECATE_BIOTOPE_NARRATOR_FALLBACK_KEY_FILE"]).
+
+with_narrator_keys(Set, Fun) ->
+    Was = [{Name, os:getenv(Name)} || Name <- ?NARRATOR_KEY_VARS],
+    lists:foreach(fun os:unsetenv/1, ?NARRATOR_KEY_VARS),
+    lists:foreach(fun({Name, Value}) -> os:putenv(Name, Value) end, Set),
+    try Fun()
+    after lists:foreach(fun({Name, Value}) -> restore(Name, Value) end, Was)
     end.
 
-restore(_Name, false) -> ok;
+restore(Name, false) -> os:unsetenv(Name);
 restore(Name, Value) -> os:putenv(Name, Value).
 
 %%==============================================================================
