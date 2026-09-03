@@ -20,5 +20,22 @@ jobs:
       image: erlang:28
     steps:
       - uses: actions/checkout@v4
-      - run: rebar3 lint
-      - run: rebar3 eunit
+      # `rebar3 lint` and `rebar3 eunit` both fetch and compile the whole
+      # dependency tree before running anything of ours, and that tree reaches
+      # rocksdb (via reckon_db) and quic, whose build hooks shell out to cmake.
+      # This job was red from 2026-09-02 with `./do_cmake.sh: cmake: not found`;
+      # nothing in this repo caused it. Same steps hecate-news carries.
+      - name: Native build tools for the dependency tree
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends cmake build-essential curl
+      # macula_cbor_nif's build hook refuses to skip itself without Rust.
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Elvis lint
+        run: rebar3 lint
+      - name: EUnit
+        run: rebar3 eunit

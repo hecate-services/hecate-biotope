@@ -28,7 +28,12 @@ WORKDIR /build
 # than fetch a prebuilt binary linked against a different libc, which is the
 # recorded glibc trap: the fetched artifact loads on the build host and fails on
 # alpine at runtime.
-RUN apk add --no-cache git curl bash build-base cmake perl linux-headers
+# openssl-dev + the codec -dev packages: reckon_db pulls rocksdb, whose NIF
+# builds from source with CMake and stopped configuring without them ("Could
+# NOT find OpenSSL"). This image build was red from 2026-09-02 for that
+# reason. Same list the sibling services' Containerfiles carry.
+RUN apk add --no-cache git curl bash build-base cmake perl linux-headers \
+        openssl-dev zstd-dev snappy-dev lz4-dev
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
         | sh -s -- -y --default-toolchain stable --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
@@ -53,7 +58,8 @@ FROM docker.io/alpine:3.22
 # sibling here shipped private by accident and the deploy failed on the node
 # with a bare "unauthorized" from the pull, which names nothing.
 LABEL org.opencontainers.image.source="https://github.com/hecate-services/hecate-biotope"
-RUN apk add --no-cache ncurses-libs libstdc++ libgcc openssl ca-certificates curl
+RUN apk add --no-cache ncurses-libs libstdc++ libgcc openssl ca-certificates curl \
+        zstd-libs snappy lz4-libs
 WORKDIR /app
 COPY --from=builder /build/_build/prod/rel/hecate_biotope ./
 
